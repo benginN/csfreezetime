@@ -1,0 +1,28 @@
+[package]
+name = "parser-worker"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+# demoparser2 çekirdeği (mimari.md §4.2) — API'si yayınlanmadığı için commit'e pinli
+parser = { git = "https://github.com/LaihoE/demoparser", rev = "e8c1ad452ced4d5938219ac9a5ee6300ee1ea37c" }
+ahash = "0.8"
+
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "fs"] }
+futures = "0.3"
+async-nats = "0.38"
+
+aws-config = { version = "1", features = ["behavior-version-latest"] }
+aws-sdk-s3 = "1"
+
+clickhouse = { version = "0.13", features = ["uuid"] }
+
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+uuid = { version = "1", features = ["v4", "v5", "serde"] }
+anyhow = "1"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+[profile.release]
+lto = "thin"
