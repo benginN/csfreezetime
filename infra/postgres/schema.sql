@@ -1,0 +1,155 @@
+-- mimari.md §5.2 — PostgreSQL çekirdek şeması (Faz 1 kapsamı).
+-- Kapsam dışı: CREATE EXTENSION vector + round_narratives (Faz 3 / NLP;
+-- postgres:16 imajında pgvector yok, o fazda pgvector/pgvector imajına geçilir).
+-- RLS politikaları multi-tenant açılmadan önce eklenecek (yerel tek-org kurulum).
+
+-- Kimlik ve organizasyon ─────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS orgs (                       -- multi-tenancy kökü
+    org_id      UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name        TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS teams (
+    team_id     UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name        TEXT NOT NULL,
+    tag         TEXT,
+    region      TEXT
+);
+
+CREATE TABLE IF NOT EXISTS players (
+    player_id       UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    steam_id64      BIGINT UNIQUE NOT NULL,
+    nickname        TEXT NOT NULL,
+    current_team_id UUID REFERENCES teams(team_id),
+    role            TEXT CHECK (role IN ('igl','awp','entry','support','lurker','flex'))
+);
+
+-- Harita kalibrasyonu ve bölgeler ────────────────────────────────────
+CREATE TABLE IF NOT EXISTS maps (
+    map_name        TEXT PRIMARY KEY,      -- 'de_vertigo'
+    radar_pos_x     REAL NOT NULL,
+    radar_pos_y     REAL NOT NULL,
+    radar_scale     REAL NOT NULL,
+    has_lower_level BOOLEAN DEFAULT FALSE,
+    level_split_z   REAL
+);
+
+CREATE TABLE IF NOT EXISTS map_areas (
+    area_id     SERIAL PRIMARY KEY,
+    map_name    TEXT REFERENCES maps(map_name),
+    place_name  TEXT NOT NULL,             -- nav-mesh adı: 'RampA'
+    aliases     TEXT[] NOT NULL,           -- {'A ramp','A rampası','ramp'}
+    polygon     JSONB NOT NULL             -- [[x,y], ...] dünya koordinatı
+);
+
+-- Maç ve raunt ───────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS matches (
+    match_id        UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    org_id          UUID NOT NULL REFERENCES orgs(org_id),   -- RLS anahtarı
+    demo_sha256     TEXT UNIQUE NOT NULL,
+    demo_object_key TEXT NOT NULL,         -- S3 yolu
+    source          TEXT,                  -- 'scrim' | 'official' | 'faceit'
+    event_name      TEXT,
+    map_name        TEXT REFERENCES maps(map_name),
+    team_a_id       UUID REFERENCES teams(team_id),
+    team_b_id       UUID REFERENCES teams(team_id),
+    score_a         SMALLINT, score_b SMALLINT,
+    tick_rate       SMALLINT DEFAULT 64,
+    played_at       TIMESTAMPTZ,
+    parser_version  TEXT NOT NULL,
+    status          TEXT NOT NULL DEFAULT 'queued'
+                    CHECK (status IN ('queued','parsing','enriching','ready','failed'))
+);
+
+CREATE TABLE IF NOT EXISTS rounds (
+    match_id        UUID REFERENCES matches(match_id) ON DELETE CASCADE,
+    round_number    SMALLINT NOT NULL,
+    start_tick      INT, freeze_end_tick INT, end_tick INT,
+    winner_side     TEXT CHECK (winner_side IN ('T','CT')),
+    end_reason      TEXT,                  -- bomb_exploded|defused|elimination|time
+    bomb_plant_tick INT,
+    bomb_site       TEXT,                  -- 'A' | 'B'
+    t_team_id       UUID REFERENCES teams(team_id),  -- side swap çözümü
+    ct_team_id      UUID REFERENCES teams(team_id),
+    t_equip_value   INT, ct_equip_value INT,
+    t_buy_type      TEXT CHECK (t_buy_type IN ('pistol','eco','semi','force','full')),
+    ct_buy_type     TEXT CHECK (ct_buy_type IN ('pistol','eco','semi','force','full')),
+    t_strategy_cluster  SMALLINT,          -- ML atar (§6.2), NULL = henüz yok
+    ct_strategy_cluster SMALLINT,
+    PRIMARY KEY (match_id, round_number)
+);
+
+-- Oyuncu-raunt köprüsü: ekonomi + raunt içi özet ─────────────────────
+CREATE TABLE IF NOT EXISTS player_round_states (
+    match_id     UUID,
+    round_number SMALLINT,
+    player_id    UUID REFERENCES players(player_id),
+    side         TEXT CHECK (side IN ('T','CT')),
+    money_start  INT, money_spent INT, equip_value INT,
+    survived     BOOLEAN,
+    kills SMALLINT, deaths SMALLINT, assists SMALLINT,
+    damage_dealt SMALLINT, flash_assists SMALLINT,
+    PRIMARY KEY (match_id, round_number, player_id),
+    FOREIGN KEY (match_id, round_number)
+        REFERENCES rounds(match_id, round_number) ON DELETE CASCADE
+);
+
+-- Düşük hacimli olaylar ──────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS kills (
+    kill_id       BIGSERIAL PRIMARY KEY,
+    match_id      UUID, round_number SMALLINT,
+    tick          INT, round_time REAL,     -- freeze sonrası saniye
+    attacker_id   UUID, victim_id UUID, assister_id UUID,
+    weapon        TEXT,
+    headshot BOOLEAN, wallbang BOOLEAN, noscope BOOLEAN,
+    through_smoke BOOLEAN, attacker_blind BOOLEAN, victim_blind BOOLEAN,
+    attacker_x REAL, attacker_y REAL, attacker_z REAL,
+    victim_x   REAL, victim_y   REAL, victim_z   REAL,
+    attacker_place TEXT, victim_place TEXT,
+    is_first_kill BOOLEAN,                  -- rauntun açılış kill'i
+    is_trade      BOOLEAN,                  -- enrichment hesaplar
+    trade_time_ms INT,                      -- takım arkadaşı ölümünden bu kill'e
+    FOREIGN KEY (match_id, round_number)
+        REFERENCES rounds(match_id, round_number) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS kills_match_round_idx ON kills (match_id, round_number);
+CREATE INDEX IF NOT EXISTS kills_attacker_idx ON kills (attacker_id);
+CREATE INDEX IF NOT EXISTS kills_victim_idx ON kills (victim_id);
+
+CREATE TABLE IF NOT EXISTS grenades (
+    grenade_id    BIGSERIAL PRIMARY KEY,
+    match_id      UUID, round_number SMALLINT,
+    thrower_id    UUID, side TEXT,
+    type          TEXT CHECK (type IN ('flash','smoke','he','molotov','incendiary','decoy')),
+    throw_tick INT, detonate_tick INT, round_time_throw REAL,
+    throw_x REAL, throw_y REAL, throw_z REAL,
+    det_x   REAL, det_y   REAL, det_z   REAL,
+    det_place TEXT,
+    is_first_of_type_in_round BOOLEAN,      -- "ilk flash" sorguları için ön-hesap
+    enemies_flashed SMALLINT, teammates_flashed SMALLINT,
+    total_enemy_blind_time REAL,
+    damage_dealt SMALLINT,
+    FOREIGN KEY (match_id, round_number)
+        REFERENCES rounds(match_id, round_number) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS grenades_match_round_idx ON grenades (match_id, round_number);
+CREATE INDEX IF NOT EXISTS grenades_type_place_idx ON grenades (type, det_place);
+
+-- Seed ───────────────────────────────────────────────────────────────
+-- Faz 1 tek-org yerel kurulum; sabit UUID, worker'lar env'den değil buradan bilir.
+INSERT INTO orgs (org_id, name)
+VALUES ('00000000-0000-0000-0000-000000000001', 'default')
+ON CONFLICT (org_id) DO NOTHING;
+
+-- Aktif harita havuzu; radar kalibrasyonu placeholder (gerçek meta Faz 2, §4.5).
+INSERT INTO maps (map_name, radar_pos_x, radar_pos_y, radar_scale, has_lower_level, level_split_z) VALUES
+    ('de_ancient',  0, 0, 1, FALSE, NULL),
+    ('de_anubis',   0, 0, 1, FALSE, NULL),
+    ('de_dust2',    0, 0, 1, FALSE, NULL),
+    ('de_inferno',  0, 0, 1, FALSE, NULL),
+    ('de_mirage',   0, 0, 1, FALSE, NULL),
+    ('de_nuke',     0, 0, 1, TRUE,  -480),
+    ('de_overpass', 0, 0, 1, FALSE, NULL),
+    ('de_train',    0, 0, 1, FALSE, NULL),
+    ('de_vertigo',  0, 0, 1, TRUE,  11700)
+ON CONFLICT (map_name) DO NOTHING;

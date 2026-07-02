@@ -22,6 +22,7 @@ node_modules/
 vendor/
 __pycache__/
 *.egg-info/
+.venv/
 
 # Build outputs
 dist/
