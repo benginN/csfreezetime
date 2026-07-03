@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { api, type RoundRow, type StackResp } from '../api';
-import { drawMapBase, loadMapBase, RADAR, type MapBase } from '../lib/mapbase';
+import { drawMapBase, hidpiCtx, loadMapBase, RADAR, type MapBase } from '../lib/mapbase';
 
 const HW = 720;
 const LAYER_HUES = [30, 200, 120, 280, 0, 60, 170, 320, 90, 240];
@@ -51,7 +51,7 @@ export default function StackView({
   useEffect(() => {
     const cv = cvRef.current;
     if (!cv || !data || !base) return;
-    const ctx = cv.getContext('2d')!;
+    const ctx = hidpiCtx(cv, HW);
     drawMapBase(ctx, HW, base, true);
     data.layers.forEach((ly, li) => {
       if (ly.skipped || !ly.players || !visible.has(ly.round_number)) return;

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Application, Container, Graphics, Sprite, Text, Texture } from 'pixi.js';
 import { api, type KillRow } from '../api';
-import { loadMapBase, renderMapBaseCanvas, RADAR, SIDE_COLOR, type MapBase } from '../lib/mapbase';
+import { DPR, loadMapBase, renderMapBaseCanvas, RADAR, SIDE_COLOR, type MapBase } from '../lib/mapbase';
 
 const W = 860;
 const NADE_LIFE: Record<string, number> = { smoke: 20, molotov: 7, incendiary: 7, flash: 0.7, he: 0.7, decoy: 15 };
@@ -73,7 +73,11 @@ export default function ReplayView({
     const el = stageRef.current;
 
     (async () => {
-      await app.init({ width: W, height: W, background: 0x0b0e0c, antialias: true });
+      // resolution + autoDensity: Retina'da metin/çizgiler net (fiziksel 2×)
+      await app.init({
+        width: W, height: W, background: 0x0b0e0c, antialias: true,
+        resolution: DPR, autoDensity: true,
+      });
       if (destroyed) { app.destroy(true); return; }
       el.innerHTML = '';
       el.appendChild(app.canvas);
@@ -82,7 +86,9 @@ export default function ReplayView({
       const px = (v: number) => (v * W) / RADAR;
       const worldPx = (u: number) => px(u / d.radar.scale);
 
-      const baseSprite = new Sprite(Texture.from(renderMapBaseCanvas(base, W, labels, 'upper')));
+      // arka plan tuvali fiziksel çözünürlükte üretilir, sprite CSS boyutuna oturur
+      const baseSprite = new Sprite(Texture.from(renderMapBaseCanvas(base, W * DPR, labels, 'upper')));
+      baseSprite.setSize(W, W);
       // Çok katlı haritada alt kat: sağ üstte sabit mini harita (turnuva stili)
       const hasLower = d.radar.has_lower;
       const INS = Math.round(W * 0.38);         // inset boyutu
@@ -93,7 +99,8 @@ export default function ReplayView({
       const feedLayer = new Container(); // canvas içi killfeed (gri)
       app.stage.addChild(baseSprite);
       if (hasLower) {
-        const insetSprite = new Sprite(Texture.from(renderMapBaseCanvas(base, INS, false, 'lower')));
+        const insetSprite = new Sprite(Texture.from(renderMapBaseCanvas(base, INS * DPR, false, 'lower')));
+        insetSprite.setSize(INS, INS);
         insetSprite.position.set(IX, IY);
         const border = new Graphics()
           .rect(IX - 1, IY - 1, INS + 2, INS + 2)

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { api, type HeatmapResp } from '../api';
-import { drawMapBase, loadMapBase, RADAR, type MapBase } from '../lib/mapbase';
+import { drawMapBase, hidpiCtx, loadMapBase, RADAR, type MapBase } from '../lib/mapbase';
 
 const HW = 720;
 
@@ -28,7 +28,7 @@ export default function HeatView({ matchId, mapName }: { matchId: string; mapNam
   useEffect(() => {
     const cv = cvRef.current;
     if (!cv || !data || !base) return;
-    const ctx = cv.getContext('2d')!;
+    const ctx = hidpiCtx(cv, HW);
     drawMapBase(ctx, HW, base, true);
     if (!data.radar) return;
     const lo = Math.min(t0, t1), hi = Math.max(t0, t1);

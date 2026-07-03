@@ -77,18 +77,35 @@ export function drawMapBase(
     }
   }
   if (showLabels) {
-    ctx.font = '10px system-ui';
+    // yazı boyutu tuval çözünürlüğüyle ölçeklenir (yüksek DPI'da net)
+    const fs = Math.max(10, Math.round(w / 72));
+    ctx.font = `${fs}px system-ui`;
     ctx.textAlign = 'center';
     for (const p of base.layout.places) {
       const x = (p.rx * w) / RADAR;
       const y = (p.ry * w) / RADAR;
+      const half = (p.name.length * fs * 0.29) + fs * 0.3;
       ctx.fillStyle = 'rgba(0,0,0,0.55)';
-      ctx.fillRect(x - p.name.length * 2.8 - 3, y - 8, p.name.length * 5.6 + 6, 11);
-      ctx.fillStyle = 'rgba(200,215,205,0.85)';
+      ctx.fillRect(x - half, y - fs * 0.8, half * 2, fs * 1.1);
+      ctx.fillStyle = 'rgba(200,215,205,0.9)';
       ctx.fillText(p.name, x, y);
     }
     ctx.textAlign = 'left';
   }
+}
+
+/** Ekran DPI'sı (2 ile sınırlı — 4K'da bellek şişmesin). */
+export const DPR = Math.min(window.devicePixelRatio || 1, 2);
+
+/** 2D canvas'ı yüksek DPI'ya kurar: fiziksel piksel = css × DPR. */
+export function hidpiCtx(cv: HTMLCanvasElement, cssSize: number): CanvasRenderingContext2D {
+  cv.width = cssSize * DPR;
+  cv.height = cssSize * DPR;
+  cv.style.width = `${cssSize}px`;
+  cv.style.height = `${cssSize}px`;
+  const ctx = cv.getContext('2d')!;
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  return ctx;
 }
 
 /** PixiJS için: harita arka planını offscreen canvas olarak üretir. */
