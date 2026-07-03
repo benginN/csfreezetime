@@ -39,20 +39,23 @@ export default function MatchPage() {
     setParams(p, { replace: true });
   };
 
+  const header = (
+    <div className="matchhead">
+      {d.team_a_id
+        ? <Link to={`/report/${d.team_a_id}?map=${d.map_name ?? ''}`} title="Opponent report">{d.team_a}</Link>
+        : (d.team_a ?? 'Team A')}{' '}
+      <span style={{ color: '#b6e2b6' }}>{scoreA} : {scoreB}</span>{' '}
+      {d.team_b_id
+        ? <Link to={`/report/${d.team_b_id}?map=${d.map_name ?? ''}`} title="Opponent report">{d.team_b}</Link>
+        : (d.team_b ?? 'Team B')}
+      <div className="meta">{d.map_name}{summary.data?.played_at ? ` · ${summary.data.played_at}` : ''}</div>
+    </div>
+  );
+
   return (
     <>
-      <h1 style={{ marginBottom: 0 }}>
-        {d.team_a_id
-          ? <Link to={`/report/${d.team_a_id}?map=${d.map_name ?? ''}`} title="Opponent report">{d.team_a}</Link>
-          : (d.team_a ?? 'Team A')}{' '}
-        <span style={{ color: '#b6e2b6' }}>{scoreA} : {scoreB}</span>{' '}
-        {d.team_b_id
-          ? <Link to={`/report/${d.team_b_id}?map=${d.map_name ?? ''}`} title="Opponent report">{d.team_b}</Link>
-          : (d.team_b ?? 'Team B')}{' '}
-        <span className="meta">{d.map_name}{summary.data?.played_at ? ` · ${summary.data.played_at}` : ''}</span>
-      </h1>
-
       <ReplayView
+        header={header}
         key={`${id}-${round}`}
         matchId={id}
         round={round}

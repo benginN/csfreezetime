@@ -53,7 +53,7 @@ function shortInv(inv: string[] | null): string {
 }
 
 export default function ReplayView({
-  matchId, round, onRound, seekTick, matchKills, rounds, teams,
+  matchId, round, onRound, seekTick, matchKills, rounds, teams, header,
 }: {
   matchId: string;
   round: number;
@@ -62,6 +62,7 @@ export default function ReplayView({
   matchKills: KillRow[];
   rounds: RoundRow[];
   teams: { aId: string | null; a: string | null; b: string | null };
+  header?: React.ReactNode;
 }) {
   const ticksQ = useQuery({
     queryKey: ['ticks', matchId, round],
@@ -92,6 +93,10 @@ export default function ReplayView({
   const [ghostPlayer, setGhostPlayer] = useState(''); // '' = tüm oyuncular
   const ghostPlayerRef = useRef('');
   ghostPlayerRef.current = ghostPlayer;
+  // haritada tıklanan oyuncu: zaman çubuğu onun olaylarını gösterir
+  const [selPlayer, setSelPlayer] = useState('');
+  const selPlayerRef = useRef('');
+  selPlayerRef.current = selPlayer;
   // hayaletlerin KENDİ saati (replay saatinden bağımsız oynar)
   const [ghostPlaying, setGhostPlaying] = useState(false);
   const [ghostSpeed, setGhostSpeed] = useState(2);
@@ -302,6 +307,12 @@ export default function ReplayView({
       type PlayerNode = { g: Graphics; name: Text };
       const nodes: PlayerNode[] = d.players.map((p) => {
         const g = new Graphics();
+        // tıklanabilir: zaman çubuğu bu oyuncunun olaylarına odaklanır
+        g.eventMode = 'static';
+        g.cursor = 'pointer';
+        g.on('pointertap', () => {
+          setSelPlayer((cur) => (cur === p.nickname ? '' : p.nickname));
+        });
         const name = new Text({
           text: p.nickname,
           style: { fontSize: 11, fill: 0xcfd8d0, fontFamily: 'system-ui' },
@@ -521,6 +532,11 @@ export default function ReplayView({
             g.circle(x, y, 12 * Math.max(s, 0.7))
              .stroke({ width: 3, color: 0xffffff, alpha: Math.min(0.9, fl / 3) });
           }
+          // seçili oyuncu vurgusu (zaman çubuğu onu takip ediyor)
+          if (p.nickname === selPlayerRef.current) {
+            g.circle(x, y, 14 * Math.max(s, 0.7))
+             .stroke({ width: 1.5, color: 0xffffff, alpha: 0.9 });
+          }
           node.name.position.set(x + 10 * Math.max(s, 0.72), y - 5 * Math.max(s, 0.72));
         });
 
@@ -610,6 +626,33 @@ export default function ReplayView({
 
   const heatOn = heatSide !== 'off';
 
+  // Zaman çubuğu işaretleri: seçim yoksa tüm kill'ler; oyuncu seçiliyse onun
+  // kill (yeşil) / ölüm (kırmızı) / bomba atışları (tip renginde).
+  const NADE_MARK: Record<string, string> = {
+    smoke: '#b4b9be', molotov: '#eb781e', incendiary: '#eb781e',
+    flash: '#ffffff', he: '#ff8c3c', decoy: '#c8c878',
+  };
+  const timelineMarks = !d ? [] : !selPlayer
+    ? d.kills.map((k) => ({
+        tick: k.tick, color: '#e05545',
+        title: `${k.attacker ?? '?'} ⟶ ${k.victim ?? '?'}`,
+      }))
+    : [
+        ...d.kills.filter((k) => k.attacker === selPlayer).map((k) => ({
+          tick: k.tick, color: '#7fd88f', title: `kill: ${k.victim} (${k.weapon ?? ''})`,
+        })),
+        ...d.kills.filter((k) => k.victim === selPlayer).map((k) => ({
+          tick: k.tick, color: '#e05545', title: `death: by ${k.attacker ?? '?'}`,
+        })),
+        ...(d.grenades ?? [])
+          .filter((g) => g.thrower === selPlayer && g.throw_tick != null)
+          .map((g) => ({
+            tick: g.throw_tick as number,
+            color: NADE_MARK[g.type] ?? '#ccc',
+            title: `${g.type} thrown`,
+          })),
+      ];
+
   return (
     <div className="replaylayout">
       {/* Sol: yalnız harita + zaman çubuğu — üstte hiçbir şey yok */}
@@ -628,16 +671,33 @@ export default function ReplayView({
             defaultValue={startIdx}
             onInput={(e) => { fIdxRef.current = Number((e.target as HTMLInputElement).value); }}
           />
-          {d.kills.map((k, i) => {
-            const idx = d.ticks.findIndex((t) => t >= k.tick);
+          {timelineMarks.map((m, i) => {
+            const idx = d.ticks.findIndex((t) => t >= m.tick);
             const pct = (100 * (idx - startIdx)) / Math.max(1, d.ticks.length - 1 - startIdx);
-            return <div key={i} className="killmark" style={{ left: `${Math.max(0, pct)}%` }} />;
+            return (
+              <div
+                key={i}
+                className="killmark clickable"
+                title={m.title}
+                style={{ left: `${Math.max(0, pct)}%`, background: m.color }}
+                onClick={() => { fIdxRef.current = Math.max(startIdx, idx); }}
+              />
+            );
           })}
         </div>
+        {selPlayer && (
+          <p className="meta" style={{ marginTop: 2 }}>
+            timeline: <b>{selPlayer}</b> — <span style={{ color: '#7fd88f' }}>kills</span> ·{' '}
+            <span style={{ color: '#e05545' }}>deaths</span> · nade throws (type colors) ·
+            click a mark to jump{' '}
+            <button className="ghost" style={{ padding: '0 6px' }} onClick={() => setSelPlayer('')}>✕</button>
+          </p>
+        )}
       </div>
 
       {/* Sağ: üç katmanın ayarları — başlıktaki tik katmanı gösterir/gizler */}
       <div className="settingspanel">
+        {header}
         <div className="layerpanel">
           <label className="layerhead">
             <input type="checkbox" checked={showReplay} onChange={(e) => setShowReplay(e.target.checked)} />
