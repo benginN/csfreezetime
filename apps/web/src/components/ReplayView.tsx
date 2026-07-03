@@ -80,6 +80,8 @@ export default function ReplayView({
   const ticksQ = useQuery({
     queryKey: ['ticks', matchId, round],
     queryFn: () => api.roundTicks(matchId, round),
+    // raunt değişiminde eski sahne, yenisi gelene dek kalır (siyah ekran yok)
+    placeholderData: (prev) => prev,
   });
   const [base, setBase] = useState<MapBase | null>(null);
   useEffect(() => {
@@ -1067,10 +1069,8 @@ export default function ReplayView({
                 {[0.25, 0.5, 1, 2, 4, 8].map((s) => <option key={s} value={s}>{s}×</option>)}
               </select>
               <span className="meta" style={{ fontVariantNumeric: 'tabular-nums' }}>{clock}</span>
+              {ticksQ.isFetching && <span className="meta">…</span>}
             </div>
-            <p className="meta" style={{ margin: 0 }}>
-              ⎵ play · ←→ ±5 s · ↑↓ round · 1-6 speed · esc stop drawing
-            </p>
             <div className="chiplegend" style={{ marginBottom: 2 }}>
               <span><i style={{ background: '#86d8e8' }} />{teams.a ?? 'Team A'}</span>
               <span><i style={{ background: '#dcaaea' }} />{teams.b ?? 'Team B'}</span>

@@ -56,7 +56,7 @@ export default function MatchPage() {
     <>
       <ReplayView
         header={header}
-        key={`${id}-${round}`}
+        key={id}
         matchId={id}
         round={round}
         onRound={setRound}
