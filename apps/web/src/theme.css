@@ -15,10 +15,7 @@ nav {
   padding: 10px 24px;
   background: #131816; border-bottom: 1px solid #232a26;
   position: sticky; top: 0; z-index: 10;
-  transition: transform 0.3s ease, margin-bottom 0.3s ease;
 }
-/* hareketsizlikte toplanır; yer de geri kazanılır (main yukarı kayar) */
-nav.hide { transform: translateY(-100%); margin-bottom: -47px; }
 nav .brand { font-weight: 700; font-size: 16px; color: #b6e2b6; letter-spacing: .5px; }
 nav a { color: #9aa89d; font-size: 13.5px; }
 nav a.active { color: #d8ded9; font-weight: 600; }

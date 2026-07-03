@@ -8,27 +8,9 @@ import Team from './pages/Team';
 import Moments from './pages/Moments';
 
 export default function App() {
-  // 6 sn hareketsizlikte nav yukarı toplanır; herhangi bir etkinlikte döner
-  const [navHidden, setNavHidden] = useState(false);
-  useEffect(() => {
-    let timer: number;
-    const wake = () => {
-      setNavHidden(false);
-      window.clearTimeout(timer);
-      timer = window.setTimeout(() => setNavHidden(true), 6000);
-    };
-    const evs = ['pointermove', 'pointerdown', 'keydown', 'wheel', 'scroll'] as const;
-    evs.forEach((e) => window.addEventListener(e, wake, { passive: true }));
-    wake();
-    return () => {
-      window.clearTimeout(timer);
-      evs.forEach((e) => window.removeEventListener(e, wake));
-    };
-  }, []);
-
   return (
     <>
-      <nav className={navHidden ? 'hide' : ''}>
+      <nav>
         <span className="brand" style={{ cursor: 'pointer' }} onClick={() => (window.location.href = '/')}>
           TacticalMind
         </span>
