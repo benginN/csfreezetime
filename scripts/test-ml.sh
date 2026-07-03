@@ -60,5 +60,27 @@ check "kazanan yöntem log-loss'u gerçekten en düşük (ihlal)" \
       OR (best_method='team_buy' AND (logloss_team_buy > logloss_league OR logloss_team_buy > logloss_team))" \
   "0"
 
+# 8. Utility kümeleri: pay toplamı ≤1, min sayı, etiket dolu
+check "utility pay toplamı ≤1 (ihlal)" \
+  "SELECT count(*) FROM (SELECT team_id,map_name,side,type FROM utility_spots GROUP BY 1,2,3,4 HAVING sum(share) > 1.001) x" "0"
+check "utility min küme boyutu (ihlal)" \
+  "SELECT count(*) FROM utility_spots WHERE count < 3" "0"
+check "utility etiketsiz küme" \
+  "SELECT count(*) FROM utility_spots WHERE label IS NULL" "0"
+
+# 9. Kurulum desenleri: pay ≤1, örneklem kapısı, desen 4-5 oyunculu
+check "setup pay toplamı ≤1 (ihlal)" \
+  "SELECT count(*) FROM (SELECT team_id,map_name,side,t_offset FROM team_setups GROUP BY 1,2,3,4 HAVING sum(share) > 1.001) x" "0"
+check "setup örneklem kapısı (<8 raunt yazılmış)" \
+  "SELECT count(*) FROM team_setups WHERE sample_size < 8" "0"
+check "setup desen boyutu 4-5 (ihlal)" \
+  "SELECT count(*) FROM team_setups ts WHERE (SELECT sum((e->>'n')::int) FROM jsonb_array_elements(pattern) e) NOT BETWEEN 4 AND 5" "0"
+
+# 10. Roller: eşik altında etiket yok, paylar 0-1 aralığında
+check "rol etiketi kanıt eşiği (ihlal)" \
+  "SELECT count(*) FROM player_roles WHERE cardinality(tags) > 0 AND rounds < 30" "0"
+check "rol pay aralığı (ihlal)" \
+  "SELECT count(*) FROM player_roles WHERE entry_attempt_share NOT BETWEEN 0 AND 1 OR awp_round_share NOT BETWEEN 0 AND 1 OR anchor_share NOT BETWEEN 0 AND 1" "0"
+
 echo
 [ $FAILS -eq 0 ] && echo "ML TESTLERİ GEÇTİ ✅" || { echo "$FAILS TEST BAŞARISIZ ❌"; exit 1; }

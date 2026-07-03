@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import time
 
-from . import anomaly, clustering, db, evaluate, features, tendencies
+from . import anomaly, clustering, db, evaluate, features, roles, setups, tendencies, utility
 
 
 def cli() -> None:
@@ -50,6 +50,18 @@ def cli() -> None:
     for r in evaluate.run(pgconn):
         print(f"  {r['map'] + '/' + r['side']:<16} {r['league']:>7.3f} "
               f"{r['team']:>7.3f} {r['team_buy']:>7.3f}  {r['best']} ({r['n_test']})")
+
+    print("— utility istihbaratı —")
+    nu = utility.run(pgconn, chc)
+    print(f"  {nu} utility kümesi (n≥{utility.MIN_COUNT})")
+
+    print("— kurulum (default) tespiti —")
+    ns = setups.run(pgconn, chc)
+    print(f"  {ns} kurulum deseni (t={list(setups.OFFSETS)} sn)")
+
+    print("— oyuncu rolleri —")
+    nr = roles.run(pgconn, chc)
+    print(f"  {nr} oyuncu-taraf profili (etiket eşiği {roles.MIN_ROUNDS} raunt)")
 
     print("— anomali bayrakları —")
     f = anomaly.run(pgconn)
