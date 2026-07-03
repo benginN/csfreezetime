@@ -267,7 +267,20 @@ async fn run_pipeline(
         }
         insert.end().await?;
     }
+    // Silah atışları (ateş animasyonu) — idempotent
+    ch.query(&format!("DELETE FROM shots WHERE match_id = '{}'", match_id))
+        .execute()
+        .await
+        .context("CH shots temizliği")?;
+    for chunk in result.shots.chunks(INSERT_CHUNK) {
+        let mut insert = ch.insert("shots")?;
+        for row in chunk {
+            insert.write(row).await?;
+        }
+        insert.end().await?;
+    }
     info!(
+        shots = result.shots.len(),
         ms = t_insert.elapsed().as_millis() as u64,
         "ClickHouse insert tamam"
     );

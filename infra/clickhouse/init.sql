@@ -51,3 +51,12 @@ AS SELECT
 FROM cs2.player_ticks
 WHERE is_alive
 GROUP BY map_name, side, match_id, round_number, time_bucket, grid_x, grid_y;
+
+-- Silah atışları (weapon_fire; bomba/bıçak hariç) — replay ateş animasyonu
+CREATE TABLE IF NOT EXISTS cs2.shots (
+    match_id     UUID,
+    round_number UInt8,
+    tick         UInt32,
+    player_id    UUID
+) ENGINE = MergeTree
+ORDER BY (match_id, round_number, tick);

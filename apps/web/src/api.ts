@@ -108,6 +108,7 @@ export interface PlayerTrack {
   inv: (string[] | null)[];
   flash: (number | null)[];
   lower?: (boolean | null)[];
+  shots: number[];
   money_start: number | null;
   equip_value: number | null;
 }

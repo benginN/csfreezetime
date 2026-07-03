@@ -592,6 +592,18 @@ export default function ReplayView({
           const yaw = ((p.yaw[i0] ?? 0) * Math.PI) / 180;
           g.moveTo(x, y).lineTo(x + 15 * s * Math.cos(yaw), y - 15 * s * Math.sin(yaw))
            .stroke({ width: 1.5, color: col });
+          // ateş animasyonu: son ~0.12 sn'de atış varsa namlu ucunda kısa parıltı
+          if (p.shots.length) {
+            const si = lowerBound(p.shots, tick - 8);
+            if (si < p.shots.length && p.shots[si] <= tick) {
+              const age = (tick - p.shots[si]) / 8; // 0..1
+              const mx0 = x + 15 * s * Math.cos(yaw), my0 = y - 15 * s * Math.sin(yaw);
+              g.moveTo(mx0, my0)
+               .lineTo(mx0 + 6 * s * Math.cos(yaw), my0 - 6 * s * Math.sin(yaw))
+               .stroke({ width: 2, color: 0xffe9a8, alpha: 0.85 * (1 - age) });
+              g.circle(mx0, my0, 1.8 * s).fill({ color: 0xfff6d8, alpha: 0.9 * (1 - age) });
+            }
+          }
           g.circle(x, y, 5.5 * Math.max(s, 0.7)).fill({ color: col })
            .stroke({ width: 1, color: 0x0b0e0c });
           // can halkası — yay başlangıcına moveTo: aksi halde yol (0,0)'dan
@@ -732,7 +744,7 @@ export default function ReplayView({
 
   return (
     <div className="replaylayout">
-      {/* Sol: harita tam boy; HUD'lar haritanın ALTINDA (alan kapatmaz) */}
+      {/* Sol: harita tam boy; HUD'lar köşe kaplaması — kompakt, hover'da detay */}
       <div>
         <div className="stagebox">
           <div ref={stageRef} />
@@ -741,13 +753,9 @@ export default function ReplayView({
             <button title="zoom out" onClick={() => zoomApiRef.current?.zoomOut()}>−</button>
             <button title="reset view" onClick={() => zoomApiRef.current?.reset()}>⟲</button>
           </div>
+          {showReplay && <HudPanel rows={tRows} cls="left" sel={selPlayer} onSel={setSelPlayer} />}
+          {showReplay && <HudPanel rows={ctRows} cls="right" sel={selPlayer} onSel={setSelPlayer} />}
         </div>
-        {showReplay && (
-          <div className="hudrow" style={{ width: W }}>
-            <HudPanel rows={tRows} cls="left" sel={selPlayer} onSel={setSelPlayer} />
-            <HudPanel rows={ctRows} cls="right" sel={selPlayer} onSel={setSelPlayer} />
-          </div>
-        )}
       </div>
 
       {/* Sağ: başlık + ortak görünüm ayarları + üç katman + zaman çubuğu.
@@ -979,21 +987,20 @@ function HudPanel({
   sel: string;
   onSel: (n: string | ((cur: string) => string)) => void;
 }) {
+  // Kompakt köşe HUD'u: tek satır/oyuncu; hover'da zırh/para/envanter açılır
   return (
     <div className={`hud ${cls}`}>
       <table>
         <colgroup>
-          <col style={{ width: '24%' }} />
-          <col style={{ width: '19%' }} />
-          <col style={{ width: '10%' }} />
-          <col style={{ width: '23%' }} />
-          <col style={{ width: '13%' }} />
-          <col style={{ width: '11%' }} />
+          <col style={{ width: '30%' }} />
+          <col style={{ width: '25%' }} />
+          <col style={{ width: '28%' }} />
+          <col style={{ width: '17%' }} />
         </colgroup>
         <tbody>
           {rows.map((r) => (
-            <>
-              <tr key={r.nick} style={{ opacity: r.alive ? 1 : 0.4 }}>
+            <Fragment key={r.nick}>
+              <tr style={{ opacity: r.alive ? 1 : 0.4 }}>
                 <td
                   className={`cut nick ${sel === r.nick ? 'selnick' : ''}`}
                   title="focus timeline on this player"
@@ -1007,16 +1014,14 @@ function HudPanel({
                   </span>{' '}
                   {r.hp}
                 </td>
-                <td>🛡{r.armor}</td>
                 <td className="cut">{r.alive ? r.weapon : '—'}</td>
-                <td>${r.money ?? '?'}</td>
                 <td>{r.k}/{r.a}/{r.d}</td>
               </tr>
-              <tr key={r.nick + '-inv'} style={{ opacity: r.alive ? 1 : 0.4 }}>
-                <td />
-                <td colSpan={5} className="inv cut">{r.alive ? r.inv : ''}</td>
+              <tr className="detail" style={{ opacity: r.alive ? 1 : 0.4 }}>
+                <td className="inv">🛡{r.armor} · ${r.money ?? '?'}</td>
+                <td colSpan={3} className="inv cut">{r.alive ? r.inv : ''}</td>
               </tr>
-            </>
+            </Fragment>
           ))}
         </tbody>
       </table>

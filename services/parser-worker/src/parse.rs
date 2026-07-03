@@ -48,7 +48,19 @@ pub struct ParseResult {
     pub grenades: Vec<GrenadeMeta>,
     pub players: Vec<PlayerMeta>,
     pub player_rounds: Vec<PlayerRoundMeta>,
+    pub shots: Vec<ShotRow>,
     pub warnings: Vec<String>,
+}
+
+/// Silah atışları (weapon_fire; bomba/bıçak hariç) — replay ateş animasyonu.
+#[derive(Debug, clickhouse::Row, serde::Serialize)]
+pub struct ShotRow {
+    #[serde(with = "clickhouse::serde::uuid")]
+    pub match_id: Uuid,
+    pub round_number: u8,
+    pub tick: u32,
+    #[serde(with = "clickhouse::serde::uuid")]
+    pub player_id: Uuid,
 }
 
 // PostgreSQL meta veri satırları (mimari.md §5.2) ────────────────────
@@ -509,17 +521,34 @@ pub fn parse_demo_bytes(bytes: &[u8], match_id: Uuid) -> Result<ParseResult> {
     // Patlama, kendinden önceki en yakın atışla eşleştirilir (≤ 15 sn pencere).
     let mut throws: AHashMap<(u64, &'static str), Vec<(i32, [Option<f32>; 3])>> =
         AHashMap::default();
+    let mut shots: Vec<ShotRow> = Vec::new();
     for ev in &output.game_events {
         if ev.name != "weapon_fire" {
             continue;
         }
-        let nade = match ev_str(ev, "weapon").as_deref() {
+        let weapon = ev_str(ev, "weapon");
+        let nade = match weapon.as_deref() {
             Some("weapon_smokegrenade") => "smoke",
             Some("weapon_flashbang") => "flash",
             Some("weapon_hegrenade") => "he",
             Some("weapon_molotov") | Some("weapon_incgrenade") => "molotov",
             Some("weapon_decoy") => "decoy",
-            _ => continue,
+            other => {
+                // silah atışı (bomba/bıçak/C4 değil) → ateş animasyonu verisi
+                if let (Some(w), Some(sid)) = (other, ev_u64(ev, "user_steamid")) {
+                    if !w.contains("knife") && !w.contains("bayonet") && w != "weapon_c4" {
+                        if let Some(idx) = assign_round(ev.tick) {
+                            shots.push(ShotRow {
+                                match_id,
+                                round_number: idx as u8, // assign_round 1 tabanlı
+                                tick: ev.tick as u32,
+                                player_id: player_uuid(sid),
+                            });
+                        }
+                    }
+                }
+                continue;
+            }
         };
         let Some(sid) = ev_u64(ev, "user_steamid") else { continue };
         throws.entry((sid, nade)).or_default().push((
@@ -639,6 +668,7 @@ pub fn parse_demo_bytes(bytes: &[u8], match_id: Uuid) -> Result<ParseResult> {
         grenades: grenades_meta,
         players: players_meta,
         player_rounds,
+        shots,
         warnings,
     })
 }

@@ -156,6 +156,7 @@ type playerTrack struct {
 	Inv    [][]string `json:"inv"`             // eldeki tüm silahlar
 	Flash  []*float64 `json:"flash"`           // kalan körlük süresi (sn)
 	Lower  []*bool    `json:"lower,omitempty"` // çok katlı haritada alt kat mı
+	Shots  []int32    `json:"shots"`           // atış tick'leri (ateş animasyonu)
 	// raunt başı ekonomi (PRS'ten; canlı para takibi tick verisinde yok)
 	MoneyStart *int32 `json:"money_start"`
 	EquipValue *int32 `json:"equip_value"`
@@ -295,6 +296,29 @@ func (s *server) roundTicks(w http.ResponseWriter, r *http.Request) {
 		}
 		players = append(players, tr)
 	}
+	// Silah atış tick'leri (ateş animasyonu)
+	shotsBy := map[uuid.UUID][]int32{}
+	if srows, err := s.ch.Query(ctx, `
+		SELECT player_id, tick FROM shots
+		WHERE match_id = ? AND round_number = ? ORDER BY tick`,
+		matchID, uint8(roundNo)); err == nil {
+		for srows.Next() {
+			var pid uuid.UUID
+			var tk uint32
+			if srows.Scan(&pid, &tk) == nil {
+				shotsBy[pid] = append(shotsBy[pid], int32(tk))
+			}
+		}
+		srows.Close()
+	}
+	for i := range players {
+		if s := shotsBy[players[i].PlayerID]; s != nil {
+			players[i].Shots = s
+		} else {
+			players[i].Shots = []int32{}
+		}
+	}
+
 	// Raunt başı ekonomi (PRS)
 	econRows, err := s.pg.Query(ctx, `
 		SELECT player_id, money_start, equip_value FROM player_round_states
