@@ -826,6 +826,38 @@ export default function ReplayView({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [d, base, matchKills]);
 
+  // Klavye kısayolları: boşluk oynat/durdur, ←→ ±5 sn, ↑↓ raunt,
+  // 1-6 hız (0.25×..8×), Esc çizim modundan çıkar. Form alanlarında devre dışı.
+  useEffect(() => {
+    const SPEEDS = [0.25, 0.5, 1, 2, 4, 8];
+    const onKey = (e: KeyboardEvent) => {
+      const t = e.target as HTMLElement;
+      if (t.tagName === 'INPUT' || t.tagName === 'SELECT' || t.tagName === 'TEXTAREA') return;
+      if (e.code === 'Space') {
+        e.preventDefault();
+        setPlaying((p) => !p);
+      } else if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+        e.preventDefault();
+        const dd = ticksQ.data;
+        if (!dd) return;
+        const delta = (e.key === 'ArrowLeft' ? -5 : 5) * 16; // 5 sn × 16 Hz
+        fIdxRef.current = Math.min(Math.max(0, fIdxRef.current + delta), dd.ticks.length - 1);
+      } else if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+        e.preventDefault();
+        const idx = rounds.findIndex((r) => r.round_number === round);
+        const next = rounds[idx + (e.key === 'ArrowDown' ? 1 : -1)];
+        if (next) onRound(next.round_number);
+      } else if (e.key >= '1' && e.key <= '6') {
+        setSpeed(SPEEDS[Number(e.key) - 1]);
+      } else if (e.key === 'Escape') {
+        setDrawTool('off');
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ticksQ.data, rounds, round]);
+
   if (ticksQ.isLoading) return <p className="meta">loading round…</p>;
   if (ticksQ.error || !d) return <p className="error">{String(ticksQ.error)}</p>;
 
@@ -948,6 +980,9 @@ export default function ReplayView({
               </select>
               <span className="meta" style={{ fontVariantNumeric: 'tabular-nums' }}>{clock}</span>
             </div>
+            <p className="meta" style={{ margin: 0 }}>
+              ⎵ play · ←→ ±5 s · ↑↓ round · 1-6 speed · esc stop drawing
+            </p>
             <div className="chiplegend" style={{ marginBottom: 2 }}>
               <span><i style={{ background: '#86d8e8' }} />{teams.a ?? 'Team A'}</span>
               <span><i style={{ background: '#dcaaea' }} />{teams.b ?? 'Team B'}</span>
