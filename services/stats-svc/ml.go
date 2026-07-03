@@ -61,6 +61,198 @@ func (s *server) teamTendencies(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 200, out)
 }
 
+// GET /api/v1/clusters?map=&side= — isimlendirme sayfası verisi
+func (s *server) clusters(w http.ResponseWriter, r *http.Request) {
+	mapName, side := r.URL.Query().Get("map"), r.URL.Query().Get("side")
+	if mapName == "" || (side != "T" && side != "CT") {
+		writeErr(w, 400, fmt.Errorf("map ve side (T|CT) zorunlu"))
+		return
+	}
+	rows, err := s.pg.Query(r.Context(), `
+		SELECT cluster_id, label, size, top_places, representatives
+		FROM strategy_clusters WHERE map_name = $1 AND side = $2
+		ORDER BY size DESC`, mapName, side)
+	if err != nil {
+		writeErr(w, 500, err)
+		return
+	}
+	defer rows.Close()
+	type cluster struct {
+		ClusterID       int16           `json:"cluster_id"`
+		Label           *string         `json:"label"`
+		Size            int             `json:"size"`
+		TopPlaces       json.RawMessage `json:"top_places"`
+		Representatives json.RawMessage `json:"representatives"`
+	}
+	var out []cluster
+	for rows.Next() {
+		var c cluster
+		var tp, rp []byte
+		if err := rows.Scan(&c.ClusterID, &c.Label, &c.Size, &tp, &rp); err != nil {
+			writeErr(w, 500, err)
+			return
+		}
+		c.TopPlaces, c.Representatives = tp, rp
+		out = append(out, c)
+	}
+	writeJSON(w, 200, out)
+}
+
+// PATCH /api/v1/clusters/{map}/{side}/{id} — koç isimlendirmesi (insan döngüde)
+func (s *server) renameCluster(w http.ResponseWriter, r *http.Request) {
+	mapName, side := chi.URLParam(r, "map"), chi.URLParam(r, "side")
+	id := chi.URLParam(r, "id")
+	var body struct {
+		Label string `json:"label"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		writeErr(w, 400, fmt.Errorf("JSON çözülemedi: %w", err))
+		return
+	}
+	var label *string
+	if body.Label != "" {
+		label = &body.Label
+	}
+	tag, err := s.pg.Exec(r.Context(), `
+		UPDATE strategy_clusters SET label = $4
+		WHERE map_name = $1 AND side = $2 AND cluster_id = $3`,
+		mapName, side, id, label)
+	if err != nil {
+		writeErr(w, 500, err)
+		return
+	}
+	if tag.RowsAffected() == 0 {
+		writeErr(w, 404, fmt.Errorf("küme bulunamadı"))
+		return
+	}
+	writeJSON(w, 200, map[string]any{"ok": true, "label": label})
+}
+
+// GET /api/v1/predict?team_id&map&side&buy_type&round_number — sonraki raunt
+// dağılımı. Yöntem prediction_meta'dan: zamansal testte taban çizgiyi geçemeyen
+// model sunulmaz (§6.2); kanıt gücü her yanıtta (§10).
+func (s *server) predictHandler(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query()
+	teamID, err := uuid.Parse(q.Get("team_id"))
+	if err != nil {
+		writeErr(w, 400, fmt.Errorf("geçersiz team_id"))
+		return
+	}
+	mapName, side := q.Get("map"), q.Get("side")
+	if mapName == "" || (side != "T" && side != "CT") {
+		writeErr(w, 400, fmt.Errorf("map ve side (T|CT) zorunlu"))
+		return
+	}
+	buy := q.Get("buy_type")
+	if rn := q.Get("round_number"); rn == "1" || rn == "13" {
+		buy = "pistol" // pistol rauntları deterministik özel durum
+	}
+	ctx := r.Context()
+
+	var best string
+	if err := s.pg.QueryRow(ctx,
+		"SELECT best_method FROM prediction_meta WHERE map_name = $1 AND side = $2",
+		mapName, side).Scan(&best); err != nil {
+		best = "league" // değerlendirme yoksa en temkinli yöntem
+	}
+	method := best
+	if method == "team_buy" && buy == "" {
+		method = "team" // buy bilinmiyorsa bir seviye genele düş
+	}
+
+	type cl struct {
+		ClusterID int16           `json:"cluster_id"`
+		Label     *string         `json:"label"`
+		TopPlaces json.RawMessage `json:"top_places"`
+		Prob      float32         `json:"prob"`
+	}
+	var (
+		clusters   []cl
+		sampleSize int
+	)
+	scan := func(rowsQ string, args ...any) error {
+		rows, err := s.pg.Query(ctx, rowsQ, args...)
+		if err != nil {
+			return err
+		}
+		defer rows.Close()
+		for rows.Next() {
+			var c cl
+			var tp *[]byte
+			var n *int
+			if err := rows.Scan(&c.ClusterID, &c.Label, &tp, &c.Prob, &n); err != nil {
+				return err
+			}
+			if tp != nil {
+				c.TopPlaces = json.RawMessage(*tp)
+			} else {
+				c.TopPlaces = json.RawMessage("[]")
+			}
+			if n != nil {
+				sampleSize = *n
+			}
+			clusters = append(clusters, c)
+		}
+		return rows.Err()
+	}
+
+	switch method {
+	case "team_buy":
+		err = scan(`
+			SELECT tc.cluster_id, sc.label, sc.top_places, tc.prob, tc.sample_size
+			FROM team_tendencies_cond tc
+			LEFT JOIN strategy_clusters sc ON sc.map_name = tc.map_name
+			     AND sc.side = tc.side AND sc.cluster_id = tc.cluster_id
+			WHERE tc.team_id = $1 AND tc.map_name = $2 AND tc.side = $3 AND tc.buy_type = $4
+			ORDER BY tc.prob DESC`, teamID, mapName, side, buy)
+		if err == nil && len(clusters) == 0 {
+			method = "team" // bu buy için gözlem yok
+		}
+	}
+	if method == "team" || (method == "team_buy" && len(clusters) == 0) {
+		clusters = nil
+		err = scan(`
+			SELECT tt.cluster_id, sc.label, sc.top_places, tt.shrunk_prob, tt.sample_size
+			FROM team_tendencies tt
+			LEFT JOIN strategy_clusters sc ON sc.map_name = tt.map_name
+			     AND sc.side = tt.side AND sc.cluster_id = tt.cluster_id
+			WHERE tt.team_id = $1 AND tt.map_name = $2 AND tt.side = $3
+			ORDER BY tt.shrunk_prob DESC`, teamID, mapName, side)
+	}
+	if method == "league" || len(clusters) == 0 {
+		method = "league"
+		clusters = nil
+		err = scan(`
+			SELECT sc.cluster_id, sc.label, sc.top_places,
+			       (sc.size::real / NULLIF(sum(sc.size) OVER (), 0)) AS prob,
+			       NULL::int
+			FROM strategy_clusters sc
+			WHERE sc.map_name = $1 AND sc.side = $2
+			ORDER BY prob DESC`, mapName, side)
+	}
+	if err != nil {
+		writeErr(w, 500, err)
+		return
+	}
+
+	note := "lig geneli dağılım (takım verisi taban çizgiyi geçmedi)"
+	if method != "league" {
+		switch {
+		case sampleSize < 15:
+			note = fmt.Sprintf("%d raunt gözlem — düşük güven", sampleSize)
+		case sampleSize < 40:
+			note = fmt.Sprintf("%d raunt gözlem — orta güven", sampleSize)
+		default:
+			note = fmt.Sprintf("%d raunt gözlem — yüksek güven", sampleSize)
+		}
+	}
+	writeJSON(w, 200, map[string]any{
+		"method":   method,
+		"clusters": clusters,
+		"evidence": map[string]any{"sample_size": sampleSize, "note": note},
+	})
+}
+
 // GET /api/v1/players/{id}/flags — anomali bayrakları (kanıt: maç + metrik + z)
 func (s *server) playerFlags(w http.ResponseWriter, r *http.Request) {
 	playerID, err := uuid.Parse(chi.URLParam(r, "id"))

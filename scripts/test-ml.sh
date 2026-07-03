@@ -44,5 +44,21 @@ check "küme boyutları tutarlı (sapan küme)" \
                          OR (sc.side='CT' AND r.ct_strategy_cluster=sc.cluster_id)))" \
   "0"
 
+# 6. Koşullu eğilim olasılıkları grup başına 1'e toplanır
+check "koşullu olasılık toplamı=1 (sapan grup)" \
+  "SELECT count(*) FROM (SELECT team_id,map_name,side,buy_type FROM team_tendencies_cond GROUP BY 1,2,3,4 HAVING abs(sum(prob)-1) > 0.001) x" \
+  "0"
+
+# 7. prediction_meta tüm kümelenmiş çiftleri kapsıyor ve kazanan tutarlı
+check "tahmin meta kapsamı" \
+  "SELECT count(*) FROM prediction_meta" \
+  "$($PSQL "SELECT count(DISTINCT (map_name, side)) FROM strategy_clusters")"
+check "kazanan yöntem log-loss'u gerçekten en düşük (ihlal)" \
+  "SELECT count(*) FROM prediction_meta
+   WHERE (best_method='league'   AND (logloss_league > logloss_team OR logloss_league > logloss_team_buy))
+      OR (best_method='team'     AND (logloss_team > logloss_league OR logloss_team > logloss_team_buy))
+      OR (best_method='team_buy' AND (logloss_team_buy > logloss_league OR logloss_team_buy > logloss_team))" \
+  "0"
+
 echo
 [ $FAILS -eq 0 ] && echo "ML TESTLERİ GEÇTİ ✅" || { echo "$FAILS TEST BAŞARISIZ ❌"; exit 1; }

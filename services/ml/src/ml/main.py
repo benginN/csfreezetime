@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import time
 
-from . import anomaly, clustering, db, features, tendencies
+from . import anomaly, clustering, db, evaluate, features, tendencies
 
 
 def cli() -> None:
@@ -40,6 +40,16 @@ def cli() -> None:
     print("— takım eğilimleri —")
     n = tendencies.run(pgconn)
     print(f"  {n} eğilim satırı (büzülme k={tendencies.SHRINK_K})")
+
+    print("— koşullu eğilimler (takım+buy) —")
+    nc = evaluate.write_conditional(pgconn)
+    print(f"  {nc} koşullu satır")
+
+    print("— tahmin değerlendirmesi (zamansal, log-loss; düşük iyi) —")
+    print(f"  {'harita/taraf':<16} {'lig':>7} {'takım':>7} {'t+buy':>7}  kazanan (n_test)")
+    for r in evaluate.run(pgconn):
+        print(f"  {r['map'] + '/' + r['side']:<16} {r['league']:>7.3f} "
+              f"{r['team']:>7.3f} {r['team_buy']:>7.3f}  {r['best']} ({r['n_test']})")
 
     print("— anomali bayrakları —")
     f = anomaly.run(pgconn)
