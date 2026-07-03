@@ -100,7 +100,9 @@ export default function MatchPage() {
 
       {tab === 'stack' && <StackView matchId={id} rounds={d.rounds} teams={teams} />}
 
-      {tab === 'heat' && d.map_name && <HeatView matchId={id} mapName={d.map_name} />}
+      {tab === 'heat' && d.map_name && (
+        <HeatView matchId={id} mapName={d.map_name} rounds={d.rounds} teams={teams} />
+      )}
     </>
   );
 }

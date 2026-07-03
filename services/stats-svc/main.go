@@ -102,6 +102,8 @@ func main() {
 	r.Post("/api/v1/stack", srv.stack)
 	r.Post("/api/v1/upload", srv.upload)
 	r.Get("/api/v1/matches/{id}/status", srv.matchStatus)
+	r.Get("/api/v1/matches/{id}/players", srv.matchPlayers)
+	r.Get("/api/v1/matches/{id}/heatmap", srv.matchHeatmap)
 
 	// SPA (apps/web/dist): dosya varsa onu, yoksa index.html'i döndür
 	// (client-side routing); dist yoksa kök, test sayfasına düşer.

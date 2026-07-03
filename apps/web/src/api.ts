@@ -187,6 +187,13 @@ export interface HeatmapResp {
   duration_ms: number;
 }
 
+export interface MatchHeatmap {
+  cells: [number, number, number][]; // [cx, cy, weight] radar hücreleri
+  cell_radar: number;
+  round_count: number;
+  radar: RadarCal;
+}
+
 export interface StackLayer {
   match_id: string;
   round_number: number;
@@ -248,6 +255,10 @@ export const api = {
   matches: (teamId?: string) =>
     get<MatchSummary[]>('/api/v1/matches' + (teamId ? `?team_id=${teamId}` : '')),
   matchDetail: (id: string) => get<MatchDetail>(`/api/v1/matches/${id}`),
+  matchPlayers: (id: string) =>
+    get<{ player_id: string; nickname: string }[]>(`/api/v1/matches/${id}/players`),
+  matchHeatmap: (id: string, p: URLSearchParams) =>
+    get<MatchHeatmap>(`/api/v1/matches/${id}/heatmap?` + p),
   roundTicks: (id: string, n: number) => get<RoundTicks>(`/api/v1/rounds/${id}/${n}/ticks`),
   mapLayout: (map: string) => get<MapLayout>(`/api/v1/maplayout?map=${map}`),
   query: (dsl: unknown) => post<QueryResult>('/api/v1/query', dsl),
