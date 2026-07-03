@@ -79,27 +79,38 @@ export default function ReplayView({
   const [clock, setClock] = useState('0:00');
   const [hudRows, setHudRows] = useState<HudRow[]>([]);
 
-  // --- Katmanlar: ısı ve hayalet izler aynı harita üzerinde ---
+  // --- Katmanlar: üçü de aynı haritayı kullanır ama tamamen BAĞIMSIZDIR ---
   const [showReplay, setShowReplay] = useState(true);
   const [heatSide, setHeatSide] = useState<'off' | 'T' | 'CT' | 'both'>('off');
   const [heatPlayer, setHeatPlayer] = useState('');
+  const [heatRounds, setHeatRounds] = useState<Set<number>>(
+    () => new Set(rounds.map((r) => r.round_number)), // ısının KENDİ raunt seçimi
+  );
   const [ghostsOn, setGhostsOn] = useState(false);
   const [ghostRounds, setGhostRounds] = useState<Set<number>>(new Set());
   const [ghostSide, setGhostSide] = useState<'T' | 'CT' | 'both'>('T');
+  // hayaletlerin KENDİ saati (replay saatinden bağımsız oynar)
+  const [ghostPlaying, setGhostPlaying] = useState(false);
+  const [ghostSpeed, setGhostSpeed] = useState(2);
+  const [ghostClock, setGhostClock] = useState('0:00');
+  const ghostTimeRef = useRef(0);
+  const ghostPlayingRef = useRef(false);
+  const ghostSpeedRef = useRef(2);
+  const ghostSliderRef = useRef<HTMLInputElement>(null);
+  ghostPlayingRef.current = ghostPlaying;
+  ghostSpeedRef.current = ghostSpeed;
 
   const players = useQuery({
     queryKey: ['matchPlayers', matchId],
     queryFn: () => api.matchPlayers(matchId),
   });
   const ghostKey = useMemo(() => [...ghostRounds].sort((a, b) => a - b).join(','), [ghostRounds]);
-  const allRoundsKey = useMemo(() => rounds.map((r) => r.round_number).join(','), [rounds]);
-  // ısı: hayalet raunt seçimi varsa onları, yoksa tüm rauntları kullanır
-  const heatRounds = ghostRounds.size ? ghostKey : allRoundsKey;
+  const heatKey = useMemo(() => [...heatRounds].sort((a, b) => a - b).join(','), [heatRounds]);
   const heatQ = useQuery({
-    queryKey: ['mergedHeat', matchId, heatSide, heatPlayer, heatRounds],
-    enabled: heatSide !== 'off',
+    queryKey: ['mergedHeat', matchId, heatSide, heatPlayer, heatKey],
+    enabled: heatSide !== 'off' && heatRounds.size > 0,
     queryFn: () => {
-      const p = new URLSearchParams({ t0: '0', t1: '115', rounds: heatRounds });
+      const p = new URLSearchParams({ t0: '0', t1: '115', rounds: heatKey });
       if (heatSide !== 'both') p.set('side', heatSide);
       if (heatPlayer) p.set('player_id', heatPlayer);
       return api.matchHeatmap(matchId, p);
@@ -326,13 +337,12 @@ export default function ReplayView({
           if (old !== Texture.EMPTY) old.destroy(true);
         }
 
-        // --- hayalet izler: diğer rauntların oyuncuları aynı saatte ---
+        // --- hayalet izler: KENDİ saatiyle oynar (replay'den bağımsız) ---
         gGhosts.clear();
         let ghostLabelIdx = 0;
         const gd = ghostsOnRef.current ? ghostDataRef.current : null;
         if (gd) {
-          const fe0 = d.freeze_end_tick ?? d.ticks[0];
-          const tSec = (tick - fe0) / d.tick_rate; // hayalet ekseni = raunt saati
+          const tSec = ghostTimeRef.current;
           gd.layers.forEach((ly, li) => {
             if (ly.skipped || !ly.players) return;
             const hue = ghostHue(li);
@@ -554,6 +564,7 @@ export default function ReplayView({
         }
       };
 
+      let lastGhostSec = -1;
       app.ticker.add((t) => {
         if (playingRef.current) {
           fIdxRef.current = Math.min(
@@ -561,6 +572,18 @@ export default function ReplayView({
             d.ticks.length - 1,
           );
           if (fIdxRef.current >= d.ticks.length - 1) setPlaying(false);
+        }
+        // hayalet saati: kendi oynatması, kendi hız çarpanı (0..115 sn)
+        if (ghostPlayingRef.current) {
+          ghostTimeRef.current = Math.min(
+            ghostTimeRef.current + (t.deltaMS / 1000) * ghostSpeedRef.current, 115);
+          if (ghostTimeRef.current >= 115) setGhostPlaying(false);
+        }
+        const gs = Math.floor(ghostTimeRef.current);
+        if (gs !== lastGhostSec) {
+          lastGhostSec = gs;
+          setGhostClock(`${Math.floor(gs / 60)}:${String(gs % 60).padStart(2, '0')}`);
+          if (ghostSliderRef.current) ghostSliderRef.current.value = String(gs);
         }
         draw();
       });
@@ -675,21 +698,42 @@ export default function ReplayView({
                 <select value={heatSide} onChange={(e) => setHeatSide(e.target.value as typeof heatSide)}>
                   <option value="T">T</option><option value="CT">CT</option><option value="both">both</option>
                 </select>
-              </div>
-              <div className="row">
                 <label>player</label>
                 <select value={heatPlayer} onChange={(e) => setHeatPlayer(e.target.value)}>
-                  <option value="">all players</option>
+                  <option value="">all</option>
                   {(players.data ?? []).map((p) => (
                     <option key={p.player_id} value={p.player_id}>{p.nickname}</option>
                   ))}
                 </select>
               </div>
-              <p className="meta">
-                {ghostRounds.size
-                  ? `using the ${ghostRounds.size} rounds selected below`
-                  : 'using all rounds of this match'}
-              </p>
+              <div className="roundchips">
+                {rounds.map((r, i) => (
+                  <Fragment key={r.round_number}>
+                    {isSideSwap(rounds[i - 1], r) && <span className="halfdiv" title="side swap" />}
+                    <button
+                      className={`${winnerTeamClass(r, teams.aId)} win${r.winner_side ?? ''} ${heatRounds.has(r.round_number) ? 'sel' : ''}`}
+                      title={chipTitle(r, teams)}
+                      onClick={() => {
+                        const s = new Set(heatRounds);
+                        if (s.has(r.round_number)) s.delete(r.round_number);
+                        else s.add(r.round_number);
+                        setHeatRounds(s);
+                      }}
+                    >
+                      {r.round_number}
+                    </button>
+                  </Fragment>
+                ))}
+                <button className="ghost" style={{ width: 'auto', padding: '0 8px' }}
+                  onClick={() => setHeatRounds(
+                    heatRounds.size === rounds.length
+                      ? new Set()
+                      : new Set(rounds.map((r) => r.round_number)),
+                  )}>
+                  {heatRounds.size === rounds.length ? 'none' : 'all'}
+                </button>
+              </div>
+              {heatRounds.size === 0 && <p className="meta">pick rounds to see density</p>}
             </div>
           )}
         </div>
@@ -701,6 +745,27 @@ export default function ReplayView({
           </label>
           {ghostsOn && (
             <div className="layerbody">
+              {/* hayaletlerin kendi oynatması — replay saatinden bağımsız */}
+              <div className="row">
+                <button onClick={() => {
+                  if (!ghostPlaying && ghostTimeRef.current >= 115) ghostTimeRef.current = 0;
+                  setGhostPlaying(!ghostPlaying);
+                }}>
+                  {ghostPlaying ? '⏸' : '▶'}
+                </button>
+                <select value={ghostSpeed} onChange={(e) => setGhostSpeed(Number(e.target.value))}>
+                  {[1, 2, 4, 8].map((s) => <option key={s} value={s}>{s}×</option>)}
+                </select>
+                <span className="meta" style={{ fontVariantNumeric: 'tabular-nums' }}>{ghostClock}</span>
+              </div>
+              <input
+                ref={ghostSliderRef}
+                type="range" min={0} max={115} step={1} defaultValue={0}
+                onInput={(e) => {
+                  setGhostPlaying(false);
+                  ghostTimeRef.current = Number((e.target as HTMLInputElement).value);
+                }}
+              />
               <div className="row">
                 <label>side</label>
                 <select value={ghostSide} onChange={(e) => setGhostSide(e.target.value as typeof ghostSide)}>
@@ -727,7 +792,7 @@ export default function ReplayView({
                   </Fragment>
                 ))}
               </div>
-              <p className="meta">trails follow the replay clock · max 10 rounds</p>
+              <p className="meta">own clock — plays independently of the replay · max 10 rounds</p>
             </div>
           )}
         </div>
