@@ -100,5 +100,13 @@ check "clutch kazanımı raunt kazananıyla tutarlı (ihlal)" \
   "SELECT count(*) FROM clutches c JOIN rounds r USING (match_id, round_number)
    WHERE c.won <> (r.winner_side = c.side)" "0"
 
+# 13. Rotasyonlar: oran [0,1], örneklem kapısı, tutarlılık (rotations ≤ n)
+check "rotasyon oran aralığı (ihlal)" \
+  "SELECT count(*) FROM setup_rotations WHERE rotate_rate < 0 OR rotate_rate > 1" "0"
+check "rotasyon örneklem kapısı (<5 yazılmış)" \
+  "SELECT count(*) FROM setup_rotations WHERE n_contacts < 5" "0"
+check "rotasyon sayım tutarlılığı (ihlal)" \
+  "SELECT count(*) FROM setup_rotations WHERE rotations > n_contacts" "0"
+
 echo
 [ $FAILS -eq 0 ] && echo "ML TESTLERİ GEÇTİ ✅" || { echo "$FAILS TEST BAŞARISIZ ❌"; exit 1; }

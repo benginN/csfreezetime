@@ -198,6 +198,13 @@ func (s *server) report(w http.ResponseWriter, r *http.Request) {
 		    FROM team_setups WHERE team_id = $1 AND map_name = $2
 		    ORDER BY side, t_offset, share DESC
 		) x`, teamID, mapName)
+	out["rotations"] = s.jsonQuery(ctx, `
+		SELECT COALESCE(json_agg(x), '[]'::json) FROM (
+		    SELECT side, pattern_id, place, n_contacts, rotate_rate,
+		           med_delay_sec, dest_mix
+		    FROM setup_rotations WHERE team_id = $1 AND map_name = $2
+		    ORDER BY side, pattern_id, rotate_rate DESC
+		) x`, teamID, mapName)
 	out["utility"] = s.jsonQuery(ctx, `
 		SELECT COALESCE(json_agg(x), '[]'::json) FROM (
 		    SELECT side, type, cluster_id, label, det_rx, det_ry, throw_rx, throw_ry,

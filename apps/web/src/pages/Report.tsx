@@ -314,6 +314,29 @@ function SetupCard({ d, side, mapName }: { d: ReportResp; side: 'T' | 'CT'; mapN
           <span key={i}>{i > 0 && ', '}<Link to={`/match/${r.match_id}?round=${r.round_number}`}>▶ r{r.round_number}</Link></span>
         ))}
       </p>
+      {(() => {
+        const rot = d.rotations.filter(
+          (x) => x.side === side && x.pattern_id === cur.pattern_id,
+        );
+        if (!rot.length) return null;
+        return (
+          <div className="meta" style={{ marginTop: 4 }}>
+            after first contact:
+            {rot.map((x) => (
+              <div key={x.place} style={{ marginLeft: 8 }}>
+                <b style={{ color: '#b9c2bb' }}>{x.place}</b> rotates{' '}
+                {Math.round(100 * x.rotate_rate)}% (n={x.n_contacts}
+                {x.med_delay_sec != null && <>, ~{Math.round(x.med_delay_sec)}s</>})
+                {x.dest_mix && Object.keys(x.dest_mix).length > 0 && (
+                  <> → {Object.entries(x.dest_mix)
+                    .sort((a, b) => b[1] - a[1])
+                    .map(([pl, n]) => `${pl}(${n})`).join(', ')}</>
+                )}
+              </div>
+            ))}
+          </div>
+        );
+      })()}
     </div>
   );
 }

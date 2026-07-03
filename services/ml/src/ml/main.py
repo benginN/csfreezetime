@@ -11,7 +11,7 @@ import time
 
 from . import (
     anomaly, clustering, clutch, db, evaluate, features, flashstats,
-    roles, setups, tendencies, utility, winprob,
+    roles, rotations, setups, tendencies, utility, winprob,
 )
 
 
@@ -61,6 +61,10 @@ def cli() -> None:
     print("— kurulum (default) tespiti —")
     ns = setups.run(pgconn, chc)
     print(f"  {ns} kurulum deseni (t={list(setups.OFFSETS)} sn)")
+
+    print("— rotasyon analizi (temas sonrası) —")
+    nrot = rotations.run(pgconn, chc)
+    print(f"  {nrot} pozisyon-rotasyon satırı (pencere {rotations.ROT_WINDOW} sn, n≥{rotations.MIN_CONTACTS})")
 
     print("— oyuncu rolleri —")
     nr = roles.run(pgconn, chc)

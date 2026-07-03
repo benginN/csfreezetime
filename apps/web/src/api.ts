@@ -284,6 +284,11 @@ export interface ReportResp {
     prob: number; sample_size: number;
   }[];
   setups: ReportSetup[];
+  rotations: {
+    side: 'T' | 'CT'; pattern_id: number; place: string;
+    n_contacts: number; rotate_rate: number; med_delay_sec: number | null;
+    dest_mix: Record<string, number> | null;
+  }[];
   utility: ReportUtility[];
   players: ReportPlayer[];
   thrown: { match_id: string; round_number: number; side: 'T' | 'CT'; peak: number }[];
