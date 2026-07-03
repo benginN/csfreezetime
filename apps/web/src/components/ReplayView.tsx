@@ -690,7 +690,7 @@ export default function ReplayView({
             <div className="row">
               <button onClick={() => setPlaying(!playing)}>{playing ? '⏸' : '▶'}</button>
               <select value={speed} onChange={(e) => setSpeed(Number(e.target.value))}>
-                {[1, 2, 4, 8].map((s) => <option key={s} value={s}>{s}×</option>)}
+                {[0.25, 0.5, 1, 2, 4, 8].map((s) => <option key={s} value={s}>{s}×</option>)}
               </select>
               <span className="meta" style={{ fontVariantNumeric: 'tabular-nums' }}>{clock}</span>
             </div>
@@ -788,7 +788,7 @@ export default function ReplayView({
                   {ghostPlaying ? '⏸' : '▶'}
                 </button>
                 <select value={ghostSpeed} onChange={(e) => setGhostSpeed(Number(e.target.value))}>
-                  {[1, 2, 4, 8].map((s) => <option key={s} value={s}>{s}×</option>)}
+                  {[0.25, 0.5, 1, 2, 4, 8].map((s) => <option key={s} value={s}>{s}×</option>)}
                 </select>
                 <span className="meta" style={{ fontVariantNumeric: 'tabular-nums' }}>{ghostClock}</span>
               </div>
