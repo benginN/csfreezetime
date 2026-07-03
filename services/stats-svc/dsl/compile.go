@@ -240,7 +240,8 @@ func (e *Engine) pgMoments(ctx context.Context, q *Query, roundsSQL string, roun
 			          AND s.player_id = k.attacker_id AND s.side = ?)`, q.Filters.Side)
 		}
 		if ev.Weapon != "" {
-			b.add("k.weapon = ?", ev.Weapon)
+			// silahlar iç adlarla küçük harf saklanır ("awp"); arama duyarsız
+			b.add("lower(k.weapon) = lower(?)", ev.Weapon)
 		}
 		if ev.FirstKill != nil {
 			b.add("k.is_first_kill = ?", *ev.FirstKill)
