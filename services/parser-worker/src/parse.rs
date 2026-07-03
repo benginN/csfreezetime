@@ -37,6 +37,7 @@ pub struct PlayerTickRow {
     pub is_scoped: bool,
     pub flash_remaining: f32,
     pub place: String,
+    pub inventory: Vec<String>,
 }
 
 pub struct ParseResult {
@@ -138,6 +139,7 @@ const PLAYER_PROPS: &[&str] = &[
     "flash_duration",
     "last_place_name",
     "team_num",
+    "inventory",
 ];
 
 const WANTED_EVENTS: &[&str] = &[
@@ -292,6 +294,7 @@ pub fn parse_demo_bytes(bytes: &[u8], match_id: Uuid) -> Result<ParseResult> {
     let c_flash = col("flash_duration")?;
     let c_place = col("last_place_name")?;
     let c_team = col("team_num")?;
+    let c_inv = col("inventory").ok(); // eski demolar/prop eksikliği tolere edilir
 
     let mut rows = Vec::with_capacity(n / TICK_SAMPLE_DIVISOR as usize + 1);
     for i in 0..n {
@@ -351,6 +354,7 @@ pub fn parse_demo_bytes(bytes: &[u8], match_id: Uuid) -> Result<ParseResult> {
             is_scoped: as_bool(c_scope, i).unwrap_or(false),
             flash_remaining: as_f32(c_flash, i).unwrap_or(0.0),
             place: as_string(c_place, i).unwrap_or_default(),
+            inventory: as_string_vec(c_inv, i),
         });
     }
 
@@ -827,5 +831,12 @@ fn as_string(v: &VarVec, i: usize) -> Option<String> {
     match v {
         VarVec::String(x) => x.get(i).cloned().flatten(),
         _ => None,
+    }
+}
+
+fn as_string_vec(v: Option<&VarVec>, i: usize) -> Vec<String> {
+    match v {
+        Some(VarVec::StringVec(x)) => x.get(i).cloned().unwrap_or_default(),
+        _ => Vec::new(),
     }
 }

@@ -77,6 +77,7 @@ func main() {
 		w.Header().Set("Content-Type", "application/json")
 		w.Write(schemaJSON)
 	})
+	r.Get("/api/v1/search", srv.search)
 	r.Get("/api/v1/teams", srv.teams)
 	r.Get("/api/v1/teams/{id}/tendencies", srv.teamTendencies)
 	r.Get("/api/v1/players/{id}/flags", srv.playerFlags)
@@ -296,7 +297,23 @@ func (s *server) heatmap(w http.ResponseWriter, r *http.Request) {
 	}
 	rows.Close()
 
-	filtered := qp.Get("buy_type") != "" || qp.Get("source") != ""
+	// Opsiyonel maç filtresi: yalnızca o maçın rauntları (maç sayfası sekmesi)
+	if mid := qp.Get("match_id"); mid != "" {
+		want, err := uuid.Parse(mid)
+		if err != nil {
+			writeErr(w, 400, fmt.Errorf("geçersiz match_id"))
+			return
+		}
+		var only []rref
+		for _, x := range refs {
+			if x.id == want {
+				only = append(only, x)
+			}
+		}
+		refs = only
+	}
+
+	filtered := qp.Get("buy_type") != "" || qp.Get("source") != "" || qp.Get("match_id") != ""
 	conds := []string{"map_name = ?", "side = ?"}
 	args := []any{mapName, side}
 	if filtered {

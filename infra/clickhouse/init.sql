@@ -16,7 +16,8 @@ CREATE TABLE IF NOT EXISTS cs2.player_ticks (
     active_weapon LowCardinality(String),
     is_alive Bool, is_ducking Bool, is_walking Bool, is_scoped Bool,
     flash_remaining Float32,
-    place         LowCardinality(String)    -- ingest'te atanır
+    place         LowCardinality(String),   -- ingest'te atanır
+    inventory     Array(String) DEFAULT []  -- eldeki tüm silahlar
 ) ENGINE = MergeTree
 PARTITION BY map_name
 ORDER BY (match_id, round_number, player_id, tick);

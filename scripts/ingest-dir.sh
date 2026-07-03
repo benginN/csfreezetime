@@ -45,7 +45,8 @@ for f in "$DIR"/*.dem; do
         mc alias set local http://minio:9000 '$MINIO_ROOT_USER' '$MINIO_ROOT_PASSWORD' >/dev/null &&
         mc cp -q /data/$NAME local/$S3_BUCKET/$OBJECT_KEY >/dev/null"
 
-    PAYLOAD="{\"demo_sha256\":\"$SHA256\",\"match_id\":\"$MATCH_ID\",\"object_key\":\"$OBJECT_KEY\",\"source_file\":\"${NAME%.dem}\"}"
+    MTIME=$(date -u -r "$(stat -f %m "$f")" +%Y-%m-%dT%H:%M:%SZ)  # dosya tarihi ≈ maç tarihi
+    PAYLOAD="{\"demo_sha256\":\"$SHA256\",\"match_id\":\"$MATCH_ID\",\"object_key\":\"$OBJECT_KEY\",\"source_file\":\"${NAME%.dem}\",\"played_at\":\"$MTIME\"}"
     docker run --rm --network "$COMPOSE_NET" natsio/nats-box:latest \
         nats --server nats://nats:4222 pub demo.ingested "$PAYLOAD" >/dev/null
     log "kuyruğa verildi: $NAME (match_id=$MATCH_ID)"

@@ -18,14 +18,16 @@ pub async fn upsert_match(
     object_key: &str,
     parser_version: &str,
     source_file: Option<&str>,
+    played_at: Option<&str>,
 ) -> Result<Uuid> {
     let (match_id,): (Uuid,) = sqlx::query_as(
         r#"
-        INSERT INTO matches (match_id, org_id, demo_sha256, demo_object_key, parser_version, status, event_name)
-        VALUES ($1, $2, $3, $4, $5, 'parsing', $6)
+        INSERT INTO matches (match_id, org_id, demo_sha256, demo_object_key, parser_version, status, event_name, played_at)
+        VALUES ($1, $2, $3, $4, $5, 'parsing', $6, $7::timestamptz)
         ON CONFLICT (demo_sha256) DO UPDATE
             SET status = 'parsing', parser_version = EXCLUDED.parser_version,
-                event_name = COALESCE(EXCLUDED.event_name, matches.event_name)
+                event_name = COALESCE(EXCLUDED.event_name, matches.event_name),
+                played_at = COALESCE(EXCLUDED.played_at, matches.played_at)
         RETURNING match_id
         "#,
     )
@@ -35,6 +37,7 @@ pub async fn upsert_match(
     .bind(object_key)
     .bind(parser_version)
     .bind(source_file)
+    .bind(played_at)
     .fetch_one(pool)
     .await
     .context("matches upsert")?;

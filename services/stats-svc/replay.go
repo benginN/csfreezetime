@@ -98,15 +98,17 @@ func (s *server) matchDetail(w http.ResponseWriter, r *http.Request) {
 		RoundTime   float32 `json:"round_time"`
 		Attacker    *string `json:"attacker"`
 		Victim      *string `json:"victim"`
+		Assister    *string `json:"assister"`
 		Weapon      *string `json:"weapon"`
 		Headshot    *bool   `json:"headshot"`
 	}
 	krows, err := s.pg.Query(ctx, `
 		SELECT k.round_number, k.tick, k.round_time,
-		       pa.nickname, pv.nickname, k.weapon, k.headshot
+		       pa.nickname, pv.nickname, ps.nickname, k.weapon, k.headshot
 		FROM kills k
 		LEFT JOIN players pa ON pa.player_id = k.attacker_id
 		LEFT JOIN players pv ON pv.player_id = k.victim_id
+		LEFT JOIN players ps ON ps.player_id = k.assister_id
 		WHERE k.match_id = $1 ORDER BY k.round_number, k.tick`, matchID)
 	if err != nil {
 		writeErr(w, 500, err)
@@ -117,7 +119,7 @@ func (s *server) matchDetail(w http.ResponseWriter, r *http.Request) {
 	for krows.Next() {
 		var x killRow
 		if err := krows.Scan(&x.RoundNumber, &x.Tick, &x.RoundTime,
-			&x.Attacker, &x.Victim, &x.Weapon, &x.Headshot); err != nil {
+			&x.Attacker, &x.Victim, &x.Assister, &x.Weapon, &x.Headshot); err != nil {
 			writeErr(w, 500, err)
 			return
 		}
@@ -138,10 +140,15 @@ type playerTrack struct {
 	RY     []*float64 `json:"ry"`
 	Yaw    []*float64 `json:"yaw"`
 	HP     []*int32   `json:"hp"`
+	Armor  []*int32   `json:"armor"`
 	Alive  []*bool    `json:"alive"`
 	Weapon []*string  `json:"weapon"`
+	Inv    [][]string `json:"inv"`             // eldeki tüm silahlar
 	Flash  []*float64 `json:"flash"`           // kalan körlük süresi (sn)
 	Lower  []*bool    `json:"lower,omitempty"` // çok katlı haritada alt kat mı
+	// raunt başı ekonomi (PRS'ten; canlı para takibi tick verisinde yok)
+	MoneyStart *int32 `json:"money_start"`
+	EquipValue *int32 `json:"equip_value"`
 }
 
 // GET /api/v1/rounds/{match_id}/{n}/ticks — rauntun tüm 16 Hz akışı, radar koordinatlı
@@ -192,8 +199,8 @@ func (s *server) roundTicks(w http.ResponseWriter, r *http.Request) {
 	}
 
 	chRows, err := s.ch.Query(ctx, `
-		SELECT tick, player_id, side, x, y, z, yaw, health, is_alive,
-		       active_weapon, flash_remaining
+		SELECT tick, player_id, side, x, y, z, yaw, health, armor, is_alive,
+		       active_weapon, flash_remaining, inventory
 		FROM player_ticks
 		WHERE match_id = ? AND round_number = ?
 		ORDER BY tick, player_id`, matchID, uint8(roundNo))
@@ -206,11 +213,12 @@ func (s *server) roundTicks(w http.ResponseWriter, r *http.Request) {
 	tickSet := map[uint32]bool{}
 	type sample struct {
 		rx, ry, yaw float64
-		hp          int32
+		hp, armor   int32
 		alive       bool
 		lower       bool
 		weapon      string
 		flash       float64
+		inv         []string
 	}
 	perPlayer := map[uuid.UUID]map[uint32]sample{}
 	sides := map[uuid.UUID]string{}
@@ -219,9 +227,10 @@ func (s *server) roundTicks(w http.ResponseWriter, r *http.Request) {
 		var pid uuid.UUID
 		var side, weapon string
 		var x, y, z, yaw, flash float32
-		var hp uint8
+		var hp, armor uint8
 		var alive bool
-		if err := chRows.Scan(&tick, &pid, &side, &x, &y, &z, &yaw, &hp, &alive, &weapon, &flash); err != nil {
+		var inv []string
+		if err := chRows.Scan(&tick, &pid, &side, &x, &y, &z, &yaw, &hp, &armor, &alive, &weapon, &flash, &inv); err != nil {
 			writeErr(w, 500, err)
 			return
 		}
@@ -233,8 +242,8 @@ func (s *server) roundTicks(w http.ResponseWriter, r *http.Request) {
 		lower := cal.HasLower && cal.SplitZ != nil && float64(z) < *cal.SplitZ
 		perPlayer[pid][tick] = sample{
 			rx: (float64(x) - cal.PosX) / cal.Scale, ry: (cal.PosY - float64(y)) / cal.Scale,
-			yaw: float64(yaw), hp: int32(hp), alive: alive, lower: lower,
-			weapon: weapon, flash: float64(flash),
+			yaw: float64(yaw), hp: int32(hp), armor: int32(armor), alive: alive, lower: lower,
+			weapon: weapon, flash: float64(flash), inv: inv,
 		}
 	}
 	if len(tickSet) == 0 {
@@ -254,19 +263,21 @@ func (s *server) roundTicks(w http.ResponseWriter, r *http.Request) {
 			PlayerID: pid, Nickname: nicks[pid], Side: sides[pid],
 			RX: make([]*float64, len(ticks)), RY: make([]*float64, len(ticks)),
 			Yaw: make([]*float64, len(ticks)), HP: make([]*int32, len(ticks)),
-			Alive:  make([]*bool, len(ticks)),
-			Weapon: make([]*string, len(ticks)), Flash: make([]*float64, len(ticks)),
+			Armor: make([]*int32, len(ticks)), Alive: make([]*bool, len(ticks)),
+			Weapon: make([]*string, len(ticks)), Inv: make([][]string, len(ticks)),
+			Flash: make([]*float64, len(ticks)),
 		}
 		if cal.HasLower {
 			tr.Lower = make([]*bool, len(ticks))
 		}
 		for i, t := range ticks {
 			if sm, ok := samples[t]; ok {
-				rx, ry, yaw, hp, alive, lower := sm.rx, sm.ry, sm.yaw, sm.hp, sm.alive, sm.lower
+				rx, ry, yaw, hp, armor, alive, lower := sm.rx, sm.ry, sm.yaw, sm.hp, sm.armor, sm.alive, sm.lower
 				weapon, flash := sm.weapon, sm.flash
 				tr.RX[i], tr.RY[i], tr.Yaw[i] = &rx, &ry, &yaw
-				tr.HP[i], tr.Alive[i] = &hp, &alive
+				tr.HP[i], tr.Armor[i], tr.Alive[i] = &hp, &armor, &alive
 				tr.Weapon[i], tr.Flash[i] = &weapon, &flash
+				tr.Inv[i] = sm.inv
 				if cal.HasLower {
 					tr.Lower[i] = &lower
 				}
@@ -274,6 +285,27 @@ func (s *server) roundTicks(w http.ResponseWriter, r *http.Request) {
 		}
 		players = append(players, tr)
 	}
+	// Raunt başı ekonomi (PRS)
+	econRows, err := s.pg.Query(ctx, `
+		SELECT player_id, money_start, equip_value FROM player_round_states
+		WHERE match_id = $1 AND round_number = $2`, matchID, roundNo)
+	econ := map[uuid.UUID][2]*int32{}
+	if err == nil {
+		for econRows.Next() {
+			var pid uuid.UUID
+			var ms, ev *int32
+			if econRows.Scan(&pid, &ms, &ev) == nil {
+				econ[pid] = [2]*int32{ms, ev}
+			}
+		}
+		econRows.Close()
+	}
+	for i := range players {
+		if e, ok := econ[players[i].PlayerID]; ok {
+			players[i].MoneyStart, players[i].EquipValue = e[0], e[1]
+		}
+	}
+
 	sort.Slice(players, func(i, j int) bool {
 		if players[i].Side != players[j].Side {
 			return players[i].Side < players[j].Side
