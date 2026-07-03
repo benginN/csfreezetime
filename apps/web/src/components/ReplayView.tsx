@@ -35,6 +35,15 @@ function hslToRgbHex(h: number, s: number, l: number): number {
   return (Math.round(f(0) * 255) << 16) | (Math.round(f(8) * 255) << 8) | Math.round(f(4) * 255);
 }
 
+// Harita üstü çizim (koç taktiği): dünya koordinatlarında saklanır —
+// zoom/pan ile birlikte hareket eder; raunt başına localStorage'ta durur.
+interface Stroke {
+  tool: 'pen' | 'arrow';
+  color: number;
+  pts: number[]; // düz [x0,y0,x1,y1,...] dünya-piksel (0..W)
+}
+const DRAW_COLORS = [0xe05545, 0xeec27f, 0x86d8e8, 0xffffff];
+
 interface HudRow {
   nick: string;
   side: string;
@@ -102,6 +111,32 @@ export default function ReplayView({
   const [selPlayer, setSelPlayer] = useState('');
   const selPlayerRef = useRef('');
   selPlayerRef.current = selPlayer;
+  // --- çizim modu (koç taktiği) ---
+  const [drawTool, setDrawTool] = useState<'off' | 'pen' | 'arrow'>('off');
+  const [drawColor, setDrawColor] = useState(DRAW_COLORS[0]);
+  const [strokeVer, setStrokeVer] = useState(0); // undo/clear butonları için
+  const drawToolRef = useRef<'off' | 'pen' | 'arrow'>('off');
+  const drawColorRef = useRef(DRAW_COLORS[0]);
+  drawToolRef.current = drawTool;
+  drawColorRef.current = drawColor;
+  const drawKey = `tm_draw_${matchId}_${round}`;
+  useEffect(() => {
+    const cv = stageRef.current?.querySelector('canvas');
+    if (cv) (cv as HTMLElement).style.cursor = drawTool !== 'off' ? 'crosshair' : '';
+  }, [drawTool]);
+  const strokesRef = useRef<Stroke[]>([]);
+  const activeStrokeRef = useRef<Stroke | null>(null);
+  useEffect(() => {
+    try {
+      strokesRef.current = JSON.parse(localStorage.getItem(drawKey) ?? '[]');
+    } catch { strokesRef.current = []; }
+    setStrokeVer((v) => v + 1);
+  }, [drawKey]);
+  const saveStrokes = () => {
+    localStorage.setItem(drawKey, JSON.stringify(strokesRef.current));
+    setStrokeVer((v) => v + 1);
+  };
+
   // hayaletlerin KENDİ saati (replay saatinden bağımsız oynar)
   const [ghostPlaying, setGhostPlaying] = useState(false);
   const [ghostSpeed, setGhostSpeed] = useState(2);
@@ -255,7 +290,8 @@ export default function ReplayView({
         tag.position.set(IX + 4, IY + INS - 14);
         world.addChild(insetSprite, tag);
       }
-      world.addChild(heatSprite, gGhosts, gNades, gKills, playersLayer, worldLabels);
+      const gDraw = new Graphics(); // koç çizimleri (en üstte, dünya uzayında)
+      world.addChild(heatSprite, gGhosts, gNades, gKills, playersLayer, worldLabels, gDraw);
       app.stage.addChild(world, feedLayer);
 
       // --- Zoom & pan: tekerlek imlece doğru yakınlaşır, sürükle kaydırır,
@@ -301,9 +337,29 @@ export default function ReplayView({
         zoomOut: () => zoomAt(W / 2, W / 2, 1 / 1.4),
         reset: () => { view.s = 1; view.x = 0; view.y = 0; clampView(); },
       };
+      // ekran → dünya koordinatı (çizim noktaları için)
+      const toWorld = (e: PointerEvent) => {
+        const rect = app.canvas.getBoundingClientRect();
+        return {
+          x: (e.clientX - rect.left - view.x) / view.s,
+          y: (e.clientY - rect.top - view.y) / view.s,
+        };
+      };
       let panning = false;
+      let drawing = false;
       let panStart = { x: 0, y: 0, vx: 0, vy: 0 };
       const onDown = (e: PointerEvent) => {
+        if (drawToolRef.current !== 'off') {
+          drawing = true;
+          const p = toWorld(e);
+          activeStrokeRef.current = {
+            tool: drawToolRef.current,
+            color: drawColorRef.current,
+            pts: [p.x, p.y, p.x, p.y],
+          };
+          app.canvas.setPointerCapture(e.pointerId);
+          return;
+        }
         if (view.s <= 1) return;
         panning = true;
         panStart = { x: e.clientX, y: e.clientY, vx: view.x, vy: view.y };
@@ -311,12 +367,29 @@ export default function ReplayView({
         app.canvas.style.cursor = 'grabbing';
       };
       const onMove = (e: PointerEvent) => {
+        if (drawing && activeStrokeRef.current) {
+          const p = toWorld(e);
+          const st = activeStrokeRef.current;
+          if (st.tool === 'pen') st.pts.push(p.x, p.y);
+          else { st.pts[2] = p.x; st.pts[3] = p.y; } // ok: yalnız uç güncellenir
+          return;
+        }
         if (!panning) return;
         view.x = panStart.vx + (e.clientX - panStart.x);
         view.y = panStart.vy + (e.clientY - panStart.y);
         clampView();
       };
       const onUp = () => {
+        if (drawing && activeStrokeRef.current) {
+          const st = activeStrokeRef.current;
+          activeStrokeRef.current = null;
+          drawing = false;
+          if (st.pts.length >= 4) {
+            strokesRef.current = [...strokesRef.current, st];
+            saveStrokes();
+          }
+          return;
+        }
         panning = false;
         app.canvas.style.cursor = view.s > 1 ? 'grab' : 'default';
       };
@@ -393,6 +466,7 @@ export default function ReplayView({
         g.eventMode = 'static';
         g.cursor = 'pointer';
         g.on('pointertap', () => {
+          if (drawToolRef.current !== 'off') return; // çizim modunda seçim yok
           setSelPlayer((cur) => (cur === p.nickname ? '' : p.nickname));
         });
         const name = new Text({
@@ -650,6 +724,28 @@ export default function ReplayView({
           }
           node.name.position.set(x + 10 * Math.max(s, 0.72), y - 5 * Math.max(s, 0.72));
         });
+
+        // --- koç çizimleri (zoom/pan ile birlikte; aktif çizim yarı saydam) ---
+        gDraw.clear();
+        const renderStroke = (st: Stroke, alpha: number) => {
+          if (st.pts.length < 4) return;
+          gDraw.moveTo(st.pts[0], st.pts[1]);
+          if (st.tool === 'pen') {
+            for (let i = 2; i < st.pts.length; i += 2) gDraw.lineTo(st.pts[i], st.pts[i + 1]);
+            gDraw.stroke({ width: 2.5, color: st.color, alpha });
+          } else {
+            const x0 = st.pts[0], y0 = st.pts[1], x1 = st.pts[2], y1 = st.pts[3];
+            gDraw.lineTo(x1, y1).stroke({ width: 2.5, color: st.color, alpha });
+            const ang = Math.atan2(y1 - y0, x1 - x0);
+            gDraw.moveTo(x1, y1)
+              .lineTo(x1 - 9 * Math.cos(ang - 0.5), y1 - 9 * Math.sin(ang - 0.5))
+              .moveTo(x1, y1)
+              .lineTo(x1 - 9 * Math.cos(ang + 0.5), y1 - 9 * Math.sin(ang + 0.5))
+              .stroke({ width: 2.5, color: st.color, alpha });
+          }
+        };
+        for (const st of strokesRef.current) renderStroke(st, 0.9);
+        if (activeStrokeRef.current) renderStroke(activeStrokeRef.current, 0.7);
 
         if (i0 !== lastHud) {
           lastHud = i0;
@@ -953,6 +1049,52 @@ export default function ReplayView({
                 ))}
               </div>
               <p className="meta">own clock — plays independently of the replay · max 10 rounds</p>
+          </div>
+        </div>
+
+        {/* Çizim: koç taktiği — kalem/ok, harita üstünde, zoom'la yapışık */}
+        <div className="layerpanel">
+          <label className="layerhead">
+            <input
+              type="checkbox"
+              checked={drawTool !== 'off'}
+              onChange={(e) => setDrawTool(e.target.checked ? 'pen' : 'off')}
+            />
+            Draw on map
+          </label>
+          <div className={`layerbody ${drawTool !== 'off' ? '' : 'dim'}`}>
+            <div className="row">
+              <button className={drawTool === 'pen' ? '' : 'ghost'} onClick={() => setDrawTool('pen')}>✏ pen</button>
+              <button className={drawTool === 'arrow' ? '' : 'ghost'} onClick={() => setDrawTool('arrow')}>→ arrow</button>
+              {DRAW_COLORS.map((c) => (
+                <button
+                  key={c}
+                  className="ghost swatch"
+                  style={{
+                    background: `#${c.toString(16).padStart(6, '0')}`,
+                    outline: drawColor === c ? '2px solid #d8ded9' : 'none',
+                  }}
+                  onClick={() => setDrawColor(c)}
+                />
+              ))}
+            </div>
+            <div className="row">
+              <button
+                className="ghost"
+                disabled={!strokesRef.current.length}
+                onClick={() => { strokesRef.current = strokesRef.current.slice(0, -1); saveStrokes(); }}
+              >
+                undo
+              </button>
+              <button
+                className="ghost"
+                disabled={!strokesRef.current.length}
+                onClick={() => { strokesRef.current = []; saveStrokes(); }}
+              >
+                clear
+              </button>
+              <span className="meta" key={strokeVer}>{strokesRef.current.length} strokes · saved per round</span>
+            </div>
           </div>
         </div>
 

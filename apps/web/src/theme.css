@@ -192,6 +192,9 @@ canvas.flat { border: 1px solid #232a26; border-radius: 6px; display:block; }
 /* Kapalı katman: collapse yerine grileşir (yerleşim sabit kalır) */
 .layerbody.dim { opacity: 0.4; pointer-events: none; }
 
+/* Çizim renk kutuları */
+button.swatch { width: 22px; height: 22px; padding: 0; border-radius: 5px; }
+
 /* Harita köşesi zoom düğmeleri (trackpad/mouse bağımsız garanti yol) */
 .zoombtns { position: absolute; top: 8px; left: 8px; display: flex; flex-direction: column; gap: 4px; }
 .zoombtns button {
