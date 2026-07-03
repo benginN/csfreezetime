@@ -2,6 +2,7 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { api, type Tendency } from '../api';
 import { useMemo, useState } from 'react';
+import { teamHue, teamInitials } from '../lib/rounds';
 
 export default function Home() {
   const [params] = useSearchParams();
@@ -20,6 +21,7 @@ export default function Home() {
 
   return (
     <>
+      {!q.trim() && <TeamStrip />}
       <div className="meta" style={{ margin: '4px 0 12px' }}>
         {res.isLoading ? 'searching…' : `${matches.length} matches`}
         {q && <> · “{q}”</>}
@@ -42,6 +44,28 @@ export default function Home() {
 
       {soloTeam && <TeamPanels teamId={soloTeam.id} name={soloTeam.name} />}
     </>
+  );
+}
+
+// Ana sayfa takım şeridi: monogram "logo" + ad; tıklayınca takım anasayfası.
+function TeamStrip() {
+  const teams = useQuery({ queryKey: ['teams'], queryFn: () => api.teams() });
+  const list = (teams.data ?? []).filter((t) => t.matches > 0);
+  if (!list.length) return null;
+  return (
+    <div className="teamstrip">
+      {list.map((t) => (
+        <Link key={t.team_id} to={`/team/${t.team_id}`} className="teamcard">
+          <span className="monogram" style={{ background: `hsl(${teamHue(t.name)},45%,32%)` }}>
+            {teamInitials(t.name)}
+          </span>
+          <span>
+            <span className="tname">{t.name}</span>
+            <span className="meta">{t.matches} matches</span>
+          </span>
+        </Link>
+      ))}
+    </div>
   );
 }
 

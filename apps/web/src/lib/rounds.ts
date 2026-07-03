@@ -1,5 +1,19 @@
 import type { RoundRow } from '../api';
 
+/** Takım adından deterministik ton (monogram "logosu" için). */
+export function teamHue(name: string): number {
+  let h = 0;
+  for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) | 0;
+  return Math.abs(h) % 360;
+}
+
+/** Monogram harfleri: "Team Spirit" → "TS", "G2 Esports" → "G2". */
+export function teamInitials(name: string): string {
+  const words = name.trim().split(/\s+/);
+  if (words.length === 1) return words[0].slice(0, 2).toUpperCase();
+  return (words[0][0] + words[1][0]).toUpperCase();
+}
+
 /** Which team won the round: 'A' | 'B' relative to match team_a_id. */
 export function winnerTeamClass(r: RoundRow, teamAId: string | null): 'A' | 'B' | '' {
   if (!r.winner_side || !teamAId) return '';

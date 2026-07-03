@@ -4,6 +4,7 @@ import Home from './pages/Home';
 import MatchPage from './pages/MatchPage';
 import Upload from './pages/Upload';
 import Report from './pages/Report';
+import Team from './pages/Team';
 
 export default function App() {
   return (
@@ -23,6 +24,7 @@ export default function App() {
           <Route path="/upload" element={<Upload />} />
           <Route path="/yukle" element={<Upload />} />
           <Route path="/report/:teamId" element={<Report />} />
+          <Route path="/team/:teamId" element={<Team />} />
         </Routes>
       </main>
     </>

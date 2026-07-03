@@ -115,11 +115,11 @@ export function hidpiCtx(cv: HTMLCanvasElement, cssSize: number): CanvasRenderin
 export interface InsetGeom { x: number; y: number; size: number }
 
 export function insetGeom(w: number): InsetGeom {
-  const size = Math.round(w * 0.38);
-  return { x: w - size - 8, y: 8, size };
+  const size = Math.round(w * 0.33); // çerçevesiz, hafif küçük — üst üste binmesin
+  return { x: w - size - 6, y: 6, size };
 }
 
-/** Alt kat zeminini + çerçeve + etiketi çizer (ana içerikten SONRA çağır). */
+/** Alt kat zeminini + etiketi çizer (çerçevesiz; ana içerikten SONRA çağır). */
 export function drawLowerInset(ctx: CanvasRenderingContext2D, w: number, base: MapBase): InsetGeom {
   const g = insetGeom(w);
   const tmp = document.createElement('canvas');
@@ -127,12 +127,9 @@ export function drawLowerInset(ctx: CanvasRenderingContext2D, w: number, base: M
   tmp.height = g.size * DPR;
   drawMapBase(tmp.getContext('2d')!, g.size * DPR, base, false, 'lower');
   ctx.drawImage(tmp, g.x, g.y, g.size, g.size);
-  ctx.strokeStyle = '#3a5f3e';
-  ctx.lineWidth = 1.5;
-  ctx.strokeRect(g.x - 1, g.y - 1, g.size + 2, g.size + 2);
-  ctx.fillStyle = '#9fc79f';
-  ctx.font = '10px system-ui';
-  ctx.fillText('LOWER LEVEL', g.x + 5, g.y + g.size - 7);
+  ctx.fillStyle = 'rgba(159,199,159,0.85)';
+  ctx.font = '9px system-ui';
+  ctx.fillText('LOWER', g.x + 4, g.y + g.size - 5);
   return g;
 }
 

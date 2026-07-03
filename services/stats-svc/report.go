@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 )
 
@@ -216,6 +217,74 @@ func (s *server) report(w http.ResponseWriter, r *http.Request) {
 		    ORDER BY p.nickname, pr.side
 		) x`, teamID)
 
+	writeJSON(w, 200, out)
+}
+
+// GET /api/v1/teams/{id}/summary — takım anasayfası verisi:
+// tüm haritalar genel görünümü + harita bazlı karne.
+func (s *server) teamSummary(w http.ResponseWriter, r *http.Request) {
+	teamID, err := uuid.Parse(chi.URLParam(r, "id"))
+	if err != nil {
+		writeErr(w, 400, fmt.Errorf("invalid team_id"))
+		return
+	}
+	ctx := r.Context()
+	var teamName string
+	if err := s.pg.QueryRow(ctx,
+		"SELECT name FROM teams WHERE team_id = $1", teamID).Scan(&teamName); err != nil {
+		writeErr(w, 404, fmt.Errorf("team not found"))
+		return
+	}
+
+	out := map[string]any{"team_id": teamID, "team": teamName}
+	var matches, wins, tR, tW, ctR, ctW, pisN, pisW int
+	err = s.pg.QueryRow(ctx, `
+		WITH tr AS (
+		    SELECT r.match_id, r.round_number,
+		           CASE WHEN r.t_team_id = $1 THEN 'T' ELSE 'CT' END AS side,
+		           (r.winner_side = 'T') = (r.t_team_id = $1) AS won
+		    FROM rounds r JOIN matches m ON m.match_id = r.match_id AND m.status = 'ready'
+		    WHERE (r.t_team_id = $1 OR r.ct_team_id = $1) AND r.winner_side IS NOT NULL
+		),
+		per AS (
+		    SELECT match_id, count(*) FILTER (WHERE won) AS w, count(*) AS n
+		    FROM tr GROUP BY match_id
+		)
+		SELECT (SELECT count(*) FROM per),
+		       (SELECT count(*) FILTER (WHERE w > n - w) FROM per),
+		       count(*) FILTER (WHERE side='T'),
+		       count(*) FILTER (WHERE side='T' AND won),
+		       count(*) FILTER (WHERE side='CT'),
+		       count(*) FILTER (WHERE side='CT' AND won),
+		       count(*) FILTER (WHERE round_number IN (1,13)),
+		       count(*) FILTER (WHERE round_number IN (1,13) AND won)
+		FROM tr`, teamID).Scan(&matches, &wins, &tR, &tW, &ctR, &ctW, &pisN, &pisW)
+	if err != nil {
+		writeErr(w, 500, err)
+		return
+	}
+	out["overview"] = map[string]int{
+		"matches": matches, "wins": wins,
+		"t_rounds": tR, "t_wins": tW, "ct_rounds": ctR, "ct_wins": ctW,
+		"pistol_rounds": pisN, "pistol_wins": pisW,
+	}
+	out["maps"] = s.jsonQuery(ctx, `
+		SELECT COALESCE(json_agg(x ORDER BY x.matches DESC), '[]'::json) FROM (
+		    SELECT m.map_name,
+		           count(DISTINCT r.match_id) AS matches,
+		           count(DISTINCT r.match_id) FILTER (WHERE mw.won) AS wins,
+		           count(*) FILTER (WHERE (r.winner_side='T') = (r.t_team_id=$1)) AS round_wins,
+		           count(*) AS rounds
+		    FROM rounds r
+		    JOIN matches m ON m.match_id = r.match_id AND m.status = 'ready'
+		    LEFT JOIN LATERAL (
+		        SELECT count(*) FILTER (WHERE (r2.winner_side='T') = (r2.t_team_id=$1))
+		               > count(*) / 2.0 AS won
+		        FROM rounds r2 WHERE r2.match_id = r.match_id AND r2.winner_side IS NOT NULL
+		    ) mw ON TRUE
+		    WHERE (r.t_team_id = $1 OR r.ct_team_id = $1) AND r.winner_side IS NOT NULL
+		    GROUP BY m.map_name
+		) x`, teamID)
 	writeJSON(w, 200, out)
 }
 

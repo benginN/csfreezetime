@@ -176,6 +176,23 @@ canvas.flat { border: 1px solid #232a26; border-radius: 6px; display:block; }
 .hud .hpbar i { display: block; height: 100%; }
 .hud .inv { color: #6f7a72; font-size: 9px; padding-bottom: 3px; }
 
+/* Takım kartları (ana sayfa şeridi) + monogram "logo" */
+.teamstrip { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 10px; margin: 4px 0 18px; }
+.teamcard {
+  display: flex; align-items: center; gap: 10px;
+  background: #151a17; border: 1px solid #232a26; border-radius: 8px;
+  padding: 10px 12px; color: inherit;
+}
+.teamcard:hover { border-color: #3a5f3e; text-decoration: none; }
+.monogram {
+  width: 34px; height: 34px; border-radius: 8px; flex: 0 0 34px;
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 800; font-size: 14px; color: #fff;
+}
+.monogram.lg { width: 52px; height: 52px; flex-basis: 52px; font-size: 20px; border-radius: 11px; }
+.teamcard .tname { font-weight: 600; font-size: 13.5px; line-height: 1.2; }
+.teamcard .meta { display: block; margin-top: 2px; }
+
 /* Rakip raporu */
 .report h2 { margin-top: 26px; border-bottom: 1px solid #232a26; padding-bottom: 4px; }
 .report h3 { font-size: 13.5px; color: #9fc79f; margin: 14px 0 8px; }

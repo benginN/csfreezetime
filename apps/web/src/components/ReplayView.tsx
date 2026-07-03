@@ -1,11 +1,35 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Application, Container, Graphics, Sprite, Text, Texture } from 'pixi.js';
-import { api, type KillRow } from '../api';
-import { DPR, loadMapBase, renderMapBaseCanvas, RADAR, SIDE_COLOR, type MapBase } from '../lib/mapbase';
+import { api, type KillRow, type RoundRow, type StackResp } from '../api';
+import { DPR, insetGeom, loadMapBase, renderMapBaseCanvas, RADAR, SIDE_COLOR, type MapBase } from '../lib/mapbase';
+import { renderHeatLayer } from '../lib/heatpaint';
+import { chipTitle, isSideSwap, winnerTeamClass } from '../lib/rounds';
 
 const W = 860;
 const NADE_LIFE: Record<string, number> = { smoke: 20, molotov: 7, incendiary: 7, flash: 0.7, he: 0.7, decoy: 15 };
+const GHOST_TRAIL = 8;   // sn — hayalet iz uzunluğu
+const ghostHue = (i: number) => Math.round((i * 137.508) % 360);
+
+// t dizisi artan sıralı: pencere başlangıcının indeksi (ikili arama)
+function lowerBound(arr: number[], v: number): number {
+  let lo = 0, hi = arr.length;
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1;
+    if (arr[mid] < v) lo = mid + 1;
+    else hi = mid;
+  }
+  return lo;
+}
+
+function hslToRgbHex(h: number, s: number, l: number): number {
+  const a = s * Math.min(l, 1 - l);
+  const f = (k: number) => {
+    const kk = (k + h / 30) % 12;
+    return l - a * Math.max(-1, Math.min(kk - 3, Math.min(9 - kk, 1)));
+  };
+  return (Math.round(f(0) * 255) << 16) | (Math.round(f(8) * 255) << 8) | Math.round(f(4) * 255);
+}
 
 interface HudRow {
   nick: string;
@@ -29,12 +53,14 @@ function shortInv(inv: string[] | null): string {
 }
 
 export default function ReplayView({
-  matchId, round, seekTick, matchKills,
+  matchId, round, seekTick, matchKills, rounds, teams,
 }: {
   matchId: string;
   round: number;
   seekTick: number | null;
   matchKills: KillRow[];
+  rounds: RoundRow[];
+  teams: { aId: string | null; a: string | null; b: string | null };
 }) {
   const ticksQ = useQuery({
     queryKey: ['ticks', matchId, round],
@@ -51,6 +77,70 @@ export default function ReplayView({
   const [showPlaces, setShowPlaces] = useState(true); // harita bölge adları
   const [clock, setClock] = useState('0:00');
   const [hudRows, setHudRows] = useState<HudRow[]>([]);
+
+  // --- Katmanlar: ısı ve hayalet izler aynı harita üzerinde ---
+  const [heatSide, setHeatSide] = useState<'off' | 'T' | 'CT' | 'both'>('off');
+  const [heatPlayer, setHeatPlayer] = useState('');
+  const [ghostsOpen, setGhostsOpen] = useState(false);
+  const [ghostRounds, setGhostRounds] = useState<Set<number>>(new Set());
+  const [ghostSide, setGhostSide] = useState<'T' | 'CT' | 'both'>('T');
+
+  const players = useQuery({
+    queryKey: ['matchPlayers', matchId],
+    queryFn: () => api.matchPlayers(matchId),
+  });
+  const ghostKey = useMemo(() => [...ghostRounds].sort((a, b) => a - b).join(','), [ghostRounds]);
+  const allRoundsKey = useMemo(() => rounds.map((r) => r.round_number).join(','), [rounds]);
+  // ısı: hayalet raunt seçimi varsa onları, yoksa tüm rauntları kullanır
+  const heatRounds = ghostRounds.size ? ghostKey : allRoundsKey;
+  const heatQ = useQuery({
+    queryKey: ['mergedHeat', matchId, heatSide, heatPlayer, heatRounds],
+    enabled: heatSide !== 'off',
+    queryFn: () => {
+      const p = new URLSearchParams({ t0: '0', t1: '115', rounds: heatRounds });
+      if (heatSide !== 'both') p.set('side', heatSide);
+      if (heatPlayer) p.set('player_id', heatPlayer);
+      return api.matchHeatmap(matchId, p);
+    },
+    placeholderData: (prev) => prev,
+  });
+  const ghostQ = useQuery({
+    queryKey: ['ghosts', matchId, ghostKey, ghostSide],
+    enabled: ghostRounds.size > 0,
+    queryFn: () => api.stack({
+      rounds: [...ghostRounds].sort((a, b) => a - b)
+        .map((n) => ({ match_id: matchId, round_number: n })),
+      align: 'round_start',
+      side: ghostSide === 'both' ? undefined : ghostSide,
+    }),
+    placeholderData: (prev) => prev,
+  });
+  const ghostDataRef = useRef<StackResp | null>(null);
+  useEffect(() => {
+    ghostDataRef.current = ghostRounds.size ? (ghostQ.data ?? null) : null;
+  }, [ghostQ.data, ghostRounds.size]);
+  // ısı tuvali: hazır olduğunda draw döngüsü dokuyu tembelce uygular
+  const heatCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  useEffect(() => {
+    if (heatSide === 'off' || !heatQ.data) {
+      heatCanvasRef.current = null;
+      return;
+    }
+    const d = heatQ.data;
+    let maxW = 0;
+    for (const [, , wt] of d.cells) maxW = Math.max(maxW, wt);
+    for (const [, , wt] of d.cells_lower ?? []) maxW = Math.max(maxW, wt);
+    if (!maxW) { heatCanvasRef.current = null; return; }
+    const cv = document.createElement('canvas');
+    cv.width = W; cv.height = W;
+    const ctx = cv.getContext('2d')!;
+    if (d.cells.length) ctx.drawImage(renderHeatLayer(d.cells, W, d.cell_radar, maxW), 0, 0);
+    if (d.radar.has_lower && d.cells_lower?.length) {
+      const g = insetGeom(W);
+      ctx.drawImage(renderHeatLayer(d.cells_lower, g.size, d.cell_radar, maxW), g.x, g.y);
+    }
+    heatCanvasRef.current = cv;
+  }, [heatQ.data, heatSide]);
 
   const stageRef = useRef<HTMLDivElement>(null);
   const sliderRef = useRef<HTMLInputElement>(null);
@@ -109,10 +199,14 @@ export default function ReplayView({
       baseSpriteRef.current = baseSprite;
       // Çok katlı haritada alt kat: sağ üstte sabit mini harita (turnuva stili)
       const hasLower = d.radar.has_lower;
-      const INS = Math.round(W * 0.38);         // inset boyutu
-      const IX = W - INS - 8, IY = 8;           // inset konumu (sağ üst)
+      const ig = insetGeom(W);                  // paylaşılan geometri (çerçevesiz)
+      const INS = ig.size;
+      const IX = ig.x, IY = ig.y;
       const gNades = new Graphics();
       const gKills = new Graphics();
+      const gGhosts = new Graphics();     // hayalet izler (diğer rauntlar)
+      const heatSprite = new Sprite(Texture.EMPTY); // ısı katmanı (zemin üstü)
+      heatSprite.visible = false;
       const playersLayer = new Container();
       const feedLayer = new Container(); // canvas içi killfeed (gri)
       app.stage.addChild(baseSprite);
@@ -120,17 +214,27 @@ export default function ReplayView({
         const insetSprite = new Sprite(Texture.from(renderMapBaseCanvas(base, INS * DPR, false, 'lower')));
         insetSprite.setSize(INS, INS);
         insetSprite.position.set(IX, IY);
-        const border = new Graphics()
-          .rect(IX - 1, IY - 1, INS + 2, INS + 2)
-          .stroke({ width: 1.5, color: 0x3a5f3e });
         const tag = new Text({
-          text: 'LOWER LEVEL',
-          style: { fontSize: 10, fill: 0x9fc79f, fontFamily: 'system-ui' },
+          text: 'LOWER',
+          style: { fontSize: 9, fill: 0x9fc79f, fontFamily: 'system-ui' },
         });
-        tag.position.set(IX + 5, IY + INS - 16);
-        app.stage.addChild(insetSprite, border, tag);
+        tag.position.set(IX + 4, IY + INS - 14);
+        app.stage.addChild(insetSprite, tag);
       }
-      app.stage.addChild(gNades, gKills, playersLayer, feedLayer);
+      app.stage.addChild(heatSprite, gGhosts, gNades, gKills, playersLayer, feedLayer);
+
+      // hayalet raunt etiketleri (r7 gibi) — yeniden kullanılan havuz
+      const ghostLabels: Text[] = [];
+      for (let i = 0; i < 12; i++) {
+        const t = new Text({
+          text: '',
+          style: { fontSize: 10, fontWeight: '700', fill: 0xffffff, fontFamily: 'system-ui' },
+        });
+        t.visible = false;
+        feedLayer.addChild(t);
+        ghostLabels.push(t);
+      }
+      let appliedHeat: HTMLCanvasElement | null = null;
 
       // Konum eşleme: nesne kendi katının görünümüne çizilir.
       // s = boyut ölçeği (inset'te her şey küçülür).
@@ -200,6 +304,66 @@ export default function ReplayView({
         const i1 = Math.min(i0 + 1, d.ticks.length - 1);
         const frac = fIdx - i0;
         const tick = d.ticks[i0] + (d.ticks[i1] - d.ticks[i0]) * frac;
+
+        // --- ısı katmanı: hazır tuvali tembelce dokuya çevir ---
+        if (appliedHeat !== heatCanvasRef.current) {
+          appliedHeat = heatCanvasRef.current;
+          const old = heatSprite.texture;
+          if (appliedHeat) {
+            heatSprite.texture = Texture.from(appliedHeat);
+            heatSprite.setSize(W, W);
+            heatSprite.visible = true;
+          } else {
+            heatSprite.texture = Texture.EMPTY;
+            heatSprite.visible = false;
+          }
+          if (old !== Texture.EMPTY) old.destroy(true);
+        }
+
+        // --- hayalet izler: diğer rauntların oyuncuları aynı saatte ---
+        gGhosts.clear();
+        let ghostLabelIdx = 0;
+        const gd = ghostDataRef.current;
+        if (gd) {
+          const fe0 = d.freeze_end_tick ?? d.ticks[0];
+          const tSec = (tick - fe0) / d.tick_rate; // hayalet ekseni = raunt saati
+          gd.layers.forEach((ly, li) => {
+            if (ly.skipped || !ly.players) return;
+            const hue = ghostHue(li);
+            const col = hslToRgbHex(hue, 0.7, 0.6);
+            let labeled = false;
+            for (const p of ly.players) {
+              const from = lowerBound(p.t, tSec - GHOST_TRAIL);
+              let started = false;
+              let prevLower: boolean | undefined;
+              let lastX = 0, lastY = 0, lastS = 1, seen = false;
+              for (let i = from; i < p.t.length && p.t[i] <= tSec; i++) {
+                const lo = p.lower?.[i] ?? false;
+                const { x, y, s } = place(p.rx[i], p.ry[i], lo);
+                if (!started || lo !== prevLower) gGhosts.moveTo(x, y);
+                else gGhosts.lineTo(x, y);
+                started = true;
+                prevLower = lo;
+                lastX = x; lastY = y; lastS = s; seen = true;
+              }
+              if (started) gGhosts.stroke({ width: 1.5, color: col, alpha: 0.4 });
+              if (seen) {
+                gGhosts.circle(lastX, lastY, 4 * Math.max(lastS, 0.7))
+                  .fill({ color: col, alpha: 0.8 })
+                  .stroke({ width: 1, color: 0x0b0e0c, alpha: 0.8 });
+                if (!labeled && ghostLabelIdx < ghostLabels.length) {
+                  const lt = ghostLabels[ghostLabelIdx++];
+                  lt.text = `r${ly.round_number}`;
+                  lt.style.fill = col;
+                  lt.visible = true;
+                  lt.position.set(lastX + 7, lastY - 12);
+                  labeled = true;
+                }
+              }
+            }
+          });
+        }
+        for (let i = ghostLabelIdx; i < ghostLabels.length; i++) ghostLabels[i].visible = false;
 
         gNades.clear();
         let labelIdx = 0;
@@ -422,7 +586,60 @@ export default function ReplayView({
         <label>
           <input type="checkbox" checked={showPlaces} onChange={(e) => setShowPlaces(e.target.checked)} /> map callouts
         </label>
+        <span style={{ borderLeft: '1px solid #2c332e', paddingLeft: 10, display: 'inline-flex', gap: 8, alignItems: 'center' }}>
+          <label>heat</label>
+          <select value={heatSide} onChange={(e) => setHeatSide(e.target.value as typeof heatSide)}>
+            <option value="off">off</option><option value="T">T</option>
+            <option value="CT">CT</option><option value="both">both</option>
+          </select>
+          {heatSide !== 'off' && (
+            <select value={heatPlayer} onChange={(e) => setHeatPlayer(e.target.value)}>
+              <option value="">all players</option>
+              {(players.data ?? []).map((p) => (
+                <option key={p.player_id} value={p.player_id}>{p.nickname}</option>
+              ))}
+            </select>
+          )}
+          <button className={ghostRounds.size ? '' : 'ghost'} onClick={() => setGhostsOpen(!ghostsOpen)}>
+            ghost rounds{ghostRounds.size ? ` (${ghostRounds.size})` : ''}
+          </button>
+          {ghostRounds.size > 0 && (
+            <select value={ghostSide} onChange={(e) => setGhostSide(e.target.value as typeof ghostSide)}>
+              <option value="T">T</option><option value="CT">CT</option><option value="both">both</option>
+            </select>
+          )}
+          {(heatQ.isFetching || ghostQ.isFetching) && <span className="meta">…</span>}
+        </span>
       </div>
+
+      {ghostsOpen && (
+        <div className="roundchips" style={{ marginTop: -4 }}>
+          {rounds.map((r, i) => (
+            <Fragment key={r.round_number}>
+              {isSideSwap(rounds[i - 1], r) && <span className="halfdiv" title="side swap" />}
+              <button
+                className={`${winnerTeamClass(r, teams.aId)} win${r.winner_side ?? ''} ${ghostRounds.has(r.round_number) ? 'sel' : ''}`}
+                title={chipTitle(r, teams)}
+                onClick={() => {
+                  const s = new Set(ghostRounds);
+                  if (s.has(r.round_number)) s.delete(r.round_number);
+                  else if (s.size < 10) s.add(r.round_number);
+                  setGhostRounds(s);
+                }}
+              >
+                {r.round_number}
+              </button>
+            </Fragment>
+          ))}
+          <button className="ghost" style={{ width: 'auto', padding: '0 8px' }}
+            onClick={() => setGhostRounds(new Set())}>
+            clear
+          </button>
+          <span className="meta" style={{ alignSelf: 'center' }}>
+            ghost trails follow the replay clock (max 10 rounds); heat uses these rounds too
+          </span>
+        </div>
+      )}
 
       <div className="stagebox">
         <div ref={stageRef} />

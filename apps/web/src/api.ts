@@ -195,6 +195,21 @@ export interface MatchHeatmap {
   radar: RadarCal;
 }
 
+export interface TeamSummary {
+  team_id: string;
+  team: string;
+  overview: {
+    matches: number; wins: number;
+    t_rounds: number; t_wins: number;
+    ct_rounds: number; ct_wins: number;
+    pistol_rounds: number; pistol_wins: number;
+  };
+  maps: {
+    map_name: string; matches: number; wins: number;
+    round_wins: number; rounds: number;
+  }[];
+}
+
 export interface ReportSetup {
   side: 'T' | 'CT';
   t_offset: number;
@@ -338,6 +353,7 @@ export const api = {
     get<MatchHeatmap>(`/api/v1/matches/${id}/heatmap?` + p),
   teamHeatmap: (id: string, p: URLSearchParams) =>
     get<MatchHeatmap>(`/api/v1/teams/${id}/heatmap?` + p),
+  teamSummary: (id: string) => get<TeamSummary>(`/api/v1/teams/${id}/summary`),
   report: (teamId: string, map: string) =>
     get<ReportResp>(`/api/v1/report?team_id=${teamId}&map=${encodeURIComponent(map)}`),
   roundTicks: (id: string, n: number) => get<RoundTicks>(`/api/v1/rounds/${id}/${n}/ticks`),
