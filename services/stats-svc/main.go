@@ -107,6 +107,7 @@ func main() {
 	r.Get("/api/v1/teams/{id}/heatmap", srv.teamHeatmap)
 	r.Get("/api/v1/teams/{id}/summary", srv.teamSummary)
 	r.Get("/api/v1/players/{id}/profile", srv.playerProfile)
+	r.Get("/api/v1/winprob", srv.winprobTable)
 	r.Get("/api/v1/players/{id}/heatmap", srv.playerHeatmap)
 	r.Get("/api/v1/report", srv.report)
 

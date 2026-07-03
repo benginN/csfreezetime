@@ -285,6 +285,11 @@ export interface ReportResp {
   setups: ReportSetup[];
   utility: ReportUtility[];
   players: ReportPlayer[];
+  thrown: { match_id: string; round_number: number; side: 'T' | 'CT'; peak: number }[];
+}
+
+export interface WinprobCell {
+  alive_t: number; alive_ct: number; bomb: boolean; tbucket: number; p: number; n: number;
 }
 
 export interface PlayerProfile {
@@ -305,6 +310,11 @@ export interface PlayerProfile {
     kills: number; deaths: number; assists: number; survival_pct: number;
   }[];
   openings: { map_name: string; won: number; lost: number }[];
+  clutches: { versus: number; attempts: number; wins: number }[];
+  clutch_moments: {
+    match_id: string; round_number: number; versus: number;
+    won: boolean; start_sec: number; map_name: string | null;
+  }[];
   flags: {
     metric: string; value: number; baseline_mean: number; baseline_std: number;
     z: number; event_name: string | null; map_name: string | null; match_id: string;
@@ -380,6 +390,7 @@ export const api = {
     get<MatchHeatmap>(`/api/v1/teams/${id}/heatmap?` + p),
   teamSummary: (id: string) => get<TeamSummary>(`/api/v1/teams/${id}/summary`),
   playerProfile: (id: string) => get<PlayerProfile>(`/api/v1/players/${id}/profile`),
+  winprob: () => get<{ cells: WinprobCell[] }>('/api/v1/winprob'),
   playerHeatmap: (id: string, p: URLSearchParams) =>
     get<MatchHeatmap>(`/api/v1/players/${id}/heatmap?` + p),
   report: (teamId: string, map: string) =>

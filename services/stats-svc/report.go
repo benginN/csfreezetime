@@ -205,6 +205,22 @@ func (s *server) report(w http.ResponseWriter, r *http.Request) {
 		    FROM utility_spots WHERE team_id = $1 AND map_name = $2
 		    ORDER BY side, type, count DESC
 		) x`, teamID, mapName)
+	// Atılan rauntlar: takımın zirvede ≥%75 olasılığa ulaşıp kaybettiği
+	// rauntlar (throw tespiti; her satır replay'e link olur)
+	out["thrown"] = s.jsonQuery(ctx, `
+		SELECT COALESCE(json_agg(x ORDER BY x.peak DESC), '[]'::json) FROM (
+		    SELECT r.match_id, r.round_number,
+		           CASE WHEN r.t_team_id = $1 THEN 'T' ELSE 'CT' END AS side,
+		           CASE WHEN r.t_team_id = $1 THEN w.max_t_prob ELSE w.max_ct_prob END AS peak
+		    FROM round_winprob w
+		    JOIN rounds r USING (match_id, round_number)
+		    JOIN matches m ON m.match_id = r.match_id AND m.status = 'ready'
+		    WHERE m.map_name = $2 AND (r.t_team_id = $1 OR r.ct_team_id = $1)
+		      AND ((r.winner_side = 'T') <> (r.t_team_id = $1))
+		      AND (CASE WHEN r.t_team_id = $1 THEN w.max_t_prob ELSE w.max_ct_prob END) >= 0.75
+		    LIMIT 15
+		) x`, teamID, mapName)
+
 	out["players"] = s.jsonQuery(ctx, `
 		SELECT COALESCE(json_agg(x), '[]'::json) FROM (
 		    SELECT p.nickname, pr.player_id, pr.side, pr.rounds,

@@ -82,5 +82,23 @@ check "rol etiketi kanıt eşiği (ihlal)" \
 check "rol pay aralığı (ihlal)" \
   "SELECT count(*) FROM player_roles WHERE entry_attempt_share NOT BETWEEN 0 AND 1 OR awp_round_share NOT BETWEEN 0 AND 1 OR anchor_share NOT BETWEEN 0 AND 1" "0"
 
+# 11. Winprob: olasılıklar [0,1], mantık (5v1 >> 1v5), raunt kapsamı
+check "winprob p aralığı (ihlal)" \
+  "SELECT count(*) FROM winprob_table WHERE p < 0 OR p > 1" "0"
+check "winprob mantık: avg(5v1) > avg(1v5)" \
+  "SELECT CASE WHEN (SELECT avg(p) FROM winprob_table WHERE alive_t=5 AND alive_ct=1)
+             > (SELECT avg(p) FROM winprob_table WHERE alive_t=1 AND alive_ct=5)
+        THEN 1 ELSE 0 END" "1"
+check "round_winprob kapsamı = kazananlı raunt sayısı" \
+  "SELECT count(*) FROM round_winprob" \
+  "$($PSQL "SELECT count(*) FROM rounds r JOIN matches m ON m.match_id=r.match_id WHERE m.status='ready' AND r.winner_side IN ('T','CT')")"
+
+# 12. Clutch: X aralığı 1-5, kazanım tarafla tutarlı (kazanan raundu alan taraf)
+check "clutch versus aralığı (ihlal)" \
+  "SELECT count(*) FROM clutches WHERE versus < 1 OR versus > 5" "0"
+check "clutch kazanımı raunt kazananıyla tutarlı (ihlal)" \
+  "SELECT count(*) FROM clutches c JOIN rounds r USING (match_id, round_number)
+   WHERE c.won <> (r.winner_side = c.side)" "0"
+
 echo
 [ $FAILS -eq 0 ] && echo "ML TESTLERİ GEÇTİ ✅" || { echo "$FAILS TEST BAŞARISIZ ❌"; exit 1; }

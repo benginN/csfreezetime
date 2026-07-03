@@ -70,6 +70,21 @@ func (s *server) playerProfile(w http.ResponseWriter, r *http.Request) {
 		    GROUP BY m.map_name
 		) x`, playerID)
 
+	// clutch istatistikleri (1vX): X başına deneme/kazanım + anlar
+	out["clutches"] = s.jsonQuery(ctx, `
+		SELECT COALESCE(json_agg(x ORDER BY x.versus), '[]'::json) FROM (
+		    SELECT versus, count(*) AS attempts,
+		           count(*) FILTER (WHERE won) AS wins
+		    FROM clutches WHERE player_id = $1 GROUP BY versus
+		) x`, playerID)
+	out["clutch_moments"] = s.jsonQuery(ctx, `
+		SELECT COALESCE(json_agg(x ORDER BY x.versus DESC, x.won DESC), '[]'::json) FROM (
+		    SELECT c.match_id, c.round_number, c.versus, c.won, c.start_sec, m.map_name
+		    FROM clutches c JOIN matches m ON m.match_id = c.match_id
+		    WHERE c.player_id = $1
+		    ORDER BY c.versus DESC, c.won DESC LIMIT 12
+		) x`, playerID)
+
 	// anomali bayrakları (kanıtlı)
 	out["flags"] = s.jsonQuery(ctx, `
 		SELECT COALESCE(json_agg(x ORDER BY abs(x.z) DESC), '[]'::json) FROM (
@@ -80,6 +95,16 @@ func (s *server) playerProfile(w http.ResponseWriter, r *http.Request) {
 		) x`, playerID)
 
 	writeJSON(w, 200, out)
+}
+
+// GET /api/v1/winprob — durum→olasılık tablosu (istemci canlı eğri çizer).
+func (s *server) winprobTable(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, 200, map[string]any{
+		"cells": s.jsonQuery(r.Context(), `
+			SELECT COALESCE(json_agg(x), '[]'::json) FROM (
+			    SELECT alive_t, alive_ct, bomb, tbucket, p, n FROM winprob_table
+			) x`),
+	})
 }
 
 // GET /api/v1/players/{id}/heatmap?map&side=T&t0&t1 — arşiv geneli.

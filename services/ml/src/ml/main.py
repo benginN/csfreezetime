@@ -9,7 +9,10 @@ from __future__ import annotations
 
 import time
 
-from . import anomaly, clustering, db, evaluate, features, roles, setups, tendencies, utility
+from . import (
+    anomaly, clustering, clutch, db, evaluate, features,
+    roles, setups, tendencies, utility, winprob,
+)
 
 
 def cli() -> None:
@@ -62,6 +65,14 @@ def cli() -> None:
     print("— oyuncu rolleri —")
     nr = roles.run(pgconn, chc)
     print(f"  {nr} oyuncu-taraf profili (etiket eşiği {roles.MIN_ROUNDS} raunt)")
+
+    print("— kazanma olasılığı tablosu + raunt zirveleri —")
+    nc_, np_ = winprob.run(pgconn, chc)
+    print(f"  {nc_} durum hücresi, {np_} raunt zirvesi (büzülme k={winprob.SHRINK_K})")
+
+    print("— clutch tespiti (1vX) —")
+    ncl = clutch.run(pgconn, chc)
+    print(f"  {ncl} clutch durumu")
 
     print("— anomali bayrakları —")
     f = anomaly.run(pgconn)

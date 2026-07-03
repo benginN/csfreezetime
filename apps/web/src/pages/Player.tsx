@@ -85,6 +85,40 @@ export default function Player() {
         </tbody>
       </table>
 
+      {/* Clutch'lar */}
+      {d.clutches.length > 0 && (
+        <>
+          <h2>Clutches <span className="meta">(1vX situations, first per round)</span></h2>
+          <div className="grid cards two">
+            <div className="card">
+              <table>
+                <thead><tr><th>Situation</th><th>Won</th><th>Rate</th></tr></thead>
+                <tbody>
+                  {d.clutches.map((c) => (
+                    <tr key={c.versus}>
+                      <td>1v{c.versus}</td>
+                      <td>{c.wins}/{c.attempts}</td>
+                      <td>{Math.round((100 * c.wins) / c.attempts)}%</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div className="card">
+              <div className="meta" style={{ marginBottom: 6 }}>notable moments</div>
+              {d.clutch_moments.slice(0, 8).map((m, i) => (
+                <div key={i} style={{ marginBottom: 3 }}>
+                  <Link to={`/match/${m.match_id}?round=${m.round_number}`}>
+                    ▶ 1v{m.versus} {m.won ? '✅' : '❌'} — {m.map_name} r{m.round_number}
+                  </Link>
+                  <span className="meta"> at {Math.round(m.start_sec)}s</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </>
+      )}
+
       {/* Isı haritaları */}
       <PlayerHeat playerId={playerId} maps={d.maps.map((m) => m.map_name)} />
 

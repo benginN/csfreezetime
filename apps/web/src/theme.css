@@ -204,6 +204,15 @@ canvas.flat { border: 1px solid #232a26; border-radius: 6px; display:block; }
 .vsrow .bar div { height: 100%; background: #4c8f52; border-radius: 3px; }
 .vsrow .bar.left { transform: scaleX(-1); }  /* sol bar ortadan dışa doğru büyür */
 
+/* Kazanma olasılığı eğrisi */
+.wpcurve { position: relative; }
+.wpcurve canvas { display: block; background: #10140f; border: 1px solid #232a26; border-radius: 5px; }
+.wpmark { position: absolute; top: 0; width: 1.5px; height: 36px; background: #d8ded9; opacity: 0.75; pointer-events: none; }
+.wplabel {
+  position: absolute; right: 6px; top: 3px; font-size: 10.5px;
+  color: #9fc79f; background: rgba(10,14,12,0.7); padding: 0 4px; border-radius: 3px;
+}
+
 /* Çizim renk kutuları */
 button.swatch { width: 22px; height: 22px; padding: 0; border-radius: 5px; }
 

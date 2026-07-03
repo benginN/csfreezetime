@@ -203,6 +203,86 @@ export default function ReplayView({
     heatCanvasRef.current = cv;
   }, [heatQ.data, heatOn]);
 
+  // --- kazanma olasılığı eğrisi: arşiv tablosu + bu rauntun canlı sayıları ---
+  const winprobQ = useQuery({ queryKey: ['winprob'], queryFn: () => api.winprob() });
+  const curveRef = useRef<Float32Array | null>(null); // tick indeksi → p(T)
+  const curveCvRef = useRef<HTMLCanvasElement>(null);
+  const curveMarkRef = useRef<HTMLDivElement>(null);
+  const [wpNow, setWpNow] = useState<number | null>(null);
+  useEffect(() => {
+    const d0 = ticksQ.data;
+    const cells = winprobQ.data?.cells;
+    if (!d0 || !cells) { curveRef.current = null; return; }
+    // arama tablosu + seyrek hücreler için ebeveyn ortalamaları
+    const cellMap = new Map<string, number>();
+    const parent = new Map<string, { w: number; n: number }>();
+    for (const c of cells) {
+      cellMap.set(`${c.alive_t},${c.alive_ct},${c.bomb ? 1 : 0},${c.tbucket}`, c.p);
+      const pk = `${c.alive_t},${c.alive_ct},${c.bomb ? 1 : 0}`;
+      const pa = parent.get(pk) ?? { w: 0, n: 0 };
+      pa.w += c.p * c.n; pa.n += c.n;
+      parent.set(pk, pa);
+    }
+    const tb = (sec: number, plantSec: number | null): number => {
+      if (plantSec != null && sec >= plantSec) {
+        const dt = sec - plantSec;
+        return dt < 10 ? 4 : dt < 25 ? 5 : 6;
+      }
+      const rem = 115 - sec;
+      return rem > 75 ? 0 : rem > 45 ? 1 : rem > 20 ? 2 : 3;
+    };
+    const rr = rounds.find((r) => r.round_number === round);
+    const fe = d0.freeze_end_tick ?? d0.ticks[0];
+    const plantSec = rr?.bomb_plant_tick != null && d0.freeze_end_tick != null
+      ? (rr.bomb_plant_tick - fe) / 64 : null;
+    const curve = new Float32Array(d0.ticks.length).fill(NaN);
+    for (let i = 0; i < d0.ticks.length; i++) {
+      const sec = (d0.ticks[i] - fe) / 64;
+      if (sec < 0) continue;
+      let at = 0, act = 0;
+      for (const p of d0.players) {
+        if (p.alive[i]) {
+          if (p.side === 'T') at++; else act++;
+        }
+      }
+      if (at === 0 && act === 0) continue;
+      const bomb = plantSec != null && sec >= plantSec;
+      const key = `${at},${act},${bomb ? 1 : 0},${tb(sec, plantSec)}`;
+      let p = cellMap.get(key);
+      if (p == null) {
+        const pa = parent.get(`${at},${act},${bomb ? 1 : 0}`);
+        p = pa && pa.n ? pa.w / pa.n : 0.5;
+      }
+      curve[i] = p;
+    }
+    curveRef.current = curve;
+    // statik eğri çizimi (T üstünse amber, CT üstünse mavi dolgu)
+    const cv = curveCvRef.current;
+    if (cv) {
+      const cw = cv.clientWidth || 280;
+      const ch = 36;
+      cv.width = cw * 2; cv.height = ch * 2;
+      const ctx = cv.getContext('2d')!;
+      ctx.setTransform(2, 0, 0, 2, 0, 0);
+      ctx.clearRect(0, 0, cw, ch);
+      ctx.strokeStyle = '#2c332e';
+      ctx.beginPath(); ctx.moveTo(0, ch / 2); ctx.lineTo(cw, ch / 2); ctx.stroke();
+      const i0 = Math.max(0, d0.ticks.findIndex((t) => t >= fe));
+      const span = Math.max(1, d0.ticks.length - 1 - i0);
+      ctx.beginPath();
+      let started = false;
+      for (let i = i0; i < curve.length; i++) {
+        if (Number.isNaN(curve[i])) continue;
+        const x = ((i - i0) / span) * cw;
+        const y = ch - curve[i] * ch;
+        if (!started) { ctx.moveTo(x, y); started = true; } else ctx.lineTo(x, y);
+      }
+      ctx.strokeStyle = '#9fc79f';
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+    }
+  }, [ticksQ.data, winprobQ.data, rounds, round]);
+
   const stageRef = useRef<HTMLDivElement>(null);
   const sliderRef = useRef<HTMLInputElement>(null);
   const zoomApiRef = useRef<{ zoomIn(): void; zoomOut(): void; reset(): void } | null>(null);
@@ -775,6 +855,14 @@ export default function ReplayView({
             }
             return { k, a, d: dd };
           };
+          // canlı kazanma olasılığı + eğri imleci
+          const cp = curveRef.current?.[i0];
+          setWpNow(cp != null && !Number.isNaN(cp) ? cp : null);
+          if (curveMarkRef.current) {
+            const pctm = (100 * (i0 - startIdx)) / Math.max(1, d.ticks.length - 1 - startIdx);
+            curveMarkRef.current.style.left = `${Math.max(0, pctm)}%`;
+          }
+
           setHudRows(d.players.map((p) => {
             const { k, a, d: dd } = kad(p.nickname);
             return {
@@ -1129,6 +1217,16 @@ export default function ReplayView({
         {/* Zaman çubuğu: sağ alt (kill/olay işaretli, tıklayınca atlar) */}
         <div className="layerpanel">
           <div className="layerbody" style={{ marginTop: 0 }}>
+            {/* kazanma olasılığı eğrisi (arşivden; üst=T, alt=CT) */}
+            <div className="wpcurve">
+              <canvas ref={curveCvRef} style={{ width: '100%', height: 36 }} />
+              <div ref={curveMarkRef} className="wpmark" />
+              <span className="wplabel">
+                {wpNow != null
+                  ? `T win ${Math.round(100 * wpNow)}%`
+                  : 'win probability'}
+              </span>
+            </div>
             <div className="timeline" style={{ width: '100%' }}>
               <input
                 ref={sliderRef}

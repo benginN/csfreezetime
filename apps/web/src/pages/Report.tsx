@@ -147,6 +147,29 @@ export default function Report() {
         ))}
       </div>
 
+      {/* 6.5 — Thrown rounds */}
+      {d.thrown.length > 0 && (
+        <>
+          <h2>
+            Thrown rounds{' '}
+            <span className="meta">(reached ≥75% win probability, still lost — archive win-rate model)</span>
+          </h2>
+          <table style={{ maxWidth: 560 }}>
+            <thead><tr><th>Side</th><th>Peak win prob</th><th>Round</th><th /></tr></thead>
+            <tbody>
+              {d.thrown.map((t, i) => (
+                <tr key={i}>
+                  <td><span className={`badge ${t.side}`}>{t.side}</span></td>
+                  <td>{Math.round(100 * t.peak)}%</td>
+                  <td>r{t.round_number}</td>
+                  <td><Link to={`/match/${t.match_id}?round=${t.round_number}`}>▶ watch</Link></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </>
+      )}
+
       {/* 7 — Players */}
       <h2>Players</h2>
       <table>
