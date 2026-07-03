@@ -33,12 +33,19 @@ export function getRadarImage(map: string): Promise<HTMLImageElement | null> {
 
 export interface MapBase {
   layout: MapLayout;
-  radarImg: HTMLImageElement | null;
+  radarImg: HTMLImageElement | null;      // üst kat (tek katlıda tek görsel)
+  radarImgLower: HTMLImageElement | null; // alt kat (de_<harita>_lower.png)
 }
 
+export type MapLevel = 'upper' | 'lower';
+
 export async function loadMapBase(map: string): Promise<MapBase> {
-  const [layout, radarImg] = await Promise.all([getLayout(map), getRadarImage(map)]);
-  return { layout, radarImg };
+  const [layout, radarImg, radarImgLower] = await Promise.all([
+    getLayout(map),
+    getRadarImage(map),
+    getRadarImage(map + '_lower'),
+  ]);
+  return { layout, radarImg, radarImgLower };
 }
 
 /** Harita arka planını verilen 2D context'e çizer (w×w piksel). */
@@ -47,20 +54,23 @@ export function drawMapBase(
   w: number,
   base: MapBase,
   showLabels: boolean,
+  level: MapLevel = 'upper',
 ): void {
   ctx.fillStyle = '#0b0e0c';
   ctx.fillRect(0, 0, w, w);
-  if (base.radarImg) {
+  const img = level === 'lower' ? (base.radarImgLower ?? base.radarImg) : base.radarImg;
+  if (img) {
     ctx.globalAlpha = 0.85;
-    ctx.drawImage(base.radarImg, 0, 0, w, w);
+    ctx.drawImage(img, 0, 0, w, w);
     ctx.globalAlpha = 1;
   } else {
     const { layout } = base;
+    const cells = level === 'lower' && layout.cells_lower ? layout.cells_lower : layout.cells;
     const cell = (layout.cell_px * w) / RADAR;
     let maxc = 0;
-    for (const [, , c] of layout.cells) maxc = Math.max(maxc, c);
+    for (const [, , c] of cells) maxc = Math.max(maxc, c);
     const lmax = Math.log(maxc + 1);
-    for (const [cx, cy, c] of layout.cells) {
+    for (const [cx, cy, c] of cells) {
       const a = 0.1 + (0.3 * Math.log(c + 1)) / lmax;
       ctx.fillStyle = `rgba(120,140,125,${a.toFixed(3)})`;
       ctx.fillRect(cx * cell, cy * cell, cell + 0.5, cell + 0.5);
@@ -82,11 +92,16 @@ export function drawMapBase(
 }
 
 /** PixiJS için: harita arka planını offscreen canvas olarak üretir. */
-export function renderMapBaseCanvas(base: MapBase, w: number, showLabels: boolean): HTMLCanvasElement {
+export function renderMapBaseCanvas(
+  base: MapBase,
+  w: number,
+  showLabels: boolean,
+  level: MapLevel = 'upper',
+): HTMLCanvasElement {
   const cv = document.createElement('canvas');
   cv.width = w;
   cv.height = w;
-  drawMapBase(cv.getContext('2d')!, w, base, showLabels);
+  drawMapBase(cv.getContext('2d')!, w, base, showLabels, level);
   return cv;
 }
 

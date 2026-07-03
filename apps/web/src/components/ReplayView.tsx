@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Application, Container, Graphics, Sprite, Text, Texture } from 'pixi.js';
 import { api, type KillRow } from '../api';
-import { loadMapBase, renderMapBaseCanvas, RADAR, SIDE_COLOR, type MapBase } from '../lib/mapbase';
+import { loadMapBase, renderMapBaseCanvas, RADAR, SIDE_COLOR, type MapBase, type MapLevel } from '../lib/mapbase';
 
 const W = 860;
 const NADE_LIFE: Record<string, number> = { smoke: 20, molotov: 7, incendiary: 7, flash: 0.7, he: 0.7, decoy: 15 };
@@ -48,6 +48,7 @@ export default function ReplayView({
   const [playing, setPlaying] = useState(false);
   const [speed, setSpeed] = useState(2);
   const [labels, setLabels] = useState(true);
+  const [level, setLevel] = useState<MapLevel>('upper'); // nuke/vertigo katı
   const [clock, setClock] = useState('0:00');
   const [hudRows, setHudRows] = useState<HudRow[]>([]);
 
@@ -82,7 +83,10 @@ export default function ReplayView({
       const px = (v: number) => (v * W) / RADAR;
       const worldPx = (u: number) => px(u / d.radar.scale);
 
-      const baseSprite = new Sprite(Texture.from(renderMapBaseCanvas(base, W, labels)));
+      const baseSprite = new Sprite(Texture.from(renderMapBaseCanvas(base, W, labels, level)));
+      // seçili kat dışındaki nesneler soluk çizilir
+      const onLevel = (lower: boolean | null | undefined) =>
+        !d.radar.has_lower || lower == null || (level === 'lower') === lower;
       const gNades = new Graphics();
       const gKills = new Graphics();
       const playersLayer = new Container();
@@ -130,6 +134,7 @@ export default function ReplayView({
         gNades.clear();
         for (const g of d.grenades ?? []) {
           if (g.rx == null || g.ry == null) continue;
+          if (!onLevel(g.lower)) continue; // diğer kattaki bomba çizilmez
           const dt = (tick - g.tick) / d.tick_rate;
           const life = NADE_LIFE[g.type] ?? 1;
           if (dt < 0 || dt > life) continue;
@@ -153,6 +158,7 @@ export default function ReplayView({
         gKills.clear();
         for (const k of d.kills) {
           if (k.victim_rx == null || k.victim_ry == null) continue;
+          if (!onLevel(k.lower)) continue;
           if (tick >= k.tick && tick - k.tick < 3 * d.tick_rate) {
             gKills.circle(px(k.victim_rx), px(k.victim_ry), 11)
               .stroke({ width: 2, color: 0xe05545, alpha: 0.8 });
@@ -183,7 +189,9 @@ export default function ReplayView({
           }
           const lower = p.lower ? (p.lower[i0] ?? false) : false;
           const yaw = ((p.yaw[i0] ?? 0) * Math.PI) / 180;
-          const alpha = lower ? 0.45 : 1;
+          // seçili kattaki oyuncu tam, diğer kattaki hayalet gibi soluk
+          const alpha = onLevel(lower) ? 1 : 0.22;
+          node.name.visible = labels && alive && onLevel(lower);
           g.moveTo(x, y).lineTo(x + 15 * Math.cos(yaw), y - 15 * Math.sin(yaw))
            .stroke({ width: 1.5, color: col, alpha });
           g.circle(x, y, 5.5).fill({ color: col, alpha })
@@ -267,7 +275,7 @@ export default function ReplayView({
       try { app.destroy(true, { children: true }); } catch { /* init yarıda */ }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [d, base, labels, matchKills]);
+  }, [d, base, labels, level, matchKills]);
 
   if (ticksQ.isLoading) return <p className="meta">raunt yükleniyor…</p>;
   if (ticksQ.error || !d) return <p className="error">{String(ticksQ.error)}</p>;
@@ -286,6 +294,12 @@ export default function ReplayView({
         <label>
           <input type="checkbox" checked={labels} onChange={(e) => setLabels(e.target.checked)} /> etiketler
         </label>
+        {d.radar.has_lower && (
+          <span style={{ display: 'inline-flex', gap: 4 }}>
+            <button className={level === 'upper' ? '' : 'ghost'} onClick={() => setLevel('upper')}>Üst kat</button>
+            <button className={level === 'lower' ? '' : 'ghost'} onClick={() => setLevel('lower')}>Alt kat</button>
+          </span>
+        )}
       </div>
 
       <div className="stagebox">

@@ -113,6 +113,7 @@ export interface KillMark {
   weapon: string | null;
   victim_rx: number | null;
   victim_ry: number | null;
+  lower?: boolean | null;
 }
 
 export interface GrenadeMark {
@@ -122,6 +123,7 @@ export interface GrenadeMark {
   thrower: string | null;
   rx: number | null;
   ry: number | null;
+  lower?: boolean | null;
 }
 
 export interface RoundTicks {
@@ -142,6 +144,7 @@ export interface MapLayout {
   cell_px: number;
   radar: RadarCal;
   cells: [number, number, number][];
+  cells_lower?: [number, number, number][];
   places: { name: string; rx: number; ry: number; count: number }[];
 }
 

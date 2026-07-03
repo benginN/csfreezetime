@@ -314,6 +314,14 @@ func (s *server) roundTicks(w http.ResponseWriter, r *http.Request) {
 	})
 
 	// Rauntun kill'leri (zaman çubuğu işaretleri + radar konumları)
+	lowerFlag := func(z *float64) *bool {
+		if z == nil || !cal.HasLower || cal.SplitZ == nil {
+			return nil
+		}
+		l := *z < *cal.SplitZ
+		return &l
+	}
+
 	type killMark struct {
 		Tick     int32    `json:"tick"`
 		Attacker *string  `json:"attacker"`
@@ -321,10 +329,11 @@ func (s *server) roundTicks(w http.ResponseWriter, r *http.Request) {
 		Weapon   *string  `json:"weapon"`
 		VictimRX *float64 `json:"victim_rx"`
 		VictimRY *float64 `json:"victim_ry"`
+		Lower    *bool    `json:"lower,omitempty"`
 	}
 	var kills []killMark
 	krows, err := s.pg.Query(ctx, `
-		SELECT k.tick, pa.nickname, pv.nickname, k.weapon, k.victim_x, k.victim_y
+		SELECT k.tick, pa.nickname, pv.nickname, k.weapon, k.victim_x, k.victim_y, k.victim_z
 		FROM kills k
 		LEFT JOIN players pa ON pa.player_id = k.attacker_id
 		LEFT JOIN players pv ON pv.player_id = k.victim_id
@@ -332,12 +341,13 @@ func (s *server) roundTicks(w http.ResponseWriter, r *http.Request) {
 	if err == nil {
 		for krows.Next() {
 			var km killMark
-			var vx, vy *float64
-			if krows.Scan(&km.Tick, &km.Attacker, &km.Victim, &km.Weapon, &vx, &vy) == nil {
+			var vx, vy, vz *float64
+			if krows.Scan(&km.Tick, &km.Attacker, &km.Victim, &km.Weapon, &vx, &vy, &vz) == nil {
 				if vx != nil && vy != nil {
 					rx := (*vx - cal.PosX) / cal.Scale
 					ry := (cal.PosY - *vy) / cal.Scale
 					km.VictimRX, km.VictimRY = &rx, &ry
+					km.Lower = lowerFlag(vz)
 				}
 				kills = append(kills, km)
 			}
@@ -354,22 +364,24 @@ func (s *server) roundTicks(w http.ResponseWriter, r *http.Request) {
 		Thrower *string  `json:"thrower"`
 		RX      *float64 `json:"rx"`
 		RY      *float64 `json:"ry"`
+		Lower   *bool    `json:"lower,omitempty"`
 	}
 	var grenades []grenadeMark
 	grows, err := s.pg.Query(ctx, `
-		SELECT g.type, g.detonate_tick, g.side, p.nickname, g.det_x, g.det_y
+		SELECT g.type, g.detonate_tick, g.side, p.nickname, g.det_x, g.det_y, g.det_z
 		FROM grenades g LEFT JOIN players p ON p.player_id = g.thrower_id
 		WHERE g.match_id = $1 AND g.round_number = $2 AND g.detonate_tick IS NOT NULL
 		ORDER BY g.detonate_tick`, matchID, roundNo)
 	if err == nil {
 		for grows.Next() {
 			var gm grenadeMark
-			var dx, dy *float64
-			if grows.Scan(&gm.Type, &gm.Tick, &gm.Side, &gm.Thrower, &dx, &dy) == nil {
+			var dx, dy, dz *float64
+			if grows.Scan(&gm.Type, &gm.Tick, &gm.Side, &gm.Thrower, &dx, &dy, &dz) == nil {
 				if dx != nil && dy != nil {
 					rx := (*dx - cal.PosX) / cal.Scale
 					ry := (cal.PosY - *dy) / cal.Scale
 					gm.RX, gm.RY = &rx, &ry
+					gm.Lower = lowerFlag(dz)
 				}
 				grenades = append(grenades, gm)
 			}

@@ -19,8 +19,11 @@ type mapLayout struct {
 	Map    string     `json:"map"`
 	CellPx int        `json:"cell_px"`
 	Radar  *radarCal  `json:"radar"`
-	Cells  [][3]int32 `json:"cells"` // [cx, cy, count] — radar hücresi başına ziyaret sayısı
-	Places []struct {
+	Cells  [][3]int32 `json:"cells"` // üst kat (tek katlı haritada tümü)
+	// Çok katlı haritalarda (nuke/vertigo) alt katın silüeti ayrı döner;
+	// istemci kat düğmesiyle geçiş yapar.
+	CellsLower [][3]int32 `json:"cells_lower,omitempty"`
+	Places     []struct {
 		Name  string  `json:"name"`
 		RX    float64 `json:"rx"`
 		RY    float64 `json:"ry"`
@@ -58,30 +61,46 @@ func (s *server) mapLayoutHandler(w http.ResponseWriter, r *http.Request) {
 	out := &mapLayout{Map: mapName, CellPx: layoutCellPx, Radar: cal}
 
 	// Yürünebilir alan: radar hücresi başına canlı-oyuncu ziyaret sayısı.
+	// Çok katlı haritada üst/alt kat ayrı silüetlere bölünür (level_split_z).
 	// Dönüşüm sabitleri DB'den (maps) geldiği için literal gömmek güvenli.
-	cellQ := fmt.Sprintf(`
-		SELECT toInt32(intDiv(toInt32((x - (%f)) / %f), %d))  AS cx,
-		       toInt32(intDiv(toInt32(((%f) - y) / %f), %d))  AS cy,
-		       toInt32(count())                               AS cnt
-		FROM player_ticks
-		WHERE map_name = ? AND is_alive
-		GROUP BY cx, cy`,
-		cal.PosX, cal.Scale, layoutCellPx, cal.PosY, cal.Scale, layoutCellPx)
-	rows, err := s.ch.Query(ctx, cellQ, mapName)
-	if err != nil {
-		writeErr(w, 500, err)
-		return
+	fetchCells := func(zCond string) ([][3]int32, error) {
+		cellQ := fmt.Sprintf(`
+			SELECT toInt32(intDiv(toInt32((x - (%f)) / %f), %d))  AS cx,
+			       toInt32(intDiv(toInt32(((%f) - y) / %f), %d))  AS cy,
+			       toInt32(count())                               AS cnt
+			FROM player_ticks
+			WHERE map_name = ? AND is_alive %s
+			GROUP BY cx, cy`,
+			cal.PosX, cal.Scale, layoutCellPx, cal.PosY, cal.Scale, layoutCellPx, zCond)
+		rows, err := s.ch.Query(ctx, cellQ, mapName)
+		if err != nil {
+			return nil, err
+		}
+		defer rows.Close()
+		var cells [][3]int32
+		for rows.Next() {
+			var cx, cy, cnt int32
+			if err := rows.Scan(&cx, &cy, &cnt); err != nil {
+				return nil, err
+			}
+			cells = append(cells, [3]int32{cx, cy, cnt})
+		}
+		return cells, rows.Err()
 	}
-	for rows.Next() {
-		var cx, cy, cnt int32
-		if err := rows.Scan(&cx, &cy, &cnt); err != nil {
-			rows.Close()
+
+	if cal.HasLower && cal.SplitZ != nil {
+		if out.Cells, err = fetchCells(fmt.Sprintf("AND z >= %f", *cal.SplitZ)); err != nil {
 			writeErr(w, 500, err)
 			return
 		}
-		out.Cells = append(out.Cells, [3]int32{cx, cy, cnt})
+		if out.CellsLower, err = fetchCells(fmt.Sprintf("AND z < %f", *cal.SplitZ)); err != nil {
+			writeErr(w, 500, err)
+			return
+		}
+	} else if out.Cells, err = fetchCells(""); err != nil {
+		writeErr(w, 500, err)
+		return
 	}
-	rows.Close()
 
 	// Bölge etiketleri: place adı + pozisyonlarının radar ağırlık merkezi
 	placeQ := fmt.Sprintf(`
