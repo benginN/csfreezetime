@@ -98,3 +98,55 @@ tr.clickable:hover { background: #1b211d; }
 canvas.flat { border: 1px solid #232a26; border-radius: 6px; display:block; }
 .split2 { display:grid; grid-template-columns: 340px 1fr; gap:16px; align-items:start; }
 @media (max-width: 900px) { .split2 { grid-template-columns: 1fr; } }
+
+/* Global arama */
+.searchbar {
+  flex: 1; max-width: 560px; display: flex; align-items: center;
+  background: #1c211e; border: 1px solid #313833; border-radius: 7px;
+  padding: 6px 12px; gap: 8px;
+}
+.searchbar input { flex: 1; background: none; border: none; padding: 0; outline: none; font-size: 14px; }
+.searchbar .hint { color: #5d665f; font-size: 12px; white-space: nowrap; }
+
+/* Maç satırları (arama sonuçları) */
+.matchrow {
+  display: flex; align-items: center; gap: 14px;
+  padding: 10px 14px; border: 1px solid #232a26; border-radius: 8px;
+  background: #151a17; margin-bottom: 8px; color: inherit;
+}
+.matchrow:hover { border-color: #3a5f3e; text-decoration: none; }
+.matchrow .vs { flex: 1; display: flex; align-items: baseline; gap: 10px; font-weight: 600; }
+.matchrow .score { color: #b6e2b6; font-variant-numeric: tabular-nums; }
+.matchrow .meta { flex: 0 0 auto; }
+
+/* Sekmeler */
+.tabs { display: flex; gap: 2px; margin: 10px 0 14px; border-bottom: 1px solid #232a26; }
+.tabs button {
+  background: none; border: none; border-bottom: 2px solid transparent;
+  border-radius: 0; padding: 8px 16px; color: #8a938c; font-size: 14px;
+}
+.tabs button.active { color: #d8ded9; border-bottom-color: #4c8f52; }
+.tabs button:hover { color: #d8ded9; background: none; }
+
+/* Raunt çipleri */
+.roundchips { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 10px; }
+.roundchips button {
+  width: 32px; height: 30px; padding: 0; font-size: 11.5px; font-weight: 600;
+  border: 1px solid #232a26; border-radius: 5px; background: #1a1f1c; color: #9aa89d;
+}
+.roundchips button.T { background: #3d2c13; color: #eec27f; }
+.roundchips button.CT { background: #16293a; color: #9ecbf0; }
+.roundchips button.sel { outline: 2px solid #4c8f52; color: #fff; }
+
+/* Replay sahnesi + köşe HUD'ları */
+.stagebox { position: relative; display: inline-block; }
+.hud {
+  position: absolute; bottom: 8px; width: 46%;
+  background: rgba(10, 14, 12, 0.82); border: 1px solid #2a322c; border-radius: 7px;
+  padding: 6px 8px; font-size: 11px; line-height: 1.35; pointer-events: none;
+}
+.hud.left { left: 8px; } .hud.right { right: 8px; }
+.hud table { font-size: 10.5px; } .hud td, .hud th { border: none; padding: 1px 4px; white-space: nowrap; }
+.hud .hpbar { display: inline-block; width: 30px; height: 5px; background: #232a26; border-radius: 2px; overflow: hidden; vertical-align: middle; }
+.hud .hpbar i { display: block; height: 100%; }
+.hud .inv { color: #77817a; font-size: 9.5px; }

@@ -52,8 +52,24 @@ export interface KillRow {
   round_time: number;
   attacker: string | null;
   victim: string | null;
+  assister: string | null;
   weapon: string | null;
   headshot: boolean | null;
+}
+
+export interface SearchResult {
+  teams: { id: string; name: string }[];
+  players: { id: string; name: string }[];
+  matches: {
+    match_id: string;
+    map_name: string | null;
+    name: string | null;
+    team_a: string | null;
+    team_b: string | null;
+    score_a: number;
+    score_b: number;
+    played_at: string | null;
+  }[];
 }
 
 export interface MatchDetail {
@@ -80,10 +96,14 @@ export interface PlayerTrack {
   ry: (number | null)[];
   yaw: (number | null)[];
   hp: (number | null)[];
+  armor: (number | null)[];
   alive: (boolean | null)[];
   weapon: (string | null)[];
+  inv: (string[] | null)[];
   flash: (number | null)[];
   lower?: (boolean | null)[];
+  money_start: number | null;
+  equip_value: number | null;
 }
 
 export interface KillMark {
@@ -207,15 +227,10 @@ export interface Prediction {
 }
 
 export const api = {
+  search: (q: string) => get<SearchResult>('/api/v1/search?q=' + encodeURIComponent(q)),
   teams: () => get<Team[]>('/api/v1/teams'),
   tendencies: (teamId: string) => get<Tendency[]>(`/api/v1/teams/${teamId}/tendencies`),
   clusters: (map: string, side: string) => get<ClusterInfo[]>(`/api/v1/clusters?map=${map}&side=${side}`),
-  renameCluster: (map: string, side: string, id: number, label: string) =>
-    fetch(`/api/v1/clusters/${map}/${side}/${id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ label }),
-    }).then((r) => r.json()),
   predict: (p: URLSearchParams) => get<Prediction>('/api/v1/predict?' + p),
   matches: (teamId?: string) =>
     get<MatchSummary[]>('/api/v1/matches' + (teamId ? `?team_id=${teamId}` : '')),

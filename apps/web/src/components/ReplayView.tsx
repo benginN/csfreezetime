@@ -1,28 +1,44 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { Application, Container, Graphics, Sprite, Text, Texture } from 'pixi.js';
-import { api } from '../api';
-import { loadMapBase, renderMapBaseCanvas, RADAR, SIDE_COLOR, SIDE_CSS, type MapBase } from '../lib/mapbase';
+import { api, type KillRow } from '../api';
+import { loadMapBase, renderMapBaseCanvas, RADAR, SIDE_COLOR, type MapBase } from '../lib/mapbase';
 
-const W = 820;
-// bomba görsel ömürleri (sn)
+const W = 860;
 const NADE_LIFE: Record<string, number> = { smoke: 20, molotov: 7, incendiary: 7, flash: 0.7, he: 0.7, decoy: 15 };
 
-interface Hud {
-  clock: string;
-  kills: { a: string; v: string; w: string }[];
-  players: { nick: string; side: string; hp: number; weapon: string; alive: boolean }[];
+interface HudRow {
+  nick: string;
+  side: string;
+  hp: number;
+  armor: number;
+  weapon: string;
+  money: number | null;
+  inv: string;
+  k: number; a: number; d: number;
+  alive: boolean;
 }
 
-export default function Replay() {
-  const { id = '', n = '1' } = useParams();
-  const [search] = useSearchParams();
-  const seekTick = search.get('t') ? Number(search.get('t')) : null;
+// Envanter kısaltmaları: bıçak/taban silahlar sadeleşsin
+function shortInv(inv: string[] | null): string {
+  if (!inv) return '';
+  return inv
+    .filter((w) => !w.includes('Knife') && w !== 'C4')
+    .map((w) => w.replace('High Explosive Grenade', 'HE').replace('Incendiary Grenade', 'Molotof'))
+    .join(' · ');
+}
 
+export default function ReplayView({
+  matchId, round, seekTick, matchKills,
+}: {
+  matchId: string;
+  round: number;
+  seekTick: number | null;
+  matchKills: KillRow[];
+}) {
   const ticksQ = useQuery({
-    queryKey: ['ticks', id, n],
-    queryFn: () => api.roundTicks(id, Number(n)),
+    queryKey: ['ticks', matchId, round],
+    queryFn: () => api.roundTicks(matchId, round),
   });
   const [base, setBase] = useState<MapBase | null>(null);
   useEffect(() => {
@@ -32,7 +48,8 @@ export default function Replay() {
   const [playing, setPlaying] = useState(false);
   const [speed, setSpeed] = useState(2);
   const [labels, setLabels] = useState(true);
-  const [hud, setHud] = useState<Hud>({ clock: '0:00', kills: [], players: [] });
+  const [clock, setClock] = useState('0:00');
+  const [hudRows, setHudRows] = useState<HudRow[]>([]);
 
   const stageRef = useRef<HTMLDivElement>(null);
   const sliderRef = useRef<HTMLInputElement>(null);
@@ -49,7 +66,6 @@ export default function Replay() {
     return Math.max(0, d.ticks.findIndex((t) => t >= fe));
   }, [d]);
 
-  // PixiJS sahnesi
   useEffect(() => {
     if (!d || !base || !stageRef.current) return;
     let destroyed = false;
@@ -66,29 +82,36 @@ export default function Replay() {
       const px = (v: number) => (v * W) / RADAR;
       const worldPx = (u: number) => px(u / d.radar.scale);
 
-      // katmanlar: harita → bombalar → kill halkaları → oyuncular
       const baseSprite = new Sprite(Texture.from(renderMapBaseCanvas(base, W, labels)));
       const gNades = new Graphics();
       const gKills = new Graphics();
       const playersLayer = new Container();
-      app.stage.addChild(baseSprite, gNades, gKills, playersLayer);
+      const feedLayer = new Container(); // canvas içi killfeed (sağ üst, gri)
+      app.stage.addChild(baseSprite, gNades, gKills, playersLayer, feedLayer);
 
-      type PlayerNode = { g: Graphics; name: Text; wep: Text };
+      const feedTexts: Text[] = [];
+      for (let i = 0; i < 6; i++) {
+        const t = new Text({
+          text: '',
+          style: { fontSize: 12, fill: 0xb9c2bb, fontFamily: 'system-ui' },
+        });
+        t.anchor.set(1, 0);
+        t.position.set(W - 10, 10 + i * 17);
+        feedLayer.addChild(t);
+        feedTexts.push(t);
+      }
+
+      type PlayerNode = { g: Graphics; name: Text };
       const nodes: PlayerNode[] = d.players.map((p) => {
         const g = new Graphics();
         const name = new Text({
           text: p.nickname,
           style: { fontSize: 11, fill: 0xcfd8d0, fontFamily: 'system-ui' },
         });
-        const wep = new Text({
-          text: '',
-          style: { fontSize: 9, fill: 0xa0aaa2, fontFamily: 'system-ui' },
-        });
-        playersLayer.addChild(g, name, wep);
-        return { g, name, wep };
+        playersLayer.addChild(g, name);
+        return { g, name };
       });
 
-      // başlangıç konumu: ?t= parametresi veya freeze bitişi
       let init = startIdx;
       if (seekTick != null) {
         const i = d.ticks.findIndex((t) => t >= seekTick);
@@ -104,7 +127,6 @@ export default function Replay() {
         const frac = fIdx - i0;
         const tick = d.ticks[i0] + (d.ticks[i1] - d.ticks[i0]) * frac;
 
-        // bombalar
         gNades.clear();
         for (const g of d.grenades ?? []) {
           if (g.rx == null || g.ry == null) continue;
@@ -128,22 +150,20 @@ export default function Replay() {
           }
         }
 
-        // kill halkaları (3 sn)
         gKills.clear();
         for (const k of d.kills) {
           if (k.victim_rx == null || k.victim_ry == null) continue;
           if (tick >= k.tick && tick - k.tick < 3 * d.tick_rate) {
-            gKills.circle(px(k.victim_rx), px(k.victim_ry!), 11)
+            gKills.circle(px(k.victim_rx), px(k.victim_ry), 11)
               .stroke({ width: 2, color: 0xe05545, alpha: 0.8 });
           }
         }
 
-        // oyuncular (i0↔i1 arası lineer interpolasyon — §8.1)
         d.players.forEach((p, pi) => {
           const node = nodes[pi];
           const rx0 = p.rx[i0], ry0 = p.ry[i0];
           if (rx0 == null || ry0 == null) {
-            node.g.clear(); node.name.visible = false; node.wep.visible = false;
+            node.g.clear(); node.name.visible = false;
             return;
           }
           const rx1 = p.rx[i1] ?? rx0, ry1 = p.ry[i1] ?? ry0;
@@ -153,14 +173,12 @@ export default function Replay() {
           const col = SIDE_COLOR[p.side] ?? 0x999999;
           const g = node.g;
           g.clear();
-          node.name.visible = labels;
-          node.wep.visible = labels && alive;
+          node.name.visible = labels && alive;
 
           if (!alive) {
             g.moveTo(x - 4, y - 4).lineTo(x + 4, y + 4)
              .moveTo(x + 4, y - 4).lineTo(x - 4, y + 4)
              .stroke({ width: 1.5, color: 0xaaaaaa, alpha: 0.55 });
-            node.name.visible = false; node.wep.visible = false;
             return;
           }
           const lower = p.lower ? (p.lower[i0] ?? false) : false;
@@ -170,42 +188,69 @@ export default function Replay() {
            .stroke({ width: 1.5, color: col, alpha });
           g.circle(x, y, 5.5).fill({ color: col, alpha })
            .stroke({ width: 1, color: 0x0b0e0c });
+          // can halkası — yay başlangıcına moveTo: aksi halde yol (0,0)'dan
+          // bağlanıp sol üstten gelen hayalet çizgi oluşturuyordu
           const hp = p.hp[i0] ?? 0;
-          const hue = Math.round((120 * hp) / 100);
-          g.arc(x, y, 8.5, -Math.PI / 2, -Math.PI / 2 + (2 * Math.PI * hp) / 100)
-           .stroke({ width: 2, color: hslToHex(hue, 0.75, 0.5), alpha });
+          if (hp > 0) {
+            const a0 = -Math.PI / 2;
+            const a1 = a0 + (2 * Math.PI * hp) / 100;
+            g.moveTo(x + 8.5 * Math.cos(a0), y + 8.5 * Math.sin(a0));
+            g.arc(x, y, 8.5, a0, a1);
+            g.stroke({ width: 2, color: hslToHex(Math.round((120 * hp) / 100), 0.75, 0.5), alpha });
+          }
           const fl = p.flash[i0] ?? 0;
           if (fl > 0.2) {
             g.circle(x, y, 12).stroke({ width: 3, color: 0xffffff, alpha: Math.min(0.9, fl / 3) });
           }
-          node.name.position.set(x + 10, y - 6);
-          node.wep.position.set(x + 10, y + 5);
-          node.wep.text = p.weapon[i0] ?? '';
+          node.name.position.set(x + 10, y - 5);
         });
 
-        // HUD (16 Hz'de bir güncelle — React render maliyeti)
         if (i0 !== lastHud) {
           lastHud = i0;
           const fe = d.freeze_end_tick ?? d.ticks[startIdx];
           const s = Math.max(0, (d.ticks[i0] - fe) / d.tick_rate);
-          setHud({
-            clock: `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`,
-            kills: d.kills
-              .filter((k) => tick >= k.tick && tick - k.tick < 6 * d.tick_rate)
-              .map((k) => ({ a: k.attacker ?? '?', v: k.victim ?? '?', w: k.weapon ?? '' })),
-            players: d.players.map((p) => ({
-              nick: p.nickname, side: p.side,
-              hp: p.hp[i0] ?? 0, weapon: p.weapon[i0] ?? '',
-              alive: p.alive[i0] ?? false,
-            })),
+          setClock(`${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`);
+
+          // canvas içi killfeed (son 6 sn)
+          const recent = d.kills
+            .filter((k) => tick >= k.tick && tick - k.tick < 6 * d.tick_rate)
+            .slice(-6);
+          feedTexts.forEach((t, i) => {
+            const k = recent[i];
+            t.text = k ? `${k.attacker ?? '?'} ⟶ ${k.victim ?? '?'} (${k.weapon ?? ''})` : '';
           });
+
+          // köşe HUD'ları: kümülatif K/A/D maç kill listesinden
+          const kad = (nick: string) => {
+            let k = 0, a = 0, dd = 0;
+            for (const kk of matchKills) {
+              const before = kk.round_number < round ||
+                (kk.round_number === round && kk.tick <= tick);
+              if (!before) continue;
+              if (kk.attacker === nick) k++;
+              if (kk.assister === nick) a++;
+              if (kk.victim === nick) dd++;
+            }
+            return { k, a, d: dd };
+          };
+          setHudRows(d.players.map((p) => {
+            const { k, a, d: dd } = kad(p.nickname);
+            return {
+              nick: p.nickname, side: p.side,
+              hp: p.hp[i0] ?? 0, armor: p.armor[i0] ?? 0,
+              weapon: p.weapon[i0] ?? '',
+              money: p.money_start,
+              inv: shortInv(p.inv[i0]),
+              k, a, d: dd,
+              alive: p.alive[i0] ?? false,
+            };
+          }));
           if (sliderRef.current) sliderRef.current.value = String(i0);
         }
       };
 
       app.ticker.add((t) => {
         if (playingRef.current) {
-          // 16 Hz kare → hız çarpanıyla ilerle (deltaMS ms cinsinden)
           fIdxRef.current = Math.min(
             fIdxRef.current + (t.deltaMS / 1000) * 16 * speedRef.current,
             d.ticks.length - 1,
@@ -219,87 +264,85 @@ export default function Replay() {
 
     return () => {
       destroyed = true;
-      try { app.destroy(true, { children: true }); } catch { /* init yarıda kesildi */ }
+      try { app.destroy(true, { children: true }); } catch { /* init yarıda */ }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [d, base, labels]);
+  }, [d, base, labels, matchKills]);
 
   if (ticksQ.isLoading) return <p className="meta">raunt yükleniyor…</p>;
   if (ticksQ.error || !d) return <p className="error">{String(ticksQ.error)}</p>;
 
+  const tRows = hudRows.filter((r) => r.side === 'T');
+  const ctRows = hudRows.filter((r) => r.side === 'CT');
+
   return (
     <>
-      <h1>
-        <Link to={`/match/${id}`}>← Maç</Link>{' '}
-        <span className="meta">{d.map_name} · raunt {d.round_number}</span>
-      </h1>
       <div className="toolbar">
-        <button onClick={() => setPlaying(!playing)}>{playing ? '⏸ Durdur' : '▶ Oynat'}</button>
+        <button onClick={() => setPlaying(!playing)}>{playing ? '⏸' : '▶'}</button>
         <select value={speed} onChange={(e) => setSpeed(Number(e.target.value))}>
           {[1, 2, 4, 8].map((s) => <option key={s} value={s}>{s}×</option>)}
         </select>
-        <span className="meta" style={{ fontVariantNumeric: 'tabular-nums' }}>{hud.clock}</span>
+        <span className="meta" style={{ fontVariantNumeric: 'tabular-nums' }}>{clock}</span>
         <label>
           <input type="checkbox" checked={labels} onChange={(e) => setLabels(e.target.checked)} /> etiketler
         </label>
-        <RoundNav id={id} n={Number(n)} total={null} />
       </div>
 
-      <div className="replay-wrap">
-        <div className="replay-stage">
-          <div ref={stageRef} />
-          <div className="timeline" style={{ width: W }}>
-            <input
-              ref={sliderRef}
-              type="range"
-              min={startIdx}
-              max={d.ticks.length - 1}
-              defaultValue={startIdx}
-              onInput={(e) => { fIdxRef.current = Number((e.target as HTMLInputElement).value); }}
-            />
-            {d.kills.map((k, i) => {
-              const idx = d.ticks.findIndex((t) => t >= k.tick);
-              const pct = (100 * (idx - startIdx)) / Math.max(1, d.ticks.length - 1 - startIdx);
-              return <div key={i} className="killmark" style={{ left: `${Math.max(0, pct)}%` }} />;
-            })}
-          </div>
-        </div>
-        <div className="replay-side">
-          <h2 style={{ marginTop: 0 }}>Oyuncular</h2>
-          <table className="playerlist">
-            <tbody>
-              {hud.players.map((p) => (
-                <tr key={p.nick} style={{ opacity: p.alive ? 1 : 0.4 }}>
-                  <td><span style={{ color: SIDE_CSS[p.side] }}>●</span> {p.nick}</td>
-                  <td>
-                    <span className="hp">
-                      <i style={{ width: `${p.hp}%`, background: `hsl(${(120 * p.hp) / 100},70%,45%)` }} />
-                    </span>
-                  </td>
-                  <td className="meta">{p.alive ? p.weapon : 'öldü'}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          <h2>Killfeed</h2>
-          <div className="killfeed">
-            {hud.kills.length === 0 && <span className="meta">—</span>}
-            {hud.kills.map((k, i) => (
-              <div key={i}>{k.a} ⟶ {k.v} <span className="meta">({k.w})</span></div>
-            ))}
-          </div>
-        </div>
+      <div className="stagebox">
+        <div ref={stageRef} />
+        <HudPanel rows={tRows} cls="left" />
+        <HudPanel rows={ctRows} cls="right" />
+      </div>
+      <div className="timeline" style={{ width: W }}>
+        <input
+          ref={sliderRef}
+          type="range"
+          min={startIdx}
+          max={d.ticks.length - 1}
+          defaultValue={startIdx}
+          onInput={(e) => { fIdxRef.current = Number((e.target as HTMLInputElement).value); }}
+        />
+        {d.kills.map((k, i) => {
+          const idx = d.ticks.findIndex((t) => t >= k.tick);
+          const pct = (100 * (idx - startIdx)) / Math.max(1, d.ticks.length - 1 - startIdx);
+          return <div key={i} className="killmark" style={{ left: `${Math.max(0, pct)}%` }} />;
+        })}
       </div>
     </>
   );
 }
 
-function RoundNav({ id, n }: { id: string; n: number; total: number | null }) {
+function HudPanel({ rows, cls }: { rows: HudRow[]; cls: string }) {
   return (
-    <span style={{ display: 'inline-flex', gap: 6 }}>
-      <Link to={`/match/${id}/round/${Math.max(1, n - 1)}`}><button className="ghost">◀ r{n - 1}</button></Link>
-      <Link to={`/match/${id}/round/${n + 1}`}><button className="ghost">r{n + 1} ▶</button></Link>
-    </span>
+    <div className={`hud ${cls}`}>
+      <table>
+        <tbody>
+          {rows.map((r) => (
+            <tr key={r.nick} style={{ opacity: r.alive ? 1 : 0.45 }}>
+              <td style={{ fontWeight: 600 }}>{r.nick}</td>
+              <td>
+                <span className="hpbar">
+                  <i style={{ width: `${r.hp}%`, background: `hsl(${(120 * r.hp) / 100},70%,45%)` }} />
+                </span>{' '}
+                {r.hp}
+              </td>
+              <td>🛡{r.armor}</td>
+              <td>{r.alive ? r.weapon : '—'}</td>
+              <td>${r.money ?? '?'}</td>
+              <td>{r.k}/{r.a}/{r.d}</td>
+            </tr>
+          ))}
+          {rows.length > 0 && (
+            <tr>
+              <td colSpan={6} className="inv">
+                {rows.map((r) => r.alive && r.inv ? `${r.nick}: ${r.inv}` : null)
+                  .filter(Boolean).join('  |  ')}
+              </td>
+            </tr>
+          )}
+        </tbody>
+      </table>
+    </div>
   );
 }
 
