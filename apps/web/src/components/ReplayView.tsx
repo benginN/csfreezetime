@@ -166,6 +166,7 @@ export default function ReplayView({
 
   const stageRef = useRef<HTMLDivElement>(null);
   const sliderRef = useRef<HTMLInputElement>(null);
+  const zoomApiRef = useRef<{ zoomIn(): void; zoomOut(): void; reset(): void } | null>(null);
   const fIdxRef = useRef(0);
   const playingRef = useRef(false);
   const speedRef = useRef(2);
@@ -265,18 +266,36 @@ export default function ReplayView({
         world.position.set(view.x, view.y);
         app.canvas.style.cursor = view.s > 1 ? 'grab' : 'default';
       };
-      const onWheel = (e: WheelEvent) => {
-        e.preventDefault();
-        const rect = app.canvas.getBoundingClientRect();
-        const mx = e.clientX - rect.left;
-        const my = e.clientY - rect.top;
-        const k = Math.pow(1.0015, -e.deltaY);
-        const ns = Math.min(8, Math.max(1, view.s * k));
-        // imleç altındaki dünya noktası sabit kalsın
+      const zoomAt = (mx: number, my: number, factor: number) => {
+        const ns = Math.min(8, Math.max(1, view.s * factor));
+        // odak altındaki dünya noktası sabit kalsın
         view.x = mx - ((mx - view.x) / view.s) * ns;
         view.y = my - ((my - view.y) / view.s) * ns;
         view.s = ns;
         clampView();
+      };
+      const onWheel = (e: WheelEvent) => {
+        e.preventDefault();
+        const rect = app.canvas.getBoundingClientRect();
+        // Mac trackpad pinch'i ctrlKey'li wheel olarak gelir; küçük deltalarla
+        // çalıştığı için daha güçlü çarpan gerekir
+        const factor = Math.exp(-e.deltaY * (e.ctrlKey ? 0.012 : 0.0022));
+        zoomAt(e.clientX - rect.left, e.clientY - rect.top, factor);
+      };
+      // Safari trackpad pinch: gesture* olayları (e.scale mutlak ölçek)
+      let gestureBase = 1;
+      const onGestureStart = (e: Event) => { e.preventDefault(); gestureBase = view.s; };
+      const onGestureChange = (e: Event) => {
+        e.preventDefault();
+        const ge = e as unknown as { scale: number; clientX: number; clientY: number };
+        const rect = app.canvas.getBoundingClientRect();
+        const target = Math.min(8, Math.max(1, gestureBase * ge.scale));
+        zoomAt(ge.clientX - rect.left, ge.clientY - rect.top, target / view.s);
+      };
+      zoomApiRef.current = {
+        zoomIn: () => zoomAt(W / 2, W / 2, 1.4),
+        zoomOut: () => zoomAt(W / 2, W / 2, 1 / 1.4),
+        reset: () => { view.s = 1; view.x = 0; view.y = 0; clampView(); },
       };
       let panning = false;
       let panStart = { x: 0, y: 0, vx: 0, vy: 0 };
@@ -304,6 +323,8 @@ export default function ReplayView({
       app.canvas.addEventListener('pointerup', onUp);
       app.canvas.addEventListener('pointercancel', onUp);
       app.canvas.addEventListener('dblclick', onDbl);
+      app.canvas.addEventListener('gesturestart', onGestureStart);
+      app.canvas.addEventListener('gesturechange', onGestureChange);
 
       // hayalet raunt etiketleri (r7 gibi) — yeniden kullanılan havuz
       const ghostLabels: Text[] = [];
@@ -670,6 +691,7 @@ export default function ReplayView({
     return () => {
       destroyed = true;
       baseSpriteRef.current = null;
+      zoomApiRef.current = null;
       try { app.destroy(true, { children: true }); } catch { /* init yarıda */ }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -710,13 +732,22 @@ export default function ReplayView({
 
   return (
     <div className="replaylayout">
-      {/* Sol: yalnız harita — tam boy */}
+      {/* Sol: harita tam boy; HUD'lar haritanın ALTINDA (alan kapatmaz) */}
       <div>
         <div className="stagebox">
           <div ref={stageRef} />
-          {showReplay && <HudPanel rows={tRows} cls="left" sel={selPlayer} onSel={setSelPlayer} />}
-          {showReplay && <HudPanel rows={ctRows} cls="right" sel={selPlayer} onSel={setSelPlayer} />}
+          <div className="zoombtns noprint">
+            <button title="zoom in" onClick={() => zoomApiRef.current?.zoomIn()}>+</button>
+            <button title="zoom out" onClick={() => zoomApiRef.current?.zoomOut()}>−</button>
+            <button title="reset view" onClick={() => zoomApiRef.current?.reset()}>⟲</button>
+          </div>
         </div>
+        {showReplay && (
+          <div className="hudrow" style={{ width: W }}>
+            <HudPanel rows={tRows} cls="left" sel={selPlayer} onSel={setSelPlayer} />
+            <HudPanel rows={ctRows} cls="right" sel={selPlayer} onSel={setSelPlayer} />
+          </div>
+        )}
       </div>
 
       {/* Sağ: başlık + ortak görünüm ayarları + üç katman + zaman çubuğu.

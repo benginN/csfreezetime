@@ -15,7 +15,10 @@ nav {
   padding: 10px 24px;
   background: #131816; border-bottom: 1px solid #232a26;
   position: sticky; top: 0; z-index: 10;
+  transition: transform 0.3s ease, margin-bottom 0.3s ease;
 }
+/* hareketsizlikte toplanır; yer de geri kazanılır (main yukarı kayar) */
+nav.hide { transform: translateY(-100%); margin-bottom: -47px; }
 nav .brand { font-weight: 700; font-size: 16px; color: #b6e2b6; letter-spacing: .5px; }
 nav a { color: #9aa89d; font-size: 13.5px; }
 nav a.active { color: #d8ded9; font-weight: 600; }
@@ -186,6 +189,17 @@ canvas.flat { border: 1px solid #232a26; border-radius: 6px; display:block; }
 
 /* Kapalı katman: collapse yerine grileşir (yerleşim sabit kalır) */
 .layerbody.dim { opacity: 0.4; pointer-events: none; }
+
+/* HUD'lar haritanın altında yan yana (harita alanını kapatmaz) */
+.hudrow { display: flex; gap: 10px; margin-top: 6px; }
+.hudrow .hud { position: static; width: 50%; pointer-events: auto; }
+
+/* Harita köşesi zoom düğmeleri (trackpad/mouse bağımsız garanti yol) */
+.zoombtns { position: absolute; top: 8px; left: 8px; display: flex; flex-direction: column; gap: 4px; }
+.zoombtns button {
+  width: 28px; height: 28px; padding: 0; font-size: 15px; line-height: 1;
+  background: rgba(21, 26, 23, 0.85);
+}
 
 /* Maç görünümü: harita solda, katman ayarları sağda */
 .replaylayout { display: flex; gap: 16px; align-items: flex-start; flex-wrap: wrap; }
