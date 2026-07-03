@@ -45,3 +45,4 @@ services/stats-svc/static/radars/*.png
 # Frontend
 apps/web/node_modules/
 apps/web/dist/
+backfill/

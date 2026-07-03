@@ -1,3 +1,5 @@
+// NOT (2026-07-03): FACEIT özelliği RAFTA — rotalar main.go'dan kaldırıldı.
+// Üyelik fazında "kullanıcı kendi API anahtarını girer" modeliyle geri gelecek.
 // FACEIT entegrasyonu: maç listeleme (Data API) + demo indirme (Downloads API).
 //
 // İki ayrı yetki gerekir:

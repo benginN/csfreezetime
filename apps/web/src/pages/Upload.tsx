@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 
 type Phase = 'idle' | 'uploading' | 'queued' | 'parsing' | 'enriching' | 'ready' | 'failed' | 'error';
@@ -151,7 +151,8 @@ export default function Upload() {
         )}
       </div>
 
-      <FaceitPanel onImported={(matchId) => { setSt({ phase: 'queued', progress: 100, matchId, message: '', duplicate: false }); poll(matchId); }} />
+      <BackfillPanel />
+      <CoveragePanel />
 
       <p className="meta">
         Note: strategy clusters and tendencies for a new demo are refreshed the
@@ -162,98 +163,110 @@ export default function Upload() {
   );
 }
 
-// FACEIT'ten otomatik çekme: oda URL'si/ID ile tek maç, ya da nickname ile
-// son maçları listeleyip seçme. Demo indirme Downloads API onayı ister;
-// onaysız anahtarla arayüz bunu açıkça söyler.
-function FaceitPanel({ onImported }: { onImported: (matchId: string) => void }) {
-  const [room, setRoom] = useState('');
-  const [nick, setNick] = useState('');
-  const [list, setList] = useState<{ match_id: string; started_at: string; label: string }[]>([]);
-  const [msg, setMsg] = useState('');
-  const [busy, setBusy] = useState('');
+// Toplu backfill: sunucudaki backfill klasörüne .rar/.zip/.dem yığ → Scan.
+// HLTV turnuva arşivleri (BO3 rar'ı = 3 demo) tek seferde açılıp işlenir.
+function BackfillPanel() {
+  const [status, setStatus] = useState<{
+    running: boolean; total: number; done: number; current: string;
+    results: { match_id?: string; source_file?: string; duplicate?: boolean; status?: string }[] | null;
+    errors: string[] | null; dir: string;
+  } | null>(null);
+  const timerRef = useRef<number | null>(null);
 
-  async function importMatch(match: string) {
-    setBusy(match);
-    setMsg('');
-    try {
-      const r = await fetch('/api/v1/faceit/import', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ match }),
-      });
-      const j = await r.json();
-      if (!r.ok) throw new Error(j.error ?? `HTTP ${r.status}`);
-      if (j.duplicate) setMsg('Already in the archive — opening existing match.');
-      onImported(j.match_id);
-    } catch (e) {
-      setMsg(String(e));
-    } finally {
-      setBusy('');
+  async function refresh() {
+    const r = await fetch('/api/v1/backfill/status');
+    const j = await r.json();
+    setStatus(j);
+    if (!j.running && timerRef.current) {
+      window.clearInterval(timerRef.current);
+      timerRef.current = null;
     }
   }
+  useEffect(() => { refresh(); }, []);
 
-  async function listMatches() {
-    setMsg('');
-    setList([]);
-    try {
-      const r = await fetch(`/api/v1/faceit/matches?nickname=${encodeURIComponent(nick.trim())}`);
-      const j = await r.json();
-      if (!r.ok) throw new Error(j.error ?? `HTTP ${r.status}`);
-      setList(j.matches);
-      if (!j.matches.length) setMsg('No recent CS2 matches found.');
-    } catch (e) {
-      setMsg(String(e));
-    }
+  async function scan() {
+    const r = await fetch('/api/v1/backfill/scan', { method: 'POST' });
+    await r.json();
+    await refresh();
+    if (!timerRef.current) timerRef.current = window.setInterval(refresh, 2000);
   }
 
+  const st = status;
   return (
     <div className="panel">
-      <h2 style={{ marginTop: 0 }}>Import from FACEIT</h2>
+      <h2 style={{ marginTop: 0 }}>Bulk backfill</h2>
+      <p className="meta">
+        Drop tournament archives (.rar / .zip — e.g. HLTV downloads) or bare
+        demos into <code>{st?.dir ?? 'backfill'}/</code> on the server, then scan.
+        Every .dem inside is extracted and queued; duplicates are skipped by
+        hash, processed archives move to <code>done/</code>.
+      </p>
       <div className="toolbar">
-        <input
-          style={{ flex: 1, minWidth: 260 }}
-          placeholder="paste a match room URL or match id…"
-          value={room}
-          onChange={(e) => setRoom(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && room.trim() && importMatch(room.trim())}
-        />
-        <button disabled={!room.trim() || !!busy} onClick={() => importMatch(room.trim())}>
-          {busy ? 'importing…' : 'Import'}
+        <button onClick={scan} disabled={st?.running}>
+          {st?.running ? `processing ${st.done}/${st.total} — ${st.current}` : 'Scan & process folder'}
         </button>
-      </div>
-      <div className="toolbar">
-        <input
-          style={{ width: 200 }}
-          placeholder="or a FACEIT nickname…"
-          value={nick}
-          onChange={(e) => setNick(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && nick.trim() && listMatches()}
-        />
-        <button className="ghost" disabled={!nick.trim()} onClick={listMatches}>
-          List recent matches
-        </button>
-        {nick.trim() && (
-          <Link to={`/faceit/${encodeURIComponent(nick.trim())}`}>full profile →</Link>
+        {!st?.running && st?.results && (
+          <span className="meta">
+            last run: {st.results.length} demos
+            {st.results.filter((x) => x.duplicate).length > 0 &&
+              ` (${st.results.filter((x) => x.duplicate).length} already known)`}
+          </span>
         )}
       </div>
-      {list.length > 0 && (
-        <table style={{ maxWidth: 620 }}>
-          <tbody>
-            {list.map((m) => (
-              <tr key={m.match_id}>
-                <td>{m.label}</td>
-                <td className="meta">{m.started_at}</td>
-                <td>
-                  <button className="ghost" disabled={!!busy} onClick={() => importMatch(m.match_id)}>
-                    {busy === m.match_id ? '…' : 'import'}
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      {st?.errors && st.errors.length > 0 && (
+        <div className="error" style={{ fontSize: 12 }}>
+          {st.errors.map((e, i) => <div key={i}>{e}</div>)}
+        </div>
       )}
-      {msg && <p className="meta" style={{ color: msg.includes('Error') || msg.includes('API') ? '#e08585' : undefined }}>{msg}</p>}
+    </div>
+  );
+}
+
+// Kapsam envanteri: içeride ne var — takım/harita/tarih dağılımı.
+function CoveragePanel() {
+  const [d, setD] = useState<{
+    totals: { matches: number; rounds: number; teams: number; oldest: string; newest: string } | null;
+    maps: { map_name: string; matches: number }[];
+    teams: { name: string; matches: number; latest: string }[];
+  } | null>(null);
+  useEffect(() => {
+    fetch('/api/v1/coverage').then((r) => r.json()).then(setD).catch(() => {});
+  }, []);
+  if (!d?.totals) return null;
+  return (
+    <div className="panel">
+      <h2 style={{ marginTop: 0 }}>
+        Archive coverage{' '}
+        <span className="meta">
+          {d.totals.matches} matches · {d.totals.rounds} rounds · {d.totals.teams} teams
+          · {d.totals.oldest} → {d.totals.newest}
+        </span>
+      </h2>
+      <div className="grid cards two">
+        <div className="card">
+          <div className="meta" style={{ marginBottom: 6 }}>by map</div>
+          <table>
+            <tbody>
+              {d.maps.map((m) => (
+                <tr key={m.map_name}><td>{m.map_name}</td><td>{m.matches}</td></tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <div className="card">
+          <div className="meta" style={{ marginBottom: 6 }}>by team (latest match)</div>
+          <table>
+            <tbody>
+              {d.teams.slice(0, 14).map((t) => (
+                <tr key={t.name}>
+                  <td>{t.name}</td><td>{t.matches}</td>
+                  <td className="meta">{t.latest}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
     </div>
   );
 }
