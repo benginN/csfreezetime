@@ -61,10 +61,10 @@ export default function HeatView({ matchId, mapName }: { matchId: string; mapNam
         <select value={side} onChange={(e) => setSide(e.target.value)}>
           <option>T</option><option>CT</option>
         </select>
-        <label>{Math.min(t0, t1)}–{Math.max(t0, t1)} sn</label>
+        <label>{Math.min(t0, t1)}–{Math.max(t0, t1)} s into round</label>
         <input type="range" min={0} max={115} value={t0} onChange={(e) => setT0(Number(e.target.value))} style={{ width: 180 }} />
         <input type="range" min={0} max={115} value={t1} onChange={(e) => setT1(Number(e.target.value))} style={{ width: 180 }} />
-        {data && <span className="meta">{data.round_count} raunt</span>}
+        {data && <span className="meta">{data.round_count} rounds</span>}
         {err && <span className="error">{err}</span>}
       </div>
       <canvas ref={cvRef} className="flat" width={HW} height={HW} />

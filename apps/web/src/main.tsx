@@ -22,10 +22,10 @@ class ErrorBoundary extends React.Component<
     if (this.state.error) {
       return (
         <div style={{ padding: 24 }}>
-          <h1>Bir şeyler ters gitti</h1>
+          <h1>Something went wrong</h1>
           <p className="error">{String(this.state.error)}</p>
           <button onClick={() => { this.setState({ error: null }); window.location.href = '/'; }}>
-            Ana sayfaya dön
+            Back to home
           </button>
         </div>
       );

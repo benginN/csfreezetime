@@ -36,7 +36,7 @@ func newUploader() (*uploader, error) {
 	endpoint := os.Getenv("S3_ENDPOINT") // http://localhost:9100
 	u, err := url.Parse(endpoint)
 	if err != nil || u.Host == "" {
-		return nil, fmt.Errorf("S3_ENDPOINT geçersiz: %q", endpoint)
+		return nil, fmt.Errorf("invalid S3_ENDPOINT: %q", endpoint)
 	}
 	mc, err := minio.New(u.Host, &minio.Options{
 		Creds:  credentials.NewStaticV4(os.Getenv("MINIO_ROOT_USER"), os.Getenv("MINIO_ROOT_PASSWORD"), ""),
@@ -55,14 +55,14 @@ func newUploader() (*uploader, error) {
 // POST /api/v1/upload — multipart: "demo" (dosya), opsiyonel "played_at" (ISO)
 func (s *server) upload(w http.ResponseWriter, r *http.Request) {
 	if s.up == nil {
-		writeErr(w, 503, fmt.Errorf("yükleme altyapısı hazır değil (MinIO/NATS bağlantısı)"))
+		writeErr(w, 503, fmt.Errorf("upload infrastructure unavailable (MinIO/NATS connection)"))
 		return
 	}
 	r.Body = http.MaxBytesReader(w, r.Body, maxDemoBytes)
 
 	mr, err := r.MultipartReader()
 	if err != nil {
-		writeErr(w, 400, fmt.Errorf("multipart bekleniyor: %w", err))
+		writeErr(w, 400, fmt.Errorf("multipart form expected: %w", err))
 		return
 	}
 
@@ -89,7 +89,7 @@ func (s *server) upload(w http.ResponseWriter, r *http.Request) {
 		case "demo":
 			fileName = part.FileName()
 			if !strings.HasSuffix(strings.ToLower(fileName), ".dem") {
-				writeErr(w, 400, fmt.Errorf("yalnızca .dem dosyası kabul edilir"))
+				writeErr(w, 400, fmt.Errorf("only .dem files are accepted"))
 				return
 			}
 			// Akış halinde geçici dosyaya yaz + aynı anda SHA-256 hesapla
@@ -104,7 +104,7 @@ func (s *server) upload(w http.ResponseWriter, r *http.Request) {
 			tmp.Close()
 			if err != nil {
 				os.Remove(tmpPath)
-				writeErr(w, 400, fmt.Errorf("yükleme kesildi: %w", err))
+				writeErr(w, 400, fmt.Errorf("upload interrupted: %w", err))
 				return
 			}
 			sha = hex.EncodeToString(h.Sum(nil))
@@ -142,7 +142,7 @@ func (s *server) upload(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 	if _, err := s.up.mc.PutObject(ctx, s.up.bucket, objectKey, f, size,
 		minio.PutObjectOptions{ContentType: "application/octet-stream"}); err != nil {
-		writeErr(w, 500, fmt.Errorf("S3 yüklemesi: %w", err))
+		writeErr(w, 500, fmt.Errorf("S3 upload failed: %w", err))
 		return
 	}
 
@@ -159,7 +159,7 @@ func (s *server) upload(w http.ResponseWriter, r *http.Request) {
 		"played_at":   playedAt,
 	})
 	if err := s.up.nc.Publish("demo.ingested", payload); err != nil {
-		writeErr(w, 500, fmt.Errorf("kuyruğa verilemedi: %w", err))
+		writeErr(w, 500, fmt.Errorf("failed to enqueue: %w", err))
 		return
 	}
 	writeJSON(w, 200, map[string]any{
@@ -172,7 +172,7 @@ func (s *server) upload(w http.ResponseWriter, r *http.Request) {
 func (s *server) matchStatus(w http.ResponseWriter, r *http.Request) {
 	id, err := uuid.Parse(chi.URLParam(r, "id"))
 	if err != nil {
-		writeErr(w, 400, fmt.Errorf("geçersiz match_id"))
+		writeErr(w, 400, fmt.Errorf("invalid match_id"))
 		return
 	}
 	var status string

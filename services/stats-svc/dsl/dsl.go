@@ -88,39 +88,39 @@ var (
 // Validate, schema.json'un Go karşılığıdır; şemaya uymayan sorgu derlenmez.
 func (q *Query) Validate() error {
 	if !slices.Contains(intents, q.Intent) {
-		return fmt.Errorf("geçersiz intent: %q", q.Intent)
+		return fmt.Errorf("invalid intent: %q", q.Intent)
 	}
 	f := &q.Filters
 	if f.Side != "" && !slices.Contains(sides, f.Side) {
-		return fmt.Errorf("geçersiz side: %q", f.Side)
+		return fmt.Errorf("invalid side: %q", f.Side)
 	}
 	for _, b := range f.BuyType {
 		if !slices.Contains(buyTypes, b) {
-			return fmt.Errorf("geçersiz buy_type: %q", b)
+			return fmt.Errorf("invalid buy_type: %q", b)
 		}
 	}
 	if f.Source != "" && !slices.Contains(sources, f.Source) {
-		return fmt.Errorf("geçersiz source: %q", f.Source)
+		return fmt.Errorf("invalid source: %q", f.Source)
 	}
 	e := f.Event
 	if e != nil {
 		if !slices.Contains(eventTypes, e.Type) {
-			return fmt.Errorf("geçersiz event.type: %q", e.Type)
+			return fmt.Errorf("invalid event.type: %q", e.Type)
 		}
 		if e.GrenadeType != "" && !slices.Contains(grenTypes, e.GrenadeType) {
-			return fmt.Errorf("geçersiz grenade_type: %q", e.GrenadeType)
+			return fmt.Errorf("invalid grenade_type: %q", e.GrenadeType)
 		}
 		if e.Order != "" && e.Order != "first_of_type_in_round" {
-			return fmt.Errorf("geçersiz order: %q", e.Order)
+			return fmt.Errorf("invalid order: %q", e.Order)
 		}
 		if e.BombAction != "" && !slices.Contains(bombActs, e.BombAction) {
-			return fmt.Errorf("geçersiz bomb_action: %q", e.BombAction)
+			return fmt.Errorf("invalid bomb_action: %q", e.BombAction)
 		}
 		if e.Site != "" && e.Site != "A" && e.Site != "B" {
-			return fmt.Errorf("geçersiz site: %q", e.Site)
+			return fmt.Errorf("invalid site: %q", e.Site)
 		}
 		if e.AreaOf != "" && e.AreaOf != "attacker" && e.AreaOf != "victim" {
-			return fmt.Errorf("geçersiz area_of: %q", e.AreaOf)
+			return fmt.Errorf("invalid area_of: %q", e.AreaOf)
 		}
 		if e.Type == "presence" {
 			if e.Area == "" {
@@ -151,13 +151,13 @@ func (q *Query) Validate() error {
 		}
 	}
 	if !slices.Contains(formats, o.Format) {
-		return fmt.Errorf("geçersiz output.format: %q", o.Format)
+		return fmt.Errorf("invalid output.format: %q", o.Format)
 	}
 	if o.Metric == "" {
 		o.Metric = "count"
 	}
 	if !slices.Contains(metrics, o.Metric) {
-		return fmt.Errorf("geçersiz output.metric: %q", o.Metric)
+		return fmt.Errorf("invalid output.metric: %q", o.Metric)
 	}
 	if len(o.ContextSeconds) == 0 {
 		o.ContextSeconds = []float64{5, 8}

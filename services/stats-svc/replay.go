@@ -41,38 +41,46 @@ func (s *server) radarFor(ctx context.Context, mapName string) (*radarCal, error
 func (s *server) matchDetail(w http.ResponseWriter, r *http.Request) {
 	matchID, err := uuid.Parse(chi.URLParam(r, "id"))
 	if err != nil {
-		writeErr(w, 400, fmt.Errorf("geçersiz match_id"))
+		writeErr(w, 400, fmt.Errorf("invalid match_id"))
 		return
 	}
 	ctx := r.Context()
 
 	var mapName *string
 	var status string
-	if err := s.pg.QueryRow(ctx,
-		"SELECT map_name, status FROM matches WHERE match_id = $1", matchID).
-		Scan(&mapName, &status); err != nil {
-		writeErr(w, 404, fmt.Errorf("maç bulunamadı"))
+	var teamAID, teamBID *uuid.UUID
+	var teamA, teamB *string
+	if err := s.pg.QueryRow(ctx, `
+		SELECT m.map_name, m.status, m.team_a_id, ta.name, m.team_b_id, tb.name
+		FROM matches m
+		LEFT JOIN teams ta ON ta.team_id = m.team_a_id
+		LEFT JOIN teams tb ON tb.team_id = m.team_b_id
+		WHERE m.match_id = $1`, matchID).
+		Scan(&mapName, &status, &teamAID, &teamA, &teamBID, &teamB); err != nil {
+		writeErr(w, 404, fmt.Errorf("match not found"))
 		return
 	}
 
 	type roundRow struct {
-		RoundNumber   int16   `json:"round_number"`
-		StartTick     *int32  `json:"start_tick"`
-		FreezeEndTick *int32  `json:"freeze_end_tick"`
-		EndTick       *int32  `json:"end_tick"`
-		WinnerSide    *string `json:"winner_side"`
-		EndReason     *string `json:"end_reason"`
-		BombSite      *string `json:"bomb_site"`
-		BombPlantTick *int32  `json:"bomb_plant_tick"`
-		TBuy          *string `json:"t_buy_type"`
-		CTBuy         *string `json:"ct_buy_type"`
-		TCluster      *int16  `json:"t_cluster"`
-		CTCluster     *int16  `json:"ct_cluster"`
+		RoundNumber   int16      `json:"round_number"`
+		StartTick     *int32     `json:"start_tick"`
+		FreezeEndTick *int32     `json:"freeze_end_tick"`
+		EndTick       *int32     `json:"end_tick"`
+		WinnerSide    *string    `json:"winner_side"`
+		EndReason     *string    `json:"end_reason"`
+		BombSite      *string    `json:"bomb_site"`
+		BombPlantTick *int32     `json:"bomb_plant_tick"`
+		TBuy          *string    `json:"t_buy_type"`
+		CTBuy         *string    `json:"ct_buy_type"`
+		TCluster      *int16     `json:"t_cluster"`
+		CTCluster     *int16     `json:"ct_cluster"`
+		TTeamID       *uuid.UUID `json:"t_team_id"`
+		CTTeamID      *uuid.UUID `json:"ct_team_id"`
 	}
 	rows, err := s.pg.Query(ctx, `
 		SELECT round_number, start_tick, freeze_end_tick, end_tick, winner_side,
 		       end_reason, bomb_site, bomb_plant_tick, t_buy_type, ct_buy_type,
-		       t_strategy_cluster, ct_strategy_cluster
+		       t_strategy_cluster, ct_strategy_cluster, t_team_id, ct_team_id
 		FROM rounds WHERE match_id = $1 ORDER BY round_number`, matchID)
 	if err != nil {
 		writeErr(w, 500, err)
@@ -83,7 +91,7 @@ func (s *server) matchDetail(w http.ResponseWriter, r *http.Request) {
 		var x roundRow
 		if err := rows.Scan(&x.RoundNumber, &x.StartTick, &x.FreezeEndTick, &x.EndTick,
 			&x.WinnerSide, &x.EndReason, &x.BombSite, &x.BombPlantTick, &x.TBuy, &x.CTBuy,
-			&x.TCluster, &x.CTCluster); err != nil {
+			&x.TCluster, &x.CTCluster, &x.TTeamID, &x.CTTeamID); err != nil {
 			rows.Close()
 			writeErr(w, 500, err)
 			return
@@ -127,6 +135,8 @@ func (s *server) matchDetail(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, 200, map[string]any{
 		"match_id": matchID, "map_name": mapName, "status": status,
+		"team_a_id": teamAID, "team_a": teamA,
+		"team_b_id": teamBID, "team_b": teamB,
 		"rounds": rounds, "kills": kills,
 	})
 }
@@ -155,12 +165,12 @@ type playerTrack struct {
 func (s *server) roundTicks(w http.ResponseWriter, r *http.Request) {
 	matchID, err := uuid.Parse(chi.URLParam(r, "match_id"))
 	if err != nil {
-		writeErr(w, 400, fmt.Errorf("geçersiz match_id"))
+		writeErr(w, 400, fmt.Errorf("invalid match_id"))
 		return
 	}
 	roundNo, err := strconv.Atoi(chi.URLParam(r, "n"))
 	if err != nil || roundNo < 1 || roundNo > 255 {
-		writeErr(w, 400, fmt.Errorf("geçersiz raunt numarası"))
+		writeErr(w, 400, fmt.Errorf("invalid round number"))
 		return
 	}
 	ctx := r.Context()
@@ -172,7 +182,7 @@ func (s *server) roundTicks(w http.ResponseWriter, r *http.Request) {
 		JOIN matches m ON m.match_id = r.match_id
 		WHERE r.match_id = $1 AND r.round_number = $2`, matchID, roundNo).
 		Scan(&mapName, &freezeEnd); err != nil {
-		writeErr(w, 404, fmt.Errorf("raunt bulunamadı"))
+		writeErr(w, 404, fmt.Errorf("round not found"))
 		return
 	}
 	cal, err := s.radarFor(ctx, mapName)
@@ -247,7 +257,7 @@ func (s *server) roundTicks(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	if len(tickSet) == 0 {
-		writeErr(w, 404, fmt.Errorf("raunt için tick verisi yok"))
+		writeErr(w, 404, fmt.Errorf("no tick data for this round"))
 		return
 	}
 
@@ -408,11 +418,11 @@ func (s *server) stack(w http.ResponseWriter, r *http.Request) {
 		Side  string `json:"side,omitempty"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeErr(w, 400, fmt.Errorf("JSON çözülemedi: %w", err))
+		writeErr(w, 400, fmt.Errorf("could not parse JSON: %w", err))
 		return
 	}
 	if len(req.Rounds) == 0 || len(req.Rounds) > 30 {
-		writeErr(w, 400, fmt.Errorf("1-30 arası raunt gerekli"))
+		writeErr(w, 400, fmt.Errorf("between 1 and 30 rounds required"))
 		return
 	}
 	switch req.Align {
@@ -459,7 +469,7 @@ func (s *server) stack(w http.ResponseWriter, r *http.Request) {
 		if mapName == "" {
 			mapName = m
 		} else if mapName != m {
-			writeErr(w, 400, fmt.Errorf("tüm rauntlar aynı haritadan olmalı (%s ≠ %s)", mapName, m))
+			writeErr(w, 400, fmt.Errorf("all rounds must be from the same map (%s ≠ %s)", mapName, m))
 			return
 		}
 
@@ -467,13 +477,13 @@ func (s *server) stack(w http.ResponseWriter, r *http.Request) {
 		switch req.Align {
 		case "round_start":
 			if freezeEnd == nil {
-				ly.Skipped = "freeze_end yok"
+				ly.Skipped = "no freeze end"
 			} else {
 				ly.AlignTick = *freezeEnd
 			}
 		case "bomb_plant":
 			if plantTick == nil {
-				ly.Skipped = "bomba kurulmamış"
+				ly.Skipped = "no bomb plant"
 			} else {
 				ly.AlignTick = *plantTick
 			}
@@ -483,7 +493,7 @@ func (s *server) stack(w http.ResponseWriter, r *http.Request) {
 				SELECT min(tick) FROM kills WHERE match_id = $1 AND round_number = $2`,
 				rr.MatchID, rr.RoundNumber).Scan(&fk)
 			if fk == nil {
-				ly.Skipped = "kill yok"
+				ly.Skipped = "no kills"
 			} else {
 				ly.AlignTick = *fk
 			}

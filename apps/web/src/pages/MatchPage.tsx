@@ -1,16 +1,18 @@
+import { Fragment } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../api';
+import { chipTitle, isSideSwap, winnerTeamClass } from '../lib/rounds';
 import ReplayView from '../components/ReplayView';
 import StackView from '../components/StackView';
 import HeatView from '../components/HeatView';
 
-// Maç sayfası: kompakt başlık + sekmeler. "İzle" varsayılan: rauntlar üstte,
-// grafik hemen altında — arada boşluk yok.
+// Maç sayfası: kompakt başlık + sekmeler. Çipler kazanan TAKIM renginde
+// (taraftan bağımsız), taraf değişimi dikey ayraçla gösterilir.
 export default function MatchPage() {
   const { id = '' } = useParams();
   const [params, setParams] = useSearchParams();
-  const tab = params.get('tab') ?? 'izle';
+  const tab = params.get('tab') ?? 'watch';
   const round = Number(params.get('round') ?? '1');
   const seekTick = params.get('t') ? Number(params.get('t')) : null;
 
@@ -21,10 +23,18 @@ export default function MatchPage() {
     select: (d) => d.matches.find((m) => m.match_id === id),
   });
 
-  if (detail.isLoading) return <p className="meta">yükleniyor…</p>;
+  if (detail.isLoading) return <p className="meta">loading…</p>;
   if (detail.error || !detail.data) return <p className="error">{String(detail.error)}</p>;
   const d = detail.data;
-  const s = summary.data;
+  const teams = { aId: d.team_a_id, a: d.team_a, b: d.team_b };
+
+  // skor rauntlardan: kazanan taraf + o rauntta o tarafı oynayan takım
+  let scoreA = 0, scoreB = 0;
+  for (const r of d.rounds) {
+    const c = winnerTeamClass(r, d.team_a_id);
+    if (c === 'A') scoreA++;
+    else if (c === 'B') scoreB++;
+  }
 
   const setTab = (t: string) => {
     const p = new URLSearchParams(params);
@@ -35,7 +45,7 @@ export default function MatchPage() {
   const setRound = (n: number) => {
     const p = new URLSearchParams(params);
     p.set('round', String(n));
-    p.set('tab', 'izle');
+    p.set('tab', 'watch');
     p.delete('t');
     setParams(p, { replace: true });
   };
@@ -43,34 +53,37 @@ export default function MatchPage() {
   return (
     <>
       <h1 style={{ marginBottom: 0 }}>
-        {s ? (
-          <>
-            {s.team_a ?? 'Takım A'}{' '}
-            <span style={{ color: '#b6e2b6' }}>{s.score_a} : {s.score_b}</span>{' '}
-            {s.team_b ?? 'Takım B'}
-          </>
-        ) : 'Maç'}{' '}
-        <span className="meta">{d.map_name}{s?.played_at ? ` · ${s.played_at}` : ''}</span>
+        {d.team_a ?? 'Team A'}{' '}
+        <span style={{ color: '#b6e2b6' }}>{scoreA} : {scoreB}</span>{' '}
+        {d.team_b ?? 'Team B'}{' '}
+        <span className="meta">{d.map_name}{summary.data?.played_at ? ` · ${summary.data.played_at}` : ''}</span>
       </h1>
 
       <div className="tabs">
-        <button className={tab === 'izle' ? 'active' : ''} onClick={() => setTab('izle')}>İzle</button>
-        <button className={tab === 'stack' ? 'active' : ''} onClick={() => setTab('stack')}>Üst üste bindir</button>
-        <button className={tab === 'isi' ? 'active' : ''} onClick={() => setTab('isi')}>Isı haritası</button>
+        <button className={tab === 'watch' ? 'active' : ''} onClick={() => setTab('watch')}>Watch</button>
+        <button className={tab === 'stack' ? 'active' : ''} onClick={() => setTab('stack')}>Overlay rounds</button>
+        <button className={tab === 'heat' ? 'active' : ''} onClick={() => setTab('heat')}>Heatmap</button>
       </div>
 
-      {tab === 'izle' && (
+      {tab === 'watch' && (
         <>
+          <div className="chiplegend">
+            <span><i style={{ background: '#86d8e8' }} />{d.team_a ?? 'Team A'}</span>
+            <span><i style={{ background: '#dcaaea' }} />{d.team_b ?? 'Team B'}</span>
+            <span className="meta">chip color = round winner · divider = side swap</span>
+          </div>
           <div className="roundchips">
-            {d.rounds.map((r) => (
-              <button
-                key={r.round_number}
-                className={`${r.winner_side ?? ''} ${r.round_number === round ? 'sel' : ''}`}
-                onClick={() => setRound(r.round_number)}
-                title={`${r.winner_side ?? '?'} · ${r.end_reason ?? ''}${r.bomb_site ? ' · bomba ' + r.bomb_site : ''} · T:${r.t_buy_type ?? '?'} CT:${r.ct_buy_type ?? '?'}`}
-              >
-                {r.round_number}
-              </button>
+            {d.rounds.map((r, i) => (
+              <Fragment key={r.round_number}>
+                {isSideSwap(d.rounds[i - 1], r) && <span className="halfdiv" title="side swap" />}
+                <button
+                  className={`${winnerTeamClass(r, d.team_a_id)} ${r.round_number === round ? 'sel' : ''}`}
+                  onClick={() => setRound(r.round_number)}
+                  title={chipTitle(r, teams)}
+                >
+                  {r.round_number}
+                </button>
+              </Fragment>
             ))}
           </div>
           <ReplayView
@@ -83,9 +96,9 @@ export default function MatchPage() {
         </>
       )}
 
-      {tab === 'stack' && <StackView matchId={id} rounds={d.rounds} />}
+      {tab === 'stack' && <StackView matchId={id} rounds={d.rounds} teams={teams} />}
 
-      {tab === 'isi' && d.map_name && <HeatView matchId={id} mapName={d.map_name} />}
+      {tab === 'heat' && d.map_name && <HeatView matchId={id} mapName={d.map_name} />}
     </>
   );
 }

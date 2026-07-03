@@ -156,7 +156,7 @@ func (s *server) matches(w http.ResponseWriter, r *http.Request) {
 	if t := r.URL.Query().Get("team_id"); t != "" {
 		tid, err := uuid.Parse(t)
 		if err != nil {
-			writeErr(w, 400, fmt.Errorf("geçersiz team_id"))
+			writeErr(w, 400, fmt.Errorf("invalid team_id"))
 			return
 		}
 		cond, args = "(m.team_a_id = $1 OR m.team_b_id = $1)", []any{tid}
@@ -243,7 +243,7 @@ func (s *server) teams(w http.ResponseWriter, r *http.Request) {
 func (s *server) query(w http.ResponseWriter, r *http.Request) {
 	var q dsl.Query
 	if err := json.NewDecoder(r.Body).Decode(&q); err != nil {
-		writeErr(w, 400, fmt.Errorf("JSON çözülemedi: %w", err))
+		writeErr(w, 400, fmt.Errorf("could not parse JSON: %w", err))
 		return
 	}
 	if err := q.Validate(); err != nil {
@@ -265,7 +265,7 @@ func (s *server) heatmap(w http.ResponseWriter, r *http.Request) {
 	mapName := qp.Get("map")
 	side := qp.Get("side")
 	if mapName == "" || (side != "T" && side != "CT") {
-		writeErr(w, 400, fmt.Errorf("map ve side (T|CT) zorunlu"))
+		writeErr(w, 400, fmt.Errorf("map and side (T|CT) are required"))
 		return
 	}
 
@@ -309,7 +309,7 @@ func (s *server) heatmap(w http.ResponseWriter, r *http.Request) {
 	if mid := qp.Get("match_id"); mid != "" {
 		want, err := uuid.Parse(mid)
 		if err != nil {
-			writeErr(w, 400, fmt.Errorf("geçersiz match_id"))
+			writeErr(w, 400, fmt.Errorf("invalid match_id"))
 			return
 		}
 		var only []rref

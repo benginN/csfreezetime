@@ -15,7 +15,7 @@ import (
 func (s *server) teamTendencies(w http.ResponseWriter, r *http.Request) {
 	teamID, err := uuid.Parse(chi.URLParam(r, "id"))
 	if err != nil {
-		writeErr(w, 400, fmt.Errorf("geçersiz team_id"))
+		writeErr(w, 400, fmt.Errorf("invalid team_id"))
 		return
 	}
 	rows, err := s.pg.Query(r.Context(), `
@@ -65,7 +65,7 @@ func (s *server) teamTendencies(w http.ResponseWriter, r *http.Request) {
 func (s *server) clusters(w http.ResponseWriter, r *http.Request) {
 	mapName, side := r.URL.Query().Get("map"), r.URL.Query().Get("side")
 	if mapName == "" || (side != "T" && side != "CT") {
-		writeErr(w, 400, fmt.Errorf("map ve side (T|CT) zorunlu"))
+		writeErr(w, 400, fmt.Errorf("map and side (T|CT) are required"))
 		return
 	}
 	rows, err := s.pg.Query(r.Context(), `
@@ -106,7 +106,7 @@ func (s *server) renameCluster(w http.ResponseWriter, r *http.Request) {
 		Label string `json:"label"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		writeErr(w, 400, fmt.Errorf("JSON çözülemedi: %w", err))
+		writeErr(w, 400, fmt.Errorf("could not parse JSON: %w", err))
 		return
 	}
 	var label *string
@@ -122,7 +122,7 @@ func (s *server) renameCluster(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if tag.RowsAffected() == 0 {
-		writeErr(w, 404, fmt.Errorf("küme bulunamadı"))
+		writeErr(w, 404, fmt.Errorf("cluster not found"))
 		return
 	}
 	writeJSON(w, 200, map[string]any{"ok": true, "label": label})
@@ -135,12 +135,12 @@ func (s *server) predictHandler(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
 	teamID, err := uuid.Parse(q.Get("team_id"))
 	if err != nil {
-		writeErr(w, 400, fmt.Errorf("geçersiz team_id"))
+		writeErr(w, 400, fmt.Errorf("invalid team_id"))
 		return
 	}
 	mapName, side := q.Get("map"), q.Get("side")
 	if mapName == "" || (side != "T" && side != "CT") {
-		writeErr(w, 400, fmt.Errorf("map ve side (T|CT) zorunlu"))
+		writeErr(w, 400, fmt.Errorf("map and side (T|CT) are required"))
 		return
 	}
 	buy := q.Get("buy_type")
@@ -235,15 +235,15 @@ func (s *server) predictHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	note := "lig geneli dağılım (takım verisi taban çizgiyi geçmedi)"
+	note := "league-wide distribution (team data didn't beat the baseline)"
 	if method != "league" {
 		switch {
 		case sampleSize < 15:
-			note = fmt.Sprintf("%d raunt gözlem — düşük güven", sampleSize)
+			note = fmt.Sprintf("%d rounds observed — low confidence", sampleSize)
 		case sampleSize < 40:
-			note = fmt.Sprintf("%d raunt gözlem — orta güven", sampleSize)
+			note = fmt.Sprintf("%d rounds observed — medium confidence", sampleSize)
 		default:
-			note = fmt.Sprintf("%d raunt gözlem — yüksek güven", sampleSize)
+			note = fmt.Sprintf("%d rounds observed — high confidence", sampleSize)
 		}
 	}
 	writeJSON(w, 200, map[string]any{
@@ -257,7 +257,7 @@ func (s *server) predictHandler(w http.ResponseWriter, r *http.Request) {
 func (s *server) playerFlags(w http.ResponseWriter, r *http.Request) {
 	playerID, err := uuid.Parse(chi.URLParam(r, "id"))
 	if err != nil {
-		writeErr(w, 400, fmt.Errorf("geçersiz player_id"))
+		writeErr(w, 400, fmt.Errorf("invalid player_id"))
 		return
 	}
 	rows, err := s.pg.Query(r.Context(), `

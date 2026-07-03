@@ -119,7 +119,7 @@ func (e *Engine) resolvePlayer(ctx context.Context, p *PlayerScope) (uuid.UUID, 
 		return id, errors.New("player için nickname veya steam_id64 gerekli")
 	}
 	if err != nil {
-		return id, fmt.Errorf("oyuncu bulunamadı: %w", err)
+		return id, fmt.Errorf("player not found: %w", err)
 	}
 	return id, nil
 }

@@ -33,6 +33,8 @@ export interface RoundRow {
   ct_buy_type: string | null;
   t_cluster: number | null;
   ct_cluster: number | null;
+  t_team_id: string | null;
+  ct_team_id: string | null;
 }
 
 export interface Tendency {
@@ -76,6 +78,10 @@ export interface MatchDetail {
   match_id: string;
   map_name: string | null;
   status: string;
+  team_a_id: string | null;
+  team_a: string | null;
+  team_b_id: string | null;
+  team_b: string | null;
   rounds: RoundRow[];
   kills: KillRow[];
 }

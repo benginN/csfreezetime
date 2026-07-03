@@ -21,23 +21,23 @@ export default function Home() {
   return (
     <>
       <div className="meta" style={{ margin: '4px 0 12px' }}>
-        {res.isLoading ? 'aranıyor…' : `${matches.length} maç`}
+        {res.isLoading ? 'searching…' : `${matches.length} matches`}
         {q && <> · “{q}”</>}
       </div>
 
       {matches.map((m) => (
         <Link key={m.match_id} to={`/match/${m.match_id}`} className="matchrow">
           <span className="vs">
-            <span>{m.team_a ?? 'Takım A'}</span>
+            <span>{m.team_a ?? 'Team A'}</span>
             <span className="score">{m.score_a} : {m.score_b}</span>
-            <span>{m.team_b ?? 'Takım B'}</span>
+            <span>{m.team_b ?? 'Team B'}</span>
           </span>
           <span className="badge gray">{m.map_name}</span>
           <span className="meta">{m.played_at ?? ''}</span>
         </Link>
       ))}
       {!res.isLoading && matches.length === 0 && (
-        <p className="meta">Sonuç yok — takım, oyuncu ya da harita adı dene.</p>
+        <p className="meta">No results — try a team, player or map name.</p>
       )}
 
       {soloTeam && <TeamPanels teamId={soloTeam.id} name={soloTeam.name} />}
@@ -72,7 +72,7 @@ function TeamPanels({ teamId, name }: { teamId: string; name: string }) {
 
   if (!maps.length) return null;
   const methodLabel: Record<string, string> = {
-    league: 'lig geneli', team: 'takım eğilimi', team_buy: 'takım + buy koşullu',
+    league: 'league-wide', team: 'team tendency', team_buy: 'team + buy conditional',
   };
 
   const byMap = new Map<string, Tendency[]>();
@@ -84,7 +84,7 @@ function TeamPanels({ teamId, name }: { teamId: string; name: string }) {
 
   return (
     <>
-      <h2>{name} — sonraki raunt tahmini</h2>
+      <h2>{name} — next round prediction</h2>
       <div className="panel">
         <div className="toolbar">
           <select value={effMap} onChange={(e) => setMapName(e.target.value)}>
@@ -94,12 +94,12 @@ function TeamPanels({ teamId, name }: { teamId: string; name: string }) {
             <option>T</option><option>CT</option>
           </select>
           <select value={buy} onChange={(e) => setBuy(e.target.value)}>
-            <option value="">buy bilinmiyor</option>
+            <option value="">buy unknown</option>
             {['pistol', 'eco', 'semi', 'force', 'full'].map((b) => <option key={b}>{b}</option>)}
           </select>
           {predict.data && (
             <span className="meta">
-              yöntem: {methodLabel[predict.data.method]} · {predict.data.evidence.note}
+              method: {methodLabel[predict.data.method]} · {predict.data.evidence.note}
             </span>
           )}
         </div>
@@ -109,7 +109,7 @@ function TeamPanels({ teamId, name }: { teamId: string; name: string }) {
         ))}
       </div>
 
-      <h2>{name} — harita eğilimleri</h2>
+      <h2>{name} — map tendencies</h2>
       <div className="grid cards">
         {[...byMap.entries()].map(([map, list]) => (
           <div key={map} className="card">
@@ -120,7 +120,7 @@ function TeamPanels({ teamId, name }: { teamId: string; name: string }) {
               return (
                 <div key={s} style={{ marginTop: 8 }}>
                   <span className={`badge ${s}`}>{s}</span>{' '}
-                  <span className="meta">{top[0].sample_size} raunt gözlem</span>
+                  <span className="meta">{top[0].sample_size} rounds observed</span>
                   {top.map((r) => (
                     <Bar key={r.cluster_id} prob={r.prob}
                       label={r.label ?? r.top_places.slice(0, 3).map((p) => p.place).join(' → ')} />

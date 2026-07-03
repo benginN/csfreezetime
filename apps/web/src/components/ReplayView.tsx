@@ -24,7 +24,7 @@ function shortInv(inv: string[] | null): string {
   if (!inv) return '';
   return inv
     .filter((w) => !w.includes('Knife') && w !== 'C4')
-    .map((w) => w.replace('High Explosive Grenade', 'HE').replace('Incendiary Grenade', 'Molotof'))
+    .map((w) => w.replace('High Explosive Grenade', 'HE').replace('Incendiary Grenade', 'Molotov'))
     .join(' · ');
 }
 
@@ -123,7 +123,7 @@ export default function ReplayView({
           .rect(IX - 1, IY - 1, INS + 2, INS + 2)
           .stroke({ width: 1.5, color: 0x3a5f3e });
         const tag = new Text({
-          text: 'ALT KAT',
+          text: 'LOWER LEVEL',
           style: { fontSize: 10, fill: 0x9fc79f, fontFamily: 'system-ui' },
         });
         tag.position.set(IX + 5, IY + INS - 16);
@@ -328,7 +328,7 @@ export default function ReplayView({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [d, base, matchKills]);
 
-  if (ticksQ.isLoading) return <p className="meta">raunt yükleniyor…</p>;
+  if (ticksQ.isLoading) return <p className="meta">loading round…</p>;
   if (ticksQ.error || !d) return <p className="error">{String(ticksQ.error)}</p>;
 
   const tRows = hudRows.filter((r) => r.side === 'T');
@@ -343,7 +343,7 @@ export default function ReplayView({
         </select>
         <span className="meta" style={{ fontVariantNumeric: 'tabular-nums' }}>{clock}</span>
         <label>
-          <input type="checkbox" checked={labels} onChange={(e) => setLabels(e.target.checked)} /> etiketler
+          <input type="checkbox" checked={labels} onChange={(e) => setLabels(e.target.checked)} /> labels
         </label>
       </div>
 

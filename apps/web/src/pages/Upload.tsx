@@ -13,13 +13,13 @@ interface UploadState {
 
 const PHASE_TEXT: Record<Phase, string> = {
   idle: '',
-  uploading: 'Yükleniyor…',
-  queued: 'Kuyruğa alındı — parser bekleniyor',
-  parsing: 'Demo ayrıştırılıyor…',
-  enriching: 'İstatistikler hesaplanıyor…',
-  ready: 'Hazır! ✅',
-  failed: 'İşleme başarısız ❌',
-  error: 'Hata',
+  uploading: 'Uploading…',
+  queued: 'Queued — waiting for parser',
+  parsing: 'Parsing demo…',
+  enriching: 'Computing stats…',
+  ready: 'Ready! ✅',
+  failed: 'Processing failed ❌',
+  error: 'Error',
 };
 
 export default function Upload() {
@@ -32,7 +32,7 @@ export default function Upload() {
 
   function startUpload(file: File) {
     if (!file.name.toLowerCase().endsWith('.dem')) {
-      setSt({ ...st, phase: 'error', message: 'Yalnızca .dem dosyası yükleyebilirsin.' });
+      setSt({ ...st, phase: 'error', message: 'Only .dem files are accepted.' });
       return;
     }
     if (pollRef.current) clearInterval(pollRef.current);
@@ -50,7 +50,7 @@ export default function Upload() {
         setSt((s) => ({ ...s, progress: Math.round((100 * e.loaded) / e.total) }));
       }
     };
-    xhr.onerror = () => setSt((s) => ({ ...s, phase: 'error', message: 'Bağlantı hatası.' }));
+    xhr.onerror = () => setSt((s) => ({ ...s, phase: 'error', message: 'Connection error.' }));
     xhr.onload = () => {
       try {
         const resp = JSON.parse(xhr.responseText);
@@ -59,13 +59,13 @@ export default function Upload() {
           return;
         }
         if (resp.duplicate) {
-          setSt({ phase: 'ready', progress: 100, matchId: resp.match_id, message: 'Bu demo zaten işlenmiş.', duplicate: true });
+          setSt({ phase: 'ready', progress: 100, matchId: resp.match_id, message: 'This demo was already processed.', duplicate: true });
           return;
         }
         setSt({ phase: 'queued', progress: 100, matchId: resp.match_id, message: '', duplicate: false });
         poll(resp.match_id);
       } catch {
-        setSt((s) => ({ ...s, phase: 'error', message: 'Beklenmedik yanıt.' }));
+        setSt((s) => ({ ...s, phase: 'error', message: 'Unexpected response.' }));
       }
     };
     xhr.send(form);
@@ -90,11 +90,11 @@ export default function Upload() {
 
   return (
     <>
-      <h1>Demo yükle</h1>
+      <h1>Upload demo</h1>
       <p className="meta">
-        Kendi .dem dosyanı yükle; otomatik işlenir ve maç olarak incelenebilir
-        (replay, ısı haritası, stacking). Aynı demo ikinci kez yüklenirse yeniden
-        işlenmez, mevcut maça yönlendirilirsin.
+        Upload your own .dem file; it gets processed automatically and becomes a
+        match you can analyze (replay, heatmap, round overlay). Uploading the
+        same demo twice won't reprocess it — you'll be pointed to the existing match.
       </p>
 
       <div
@@ -119,10 +119,10 @@ export default function Upload() {
           style={{ display: 'none' }}
           onChange={(e) => e.target.files?.[0] && startUpload(e.target.files[0])}
         />
-        {st.phase === 'idle' && <>Buraya .dem dosyası bırak ya da tıkla</>}
+        {st.phase === 'idle' && <>Drop a .dem file here, or click to browse</>}
         {st.phase === 'uploading' && (
           <>
-            <div>Yükleniyor… %{st.progress}</div>
+            <div>Uploading… {st.progress}%</div>
             <div style={{ maxWidth: 420, margin: '12px auto 0', background: '#232a26', borderRadius: 4, height: 10 }}>
               <div style={{ width: `${st.progress}%`, height: '100%', background: '#4c8f52', borderRadius: 4 }} />
             </div>
@@ -134,7 +134,7 @@ export default function Upload() {
             {st.message && <div className="meta" style={{ marginTop: 6 }}>{st.message}</div>}
             {st.phase === 'ready' && st.matchId && (
               <div style={{ marginTop: 14 }}>
-                <Link to={`/match/${st.matchId}`}><button>Maçı incele →</button></Link>
+                <Link to={`/match/${st.matchId}`}><button>Open match →</button></Link>
               </div>
             )}
             {(st.phase === 'ready' || st.phase === 'failed' || st.phase === 'error') && (
@@ -143,7 +143,7 @@ export default function Upload() {
                   e.stopPropagation();
                   setSt({ phase: 'idle', progress: 0, matchId: null, message: '', duplicate: false });
                 }}>
-                  Başka demo yükle
+                  Upload another demo
                 </button>
               </div>
             )}
@@ -152,9 +152,9 @@ export default function Upload() {
       </div>
 
       <p className="meta">
-        Not: işlenen demonun strateji kümeleri/eğilimleri, istatistik işleri
-        (ml-jobs) bir sonraki çalıştığında güncellenir. Üyelik ve kişiye özel
-        demo alanı, yayına hazırlık aşamasında eklenecek.
+        Note: strategy clusters and tendencies for a new demo are refreshed the
+        next time the stats jobs (ml-jobs) run. Accounts and private demo spaces
+        arrive with the production-readiness phase.
       </p>
     </>
   );

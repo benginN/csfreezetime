@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import { api, type RoundRow, type StackResp } from '../api';
 import { drawMapBase, hidpiCtx, loadMapBase, RADAR, type MapBase } from '../lib/mapbase';
+import { chipTitle, isSideSwap, winnerTeamClass } from '../lib/rounds';
 
 const HW = 720;
 const MAX_ROUNDS = 30;
@@ -19,10 +20,11 @@ function lowerBound(arr: number[], v: number): number {
 }
 
 export default function StackView({
-  matchId, rounds,
+  matchId, rounds, teams,
 }: {
   matchId: string;
   rounds: RoundRow[];
+  teams: { aId: string | null; a: string | null; b: string | null };
 }) {
   const [align, setAlign] = useState('bomb_plant');
   const [side, setSide] = useState('T');
@@ -73,7 +75,7 @@ export default function StackView({
     setErr('');
     setPlaying(false);
     const list = [...selected].sort((a, b) => a - b);
-    if (!list.length) { setErr(`Üstteki çiplerden raunt seç (en fazla ${MAX_ROUNDS}). "Tümü" da kullanabilirsin.`); return; }
+    if (!list.length) { setErr(`Pick rounds from the chips above (max ${MAX_ROUNDS}), or use "All".`); return; }
     try {
       const resp = await api.stack({
         rounds: list.map((n) => ({ match_id: matchId, round_number: n })),
@@ -145,7 +147,7 @@ export default function StackView({
     });
     ctx.fillStyle = '#9aa39c'; ctx.font = '11px system-ui';
     ctx.fillText(
-      `t = ${tNow.toFixed(1)} sn (${data.align})${playerFilter ? ' · ' + playerFilter : ''}`,
+      `t = ${tNow.toFixed(1)} s (${data.align})${playerFilter ? ' · ' + playerFilter : ''}`,
       8, 14,
     );
   }, [data, base, tNow, trail, visible, playerFilter]);
@@ -155,15 +157,17 @@ export default function StackView({
   return (
     <>
       <div className="roundchips">
-        {rounds.map((r) => (
-          <button
-            key={r.round_number}
-            className={`${r.winner_side ?? ''} ${selected.has(r.round_number) ? 'sel' : ''}`}
-            onClick={() => toggle(r.round_number)}
-            title={`r${r.round_number}${r.bomb_site ? ' · bomba ' + r.bomb_site : ''}`}
-          >
-            {r.round_number}
-          </button>
+        {rounds.map((r, i) => (
+          <Fragment key={r.round_number}>
+            {isSideSwap(rounds[i - 1], r) && <span className="halfdiv" title="side swap" />}
+            <button
+              className={`${winnerTeamClass(r, teams.aId)} ${selected.has(r.round_number) ? 'sel' : ''}`}
+              onClick={() => toggle(r.round_number)}
+              title={chipTitle(r, teams)}
+            >
+              {r.round_number}
+            </button>
+          </Fragment>
         ))}
         <button
           className="ghost"
@@ -174,19 +178,19 @@ export default function StackView({
               : new Set(rounds.slice(0, MAX_ROUNDS).map((r) => r.round_number)),
           )}
         >
-          Tümü
+          All
         </button>
       </div>
       <div className="toolbar">
         <select value={align} onChange={(e) => setAlign(e.target.value)}>
-          <option value="round_start">raunt başı</option>
-          <option value="bomb_plant">bomba kurulumu</option>
-          <option value="first_kill">ilk temas</option>
+          <option value="round_start">round start</option>
+          <option value="bomb_plant">bomb plant</option>
+          <option value="first_kill">first kill</option>
         </select>
         <select value={side} onChange={(e) => setSide(e.target.value)}>
-          <option value="T">T</option><option value="CT">CT</option><option value="">ikisi</option>
+          <option value="T">T</option><option value="CT">CT</option><option value="">both</option>
         </select>
-        <button onClick={load}>Bindir ({selected.size})</button>
+        <button onClick={load}>Overlay ({selected.size})</button>
         {err && <span className="error">{err}</span>}
         {data && (
           <span className="meta">
@@ -206,15 +210,15 @@ export default function StackView({
             <select value={speed} onChange={(e) => setSpeed(Number(e.target.value))}>
               {[1, 2, 4, 8].map((s) => <option key={s} value={s}>{s}×</option>)}
             </select>
-            <label>t = {tNow.toFixed(1)} sn</label>
+            <label>t = {tNow.toFixed(1)} s</label>
             <input type="range" min={tMin} max={tMax} step={0.5} value={tNow}
               onChange={(e) => { setPlaying(false); setTNow(Number(e.target.value)); }}
               style={{ width: 240 }} />
-            <label>iz: {trail} sn</label>
+            <label>trail: {trail} s</label>
             <input type="range" min={2} max={60} value={trail}
               onChange={(e) => setTrail(Number(e.target.value))} style={{ width: 110 }} />
             <select value={playerFilter} onChange={(e) => setPlayerFilter(e.target.value)}>
-              <option value="">tüm oyuncular</option>
+              <option value="">all players</option>
               {nicks.map((n) => <option key={n}>{n}</option>)}
             </select>
           </div>

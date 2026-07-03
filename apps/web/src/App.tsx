@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Navigate, Route, Routes, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import Home from './pages/Home';
 import MatchPage from './pages/MatchPage';
@@ -12,13 +12,14 @@ export default function App() {
           TacticalMind
         </span>
         <SearchBar />
-        <a href="/yukle" style={{ whiteSpace: 'nowrap' }}>⬆ Demo yükle</a>
+        <a href="/upload" style={{ whiteSpace: 'nowrap' }}>⬆ Upload demo</a>
       </nav>
       <main>
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/match/:id" element={<MatchPage />} />
           <Route path="/match/:id/round/:n" element={<OldRoundRedirect />} />
+          <Route path="/upload" element={<Upload />} />
           <Route path="/yukle" element={<Upload />} />
         </Routes>
       </main>
@@ -27,12 +28,16 @@ export default function App() {
 }
 
 // Global arama: yazdıkça ana sayfadaki sonuçlar güncellenir (?q=).
+// İlk mount'ta navigasyon YAPILMAZ — yoksa maç sayfasına derin link
+// 250 ms sonra ana sayfaya sıçrıyordu.
 function SearchBar() {
   const nav = useNavigate();
   const [params] = useSearchParams();
   const [text, setText] = useState(params.get('q') ?? '');
+  const typed = useRef(false);
 
   useEffect(() => {
+    if (!typed.current) return;
     const t = setTimeout(() => {
       nav('/?q=' + encodeURIComponent(text), { replace: true });
     }, 250);
@@ -45,10 +50,10 @@ function SearchBar() {
       <span>🔍</span>
       <input
         value={text}
-        onChange={(e) => setText(e.target.value)}
-        placeholder="Takım, oyuncu, harita ara… (ör. 'spirit g2' iki takımın maçları)"
+        onChange={(e) => { typed.current = true; setText(e.target.value); }}
+        placeholder="Search team, player or map… (e.g. 'spirit g2' for head-to-head)"
       />
-      <span className="hint">{text && '↵ sonuçlar anında'}</span>
+      <span className="hint">{text && '↵ instant results'}</span>
     </div>
   );
 }

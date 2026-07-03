@@ -40,7 +40,7 @@ var (
 func (s *server) mapLayoutHandler(w http.ResponseWriter, r *http.Request) {
 	mapName := r.URL.Query().Get("map")
 	if !mapNameRe.MatchString(mapName) {
-		writeErr(w, 400, fmt.Errorf("geçersiz harita adı"))
+		writeErr(w, 400, fmt.Errorf("invalid map name"))
 		return
 	}
 	layoutCacheMu.Lock()
