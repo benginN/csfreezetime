@@ -184,10 +184,8 @@ canvas.flat { border: 1px solid #232a26; border-radius: 6px; display:block; }
 .hud td.nick:hover { color: #b6e2b6; }
 .hud td.selnick { color: #b6e2b6; text-decoration: underline; }
 
-/* Harita sütunu: canvas CSS genişliğine uyar (yükseklik sığdırma) */
-.mapcol { max-width: 100%; }
-.mapcol .stagebox { display: block; width: 100%; }
-.mapcol .stagebox > div > canvas { width: 100% !important; height: auto !important; }
+/* Kapalı katman: collapse yerine grileşir (yerleşim sabit kalır) */
+.layerbody.dim { opacity: 0.4; pointer-events: none; }
 
 /* Maç görünümü: harita solda, katman ayarları sağda */
 .replaylayout { display: flex; gap: 16px; align-items: flex-start; flex-wrap: wrap; }

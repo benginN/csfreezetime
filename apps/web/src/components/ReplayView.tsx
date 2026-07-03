@@ -82,7 +82,8 @@ export default function ReplayView({
 
   // --- Katmanlar: üçü de aynı haritayı kullanır ama tamamen BAĞIMSIZDIR ---
   const [showReplay, setShowReplay] = useState(true);
-  const [heatSide, setHeatSide] = useState<'off' | 'T' | 'CT' | 'both'>('off');
+  const [heatOn, setHeatOn] = useState(false);
+  const [heatSide, setHeatSide] = useState<'T' | 'CT' | 'both'>('T');
   const [heatPlayer, setHeatPlayer] = useState('');
   const [heatRounds, setHeatRounds] = useState<Set<number>>(
     () => new Set(rounds.map((r) => r.round_number)), // ısının KENDİ raunt seçimi
@@ -116,7 +117,7 @@ export default function ReplayView({
   const heatKey = useMemo(() => [...heatRounds].sort((a, b) => a - b).join(','), [heatRounds]);
   const heatQ = useQuery({
     queryKey: ['mergedHeat', matchId, heatSide, heatPlayer, heatKey],
-    enabled: heatSide !== 'off' && heatRounds.size > 0,
+    enabled: heatOn && heatRounds.size > 0,
     queryFn: () => {
       const p = new URLSearchParams({ t0: '0', t1: '115', rounds: heatKey });
       if (heatSide !== 'both') p.set('side', heatSide);
@@ -143,7 +144,7 @@ export default function ReplayView({
   // ısı tuvali: hazır olduğunda draw döngüsü dokuyu tembelce uygular
   const heatCanvasRef = useRef<HTMLCanvasElement | null>(null);
   useEffect(() => {
-    if (heatSide === 'off' || !heatQ.data) {
+    if (!heatOn || !heatQ.data) {
       heatCanvasRef.current = null;
       return;
     }
@@ -161,7 +162,7 @@ export default function ReplayView({
       ctx.drawImage(renderHeatLayer(d.cells_lower, g.size, d.cell_radar, maxW), g.x, g.y);
     }
     heatCanvasRef.current = cv;
-  }, [heatQ.data, heatSide]);
+  }, [heatQ.data, heatOn]);
 
   const stageRef = useRef<HTMLDivElement>(null);
   const sliderRef = useRef<HTMLInputElement>(null);
@@ -624,8 +625,6 @@ export default function ReplayView({
   const tRows = hudRows.filter((r) => r.side === 'T');
   const ctRows = hudRows.filter((r) => r.side === 'CT');
 
-  const heatOn = heatSide !== 'off';
-
   // Zaman çubuğu işaretleri: seçim yoksa tüm kill'ler; oyuncu seçiliyse onun
   // kill (yeşil) / ölüm (kırmızı) / bomba atışları (tip renginde).
   const NADE_MARK: Record<string, string> = {
@@ -655,75 +654,46 @@ export default function ReplayView({
 
   return (
     <div className="replaylayout">
-      {/* Sol: yalnız harita + zaman çubuğu. Genişlik görünür yüksekliğe göre
-          kısıtlanır ki zaman çubuğu kaydırmadan görünsün. */}
-      <div className="mapcol" style={{ width: `min(${W}px, calc(100vh - 150px))` }}>
+      {/* Sol: yalnız harita — tam boy */}
+      <div>
         <div className="stagebox">
           <div ref={stageRef} />
           {showReplay && <HudPanel rows={tRows} cls="left" sel={selPlayer} onSel={setSelPlayer} />}
           {showReplay && <HudPanel rows={ctRows} cls="right" sel={selPlayer} onSel={setSelPlayer} />}
         </div>
-        <div className="timeline" style={{ width: '100%' }}>
-          <input
-            ref={sliderRef}
-            type="range"
-            min={startIdx}
-            max={d.ticks.length - 1}
-            defaultValue={startIdx}
-            onInput={(e) => { fIdxRef.current = Number((e.target as HTMLInputElement).value); }}
-          />
-          {timelineMarks.map((m, i) => {
-            const idx = d.ticks.findIndex((t) => t >= m.tick);
-            const pct = (100 * (idx - startIdx)) / Math.max(1, d.ticks.length - 1 - startIdx);
-            return (
-              <div
-                key={i}
-                className="killmark clickable"
-                title={m.title}
-                style={{ left: `${Math.max(0, pct)}%`, background: m.color }}
-                onClick={() => { fIdxRef.current = Math.max(startIdx, idx); }}
-              />
-            );
-          })}
-        </div>
-        {selPlayer && (
-          <p className="meta" style={{ marginTop: 2 }}>
-            timeline: <b>{selPlayer}</b> — <span style={{ color: '#7fd88f' }}>kills</span> ·{' '}
-            <span style={{ color: '#e05545' }}>deaths</span> · nade throws (type colors) ·
-            click a mark to jump{' '}
-            <button className="ghost" style={{ padding: '0 6px' }} onClick={() => setSelPlayer('')}>✕</button>
-          </p>
-        )}
       </div>
 
-      {/* Sağ: üç katmanın ayarları — başlıktaki tik katmanı gösterir/gizler */}
+      {/* Sağ: başlık + ortak görünüm ayarları + üç katman + zaman çubuğu.
+          Tik kaldırılınca bölüm collapse olmaz, grileşir. */}
       <div className="settingspanel">
         {header}
+        <div className="layerpanel">
+          <div className="layerbody" style={{ marginTop: 0 }}>
+            <div className="row">
+              <label style={{ minWidth: 0 }}>display</label>
+              <label>
+                <input type="checkbox" checked={showNames} onChange={(e) => setShowNames(e.target.checked)} /> player names
+              </label>
+              <label>
+                <input type="checkbox" checked={showPlaces} onChange={(e) => setShowPlaces(e.target.checked)} /> map callouts
+              </label>
+            </div>
+          </div>
+        </div>
+
         <div className="layerpanel">
           <label className="layerhead">
             <input type="checkbox" checked={showReplay} onChange={(e) => setShowReplay(e.target.checked)} />
             Replay
           </label>
-          {/* oynatma + raunt seçimi her zaman görünür: saat hayaletleri de sürer */}
-          <div className="layerbody">
+          <div className={`layerbody ${showReplay ? '' : 'dim'}`}>
             <div className="row">
               <button onClick={() => setPlaying(!playing)}>{playing ? '⏸' : '▶'}</button>
               <select value={speed} onChange={(e) => setSpeed(Number(e.target.value))}>
                 {[1, 2, 4, 8].map((s) => <option key={s} value={s}>{s}×</option>)}
               </select>
               <span className="meta" style={{ fontVariantNumeric: 'tabular-nums' }}>{clock}</span>
-              {(heatQ.isFetching || ghostQ.isFetching) && <span className="meta">…</span>}
             </div>
-            {showReplay && (
-              <>
-                <label>
-                  <input type="checkbox" checked={showNames} onChange={(e) => setShowNames(e.target.checked)} /> player names
-                </label>
-                <label>
-                  <input type="checkbox" checked={showPlaces} onChange={(e) => setShowPlaces(e.target.checked)} /> map callouts
-                </label>
-              </>
-            )}
             <div className="chiplegend" style={{ marginBottom: 2 }}>
               <span><i style={{ background: '#86d8e8' }} />{teams.a ?? 'Team A'}</span>
               <span><i style={{ background: '#dcaaea' }} />{teams.b ?? 'Team B'}</span>
@@ -752,12 +722,12 @@ export default function ReplayView({
             <input
               type="checkbox"
               checked={heatOn}
-              onChange={(e) => setHeatSide(e.target.checked ? 'T' : 'off')}
+              onChange={(e) => setHeatOn(e.target.checked)}
             />
             Heatmap
+            {heatQ.isFetching && <span className="meta"> …</span>}
           </label>
-          {heatOn && (
-            <div className="layerbody">
+          <div className={`layerbody ${heatOn ? '' : 'dim'}`}>
               <div className="row">
                 <label>side</label>
                 <select value={heatSide} onChange={(e) => setHeatSide(e.target.value as typeof heatSide)}>
@@ -799,17 +769,16 @@ export default function ReplayView({
                 </button>
               </div>
               {heatRounds.size === 0 && <p className="meta">pick rounds to see density</p>}
-            </div>
-          )}
+          </div>
         </div>
 
         <div className="layerpanel">
           <label className="layerhead">
             <input type="checkbox" checked={ghostsOn} onChange={(e) => setGhostsOn(e.target.checked)} />
             Ghost rounds
+            {ghostQ.isFetching && <span className="meta"> …</span>}
           </label>
-          {ghostsOn && (
-            <div className="layerbody">
+          <div className={`layerbody ${ghostsOn ? '' : 'dim'}`}>
               {/* hayaletlerin kendi oynatması — replay saatinden bağımsız */}
               <div className="row">
                 <button onClick={() => {
@@ -865,8 +834,47 @@ export default function ReplayView({
                 ))}
               </div>
               <p className="meta">own clock — plays independently of the replay · max 10 rounds</p>
+          </div>
+        </div>
+
+        {/* Zaman çubuğu: sağ alt (kill/olay işaretli, tıklayınca atlar) */}
+        <div className="layerpanel">
+          <div className="layerbody" style={{ marginTop: 0 }}>
+            <div className="timeline" style={{ width: '100%' }}>
+              <input
+                ref={sliderRef}
+                type="range"
+                min={startIdx}
+                max={d.ticks.length - 1}
+                defaultValue={startIdx}
+                onInput={(e) => { fIdxRef.current = Number((e.target as HTMLInputElement).value); }}
+              />
+              {timelineMarks.map((m, i) => {
+                const idx = d.ticks.findIndex((t) => t >= m.tick);
+                const pct = (100 * (idx - startIdx)) / Math.max(1, d.ticks.length - 1 - startIdx);
+                return (
+                  <div
+                    key={i}
+                    className="killmark clickable"
+                    title={m.title}
+                    style={{ left: `${Math.max(0, pct)}%`, background: m.color }}
+                    onClick={() => { fIdxRef.current = Math.max(startIdx, idx); }}
+                  />
+                );
+              })}
             </div>
-          )}
+            {selPlayer ? (
+              <p className="meta" style={{ marginTop: 2 }}>
+                <b>{selPlayer}</b> — <span style={{ color: '#7fd88f' }}>kills</span> ·{' '}
+                <span style={{ color: '#e05545' }}>deaths</span> · nade throws · click to jump{' '}
+                <button className="ghost" style={{ padding: '0 6px' }} onClick={() => setSelPlayer('')}>✕</button>
+              </p>
+            ) : (
+              <p className="meta" style={{ marginTop: 2 }}>
+                all kills — click a player (map or HUD) to focus
+              </p>
+            )}
+          </div>
         </div>
       </div>
     </div>
