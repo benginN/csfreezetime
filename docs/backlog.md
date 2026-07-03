@@ -20,3 +20,4 @@ maddeler (parser değişikliği gerektirenler) beklemeden yapılır.
 - [x] Cana göre gösterge (HP halkası) — a3e695f
 - [x] Maç seçicide dosya adları — a3e695f
 - [x] Harita silüeti 2× çözünürlük + radar PNG desteği — a3e695f
+- [ ] Üyelik/yetki: /yukle ve kişisel demo alanı auth arkasına (yayına hazırlık)
