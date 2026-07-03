@@ -89,6 +89,9 @@ export default function ReplayView({
   const [ghostsOn, setGhostsOn] = useState(false);
   const [ghostRounds, setGhostRounds] = useState<Set<number>>(new Set());
   const [ghostSide, setGhostSide] = useState<'T' | 'CT' | 'both'>('T');
+  const [ghostPlayer, setGhostPlayer] = useState(''); // '' = tüm oyuncular
+  const ghostPlayerRef = useRef('');
+  ghostPlayerRef.current = ghostPlayer;
   // hayaletlerin KENDİ saati (replay saatinden bağımsız oynar)
   const [ghostPlaying, setGhostPlaying] = useState(false);
   const [ghostSpeed, setGhostSpeed] = useState(2);
@@ -349,6 +352,7 @@ export default function ReplayView({
             const col = hslToRgbHex(hue, 0.7, 0.6);
             let labeled = false;
             for (const p of ly.players) {
+              if (ghostPlayerRef.current && p.nick !== ghostPlayerRef.current) continue;
               const from = lowerBound(p.t, tSec - GHOST_TRAIL);
               let started = false;
               let prevLower: boolean | undefined;
@@ -770,6 +774,13 @@ export default function ReplayView({
                 <label>side</label>
                 <select value={ghostSide} onChange={(e) => setGhostSide(e.target.value as typeof ghostSide)}>
                   <option value="T">T</option><option value="CT">CT</option><option value="both">both</option>
+                </select>
+                <label>player</label>
+                <select value={ghostPlayer} onChange={(e) => setGhostPlayer(e.target.value)}>
+                  <option value="">all</option>
+                  {(players.data ?? []).map((p) => (
+                    <option key={p.player_id} value={p.nickname}>{p.nickname}</option>
+                  ))}
                 </select>
                 <button className="ghost" onClick={() => setGhostRounds(new Set())}>clear</button>
               </div>
