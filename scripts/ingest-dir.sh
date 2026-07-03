@@ -1,11 +1,18 @@
 #!/usr/bin/env bash
 # test-data/ içindeki işlenmemiş .dem dosyalarını MinIO'ya yükleyip
 # demo.ingested yayınlar (yerel mini ingest-svc; gerçeği Go ile gelecek, §9).
-# Kullanım: scripts/ingest-dir.sh [klasör]   (varsayılan: test-data)
+# Kullanım: scripts/ingest-dir.sh [klasör] [--force]
+#   --force: işlenmiş (ready) demoları da yeniden kuyruğa verir (reprocessing)
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-DIR="${1:-$ROOT/test-data}"
+DIR="$ROOT/test-data"; FORCE=0
+for arg in "$@"; do
+  case "$arg" in
+    --force) FORCE=1 ;;
+    *) DIR="$arg" ;;
+  esac
+done
 COMPOSE_NET="cs2-platform_default"
 
 # shellcheck disable=SC1091
@@ -24,7 +31,7 @@ for f in "$DIR"/*.dem; do
     NAME="$(basename "$f")"
     SHA256="$(shasum -a 256 "$f" | cut -d' ' -f1)"
     STATUS="$(pg_query "SELECT status FROM matches WHERE demo_sha256 = '$SHA256'" || true)"
-    if [ "$STATUS" = "ready" ]; then
+    if [ "$STATUS" = "ready" ] && [ "$FORCE" != "1" ]; then
         log "atlandı (zaten işlenmiş): $NAME"
         continue
     fi
@@ -38,7 +45,7 @@ for f in "$DIR"/*.dem; do
         mc alias set local http://minio:9000 '$MINIO_ROOT_USER' '$MINIO_ROOT_PASSWORD' >/dev/null &&
         mc cp -q /data/$NAME local/$S3_BUCKET/$OBJECT_KEY >/dev/null"
 
-    PAYLOAD="{\"demo_sha256\":\"$SHA256\",\"match_id\":\"$MATCH_ID\",\"object_key\":\"$OBJECT_KEY\",\"source_file\":\"$NAME\"}"
+    PAYLOAD="{\"demo_sha256\":\"$SHA256\",\"match_id\":\"$MATCH_ID\",\"object_key\":\"$OBJECT_KEY\",\"source_file\":\"${NAME%.dem}\"}"
     docker run --rm --network "$COMPOSE_NET" natsio/nats-box:latest \
         nats --server nats://nats:4222 pub demo.ingested "$PAYLOAD" >/dev/null
     log "kuyruğa verildi: $NAME (match_id=$MATCH_ID)"

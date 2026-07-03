@@ -1,0 +1,100 @@
+:root { color-scheme: dark; }
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  font-family: -apple-system, system-ui, 'Segoe UI', sans-serif;
+  background: #0e1210;
+  color: #d8ded9;
+  font-size: 14px;
+}
+a { color: #8fc98f; text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+nav {
+  display: flex; align-items: center; gap: 20px;
+  padding: 10px 24px;
+  background: #131816; border-bottom: 1px solid #232a26;
+  position: sticky; top: 0; z-index: 10;
+}
+nav .brand { font-weight: 700; font-size: 16px; color: #b6e2b6; letter-spacing: .5px; }
+nav a { color: #9aa89d; font-size: 13.5px; }
+nav a.active { color: #d8ded9; font-weight: 600; }
+
+main { padding: 18px 24px; max-width: 1500px; margin: 0 auto; }
+h1 { font-size: 19px; margin: 0 0 14px; }
+h2 { font-size: 15px; margin: 20px 0 10px; color: #9fc79f; }
+
+.toolbar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 12px; font-size: 13px; }
+.toolbar label { color: #8a938c; }
+
+select, input, button, textarea {
+  font: inherit; font-size: 13px;
+  background: #1c211e; color: #d8ded9;
+  border: 1px solid #313833; border-radius: 5px;
+  padding: 5px 9px;
+}
+button { cursor: pointer; background: #2b4a2e; border-color: #3a5f3e; }
+button:hover { background: #35593a; }
+button.ghost { background: #1c211e; }
+button:disabled { opacity: .45; cursor: default; }
+input[type="range"] { padding: 0; }
+input[type="checkbox"] { accent-color: #4c8f52; }
+
+.grid { display: grid; gap: 14px; }
+.cards { grid-template-columns: repeat(auto-fill, minmax(330px, 1fr)); }
+
+.card {
+  background: #151a17; border: 1px solid #232a26; border-radius: 9px;
+  padding: 14px 16px; display: block; color: inherit;
+}
+.card:hover { border-color: #3a5f3e; text-decoration: none; }
+.card .teams { font-size: 15px; font-weight: 600; display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.card .score { font-variant-numeric: tabular-nums; color: #b6e2b6; }
+.card .meta { color: #7f8881; font-size: 12px; margin-top: 6px; }
+
+.panel {
+  background: #151a17; border: 1px solid #232a26; border-radius: 9px;
+  padding: 14px 16px; margin-bottom: 14px;
+}
+
+table { border-collapse: collapse; width: 100%; font-size: 12.5px; }
+th, td { border-bottom: 1px solid #232a26; padding: 5px 8px; text-align: left; white-space: nowrap; }
+th { color: #8a938c; font-weight: 600; }
+tr.clickable { cursor: pointer; }
+tr.clickable:hover { background: #1b211d; }
+
+.badge {
+  display: inline-block; border-radius: 4px; padding: 1px 6px;
+  font-size: 11px; font-weight: 600;
+}
+.badge.T { background: #4a3517; color: #eec27f; }
+.badge.CT { background: #1c3345; color: #9ecbf0; }
+.badge.gray { background: #232a26; color: #9aa89d; }
+
+.meta { color: #7f8881; font-size: 12px; }
+.error { color: #e08585; font-size: 13px; }
+
+.round-strip { display: flex; flex-wrap: wrap; gap: 4px; margin: 8px 0; }
+.round-strip a {
+  width: 30px; height: 30px; border-radius: 5px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 11px; font-weight: 600; border: 1px solid #232a26;
+}
+.round-strip a.T { background: #3d2c13; color: #eec27f; }
+.round-strip a.CT { background: #16293a; color: #9ecbf0; }
+.round-strip a:hover { border-color: #6a7; text-decoration: none; }
+
+.replay-wrap { display: flex; gap: 16px; align-items: flex-start; flex-wrap: wrap; }
+.replay-stage { flex: 0 0 auto; }
+.replay-side { flex: 1 1 260px; min-width: 260px; }
+.timeline { position: relative; height: 26px; margin-top: 8px; }
+.timeline input[type=range] { width: 100%; position: absolute; top: 0; margin: 0; }
+.killmark { position: absolute; top: 19px; width: 2px; height: 7px; background: #e05545; pointer-events: none; }
+.killfeed { font-size: 12.5px; line-height: 1.5; min-height: 60px; }
+.playerlist { font-size: 12.5px; width: 100%; }
+.playerlist .hp { display:inline-block; width: 46px; height: 6px; background:#232a26; border-radius:3px; overflow:hidden; vertical-align:middle; }
+.playerlist .hp i { display:block; height:100%; }
+
+canvas.flat { border: 1px solid #232a26; border-radius: 6px; display:block; }
+.split2 { display:grid; grid-template-columns: 340px 1fr; gap:16px; align-items:start; }
+@media (max-width: 900px) { .split2 { grid-template-columns: 1fr; } }

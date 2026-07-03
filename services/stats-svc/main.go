@@ -9,6 +9,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -71,11 +72,12 @@ func main() {
 
 	r := chi.NewRouter()
 	r.Use(middleware.Recoverer, middleware.Logger)
-	r.Get("/", srv.index)
+	r.Get("/debug", srv.index) // gömülü tek dosyalık test sayfası
 	r.Get("/api/v1/schema", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.Write(schemaJSON)
 	})
+	r.Get("/api/v1/teams", srv.teams)
 	r.Get("/api/v1/matches", srv.matches)
 	r.Get("/api/v1/matches/{id}", srv.matchDetail)
 	r.Get("/api/v1/rounds/{match_id}/{n}/ticks", srv.roundTicks)
@@ -87,6 +89,25 @@ func main() {
 	r.Handle("/radars/*", http.StripPrefix("/radars/", http.FileServer(http.Dir(radarDir))))
 	r.Post("/api/v1/query", srv.query)
 	r.Post("/api/v1/stack", srv.stack)
+
+	// SPA (apps/web/dist): dosya varsa onu, yoksa index.html'i döndür
+	// (client-side routing); dist yoksa kök, test sayfasına düşer.
+	webDist := envOr("STATS_WEB_DIST", "apps/web/dist")
+	if st, err := os.Stat(webDist); err == nil && st.IsDir() {
+		fileServer := http.FileServer(http.Dir(webDist))
+		r.Get("/*", func(w http.ResponseWriter, req *http.Request) {
+			p := filepath.Join(webDist, filepath.Clean(req.URL.Path))
+			if info, err := os.Stat(p); err == nil && !info.IsDir() {
+				fileServer.ServeHTTP(w, req)
+				return
+			}
+			http.ServeFile(w, req, filepath.Join(webDist, "index.html"))
+		})
+		log.Printf("SPA servis ediliyor: %s", webDist)
+	} else {
+		r.Get("/", srv.index)
+		log.Printf("SPA dist yok (%s); kökte test sayfası", webDist)
+	}
 
 	addr := envOr("STATS_ADDR", ":8090")
 	log.Printf("stats-svc hazır: http://localhost%s", addr)
@@ -116,30 +137,91 @@ func (s *server) index(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *server) matches(w http.ResponseWriter, r *http.Request) {
+	// Opsiyonel takım filtresi (?team_id=)
+	cond, args := "TRUE", []any{}
+	if t := r.URL.Query().Get("team_id"); t != "" {
+		tid, err := uuid.Parse(t)
+		if err != nil {
+			writeErr(w, 400, fmt.Errorf("geçersiz team_id"))
+			return
+		}
+		cond, args = "(m.team_a_id = $1 OR m.team_b_id = $1)", []any{tid}
+	}
 	rows, err := s.pg.Query(r.Context(), `
-		SELECT m.match_id, m.map_name, m.status, m.event_name, count(r.*) AS rounds
-		FROM matches m LEFT JOIN rounds r ON r.match_id = m.match_id
-		GROUP BY m.match_id, m.map_name, m.status, m.event_name ORDER BY m.event_name NULLS LAST, m.map_name`)
+		SELECT m.match_id, m.map_name, m.status, m.event_name,
+		       m.team_a_id, ta.name, m.team_b_id, tb.name,
+		       count(r.*) AS rounds,
+		       count(*) FILTER (WHERE (r.winner_side = 'T'  AND r.t_team_id  = m.team_a_id)
+		                            OR (r.winner_side = 'CT' AND r.ct_team_id = m.team_a_id)) AS score_a,
+		       count(*) FILTER (WHERE (r.winner_side = 'T'  AND r.t_team_id  = m.team_b_id)
+		                            OR (r.winner_side = 'CT' AND r.ct_team_id = m.team_b_id)) AS score_b
+		FROM matches m
+		LEFT JOIN rounds r ON r.match_id = m.match_id
+		LEFT JOIN teams ta ON ta.team_id = m.team_a_id
+		LEFT JOIN teams tb ON tb.team_id = m.team_b_id
+		WHERE `+cond+`
+		GROUP BY m.match_id, m.map_name, m.status, m.event_name,
+		         m.team_a_id, ta.name, m.team_b_id, tb.name
+		ORDER BY m.event_name NULLS LAST, m.map_name`, args...)
 	if err != nil {
 		writeErr(w, 500, err)
 		return
 	}
 	defer rows.Close()
 	type match struct {
-		MatchID uuid.UUID `json:"match_id"`
-		MapName *string   `json:"map_name"`
-		Status  string    `json:"status"`
-		Name    *string   `json:"name"`
-		Rounds  int       `json:"rounds"`
+		MatchID uuid.UUID  `json:"match_id"`
+		MapName *string    `json:"map_name"`
+		Status  string     `json:"status"`
+		Name    *string    `json:"name"`
+		TeamAID *uuid.UUID `json:"team_a_id"`
+		TeamA   *string    `json:"team_a"`
+		TeamBID *uuid.UUID `json:"team_b_id"`
+		TeamB   *string    `json:"team_b"`
+		Rounds  int        `json:"rounds"`
+		ScoreA  int        `json:"score_a"`
+		ScoreB  int        `json:"score_b"`
 	}
 	var out []match
 	for rows.Next() {
 		var m match
-		if err := rows.Scan(&m.MatchID, &m.MapName, &m.Status, &m.Name, &m.Rounds); err != nil {
+		if err := rows.Scan(&m.MatchID, &m.MapName, &m.Status, &m.Name,
+			&m.TeamAID, &m.TeamA, &m.TeamBID, &m.TeamB,
+			&m.Rounds, &m.ScoreA, &m.ScoreB); err != nil {
 			writeErr(w, 500, err)
 			return
 		}
 		out = append(out, m)
+	}
+	writeJSON(w, 200, out)
+}
+
+// GET /api/v1/teams — takım listesi + maç sayısı (frontend takım filtresi)
+func (s *server) teams(w http.ResponseWriter, r *http.Request) {
+	rows, err := s.pg.Query(r.Context(), `
+		SELECT t.team_id, t.name, count(DISTINCT m.match_id) AS matches
+		FROM teams t
+		LEFT JOIN matches m ON m.team_a_id = t.team_id OR m.team_b_id = t.team_id
+		GROUP BY t.team_id, t.name
+		HAVING count(DISTINCT m.match_id) > 0
+		ORDER BY matches DESC, t.name`)
+	if err != nil {
+		writeErr(w, 500, err)
+		return
+	}
+	defer rows.Close()
+	type team struct {
+		TeamID  uuid.UUID `json:"team_id"`
+		Name    string    `json:"name"`
+		Matches int       `json:"matches"`
+	}
+	var out []team
+	for rows.Next() {
+		var t team
+		if err := rows.Scan(&t.TeamID, &t.Name, &t.Matches); err != nil {
+			writeErr(w, 500, err)
+			return
+		}
+		out = append(out, t)
 	}
 	writeJSON(w, 200, out)
 }

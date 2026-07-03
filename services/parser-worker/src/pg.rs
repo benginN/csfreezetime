@@ -63,16 +63,46 @@ pub async fn write_metadata(pool: &PgPool, match_id: Uuid, result: &ParseResult)
     .execute(&mut *tx)
     .await?;
 
+    // Takımlar: raunt ve oyuncu meta verisindeki clan adları (ad ile upsert)
+    let mut team_ids: std::collections::HashMap<String, Uuid> = std::collections::HashMap::new();
+    {
+        let mut names: Vec<&str> = Vec::new();
+        for r in &result.rounds {
+            names.extend(r.t_team_name.as_deref());
+            names.extend(r.ct_team_name.as_deref());
+        }
+        for p in &result.players {
+            names.extend(p.team_name.as_deref());
+        }
+        names.sort_unstable();
+        names.dedup();
+        for name in names {
+            let (id,): (Uuid,) = sqlx::query_as(
+                "INSERT INTO teams (name) VALUES ($1)
+                 ON CONFLICT (name) DO UPDATE SET name = EXCLUDED.name
+                 RETURNING team_id",
+            )
+            .bind(name)
+            .fetch_one(&mut *tx)
+            .await?;
+            team_ids.insert(name.to_string(), id);
+        }
+    }
+    let team_id_of = |n: &Option<String>| n.as_deref().and_then(|s| team_ids.get(s)).copied();
+
     // Oyuncular: roster + player_rounds'ta görülen herkes
     for p in &result.players {
         sqlx::query(
-            "INSERT INTO players (player_id, steam_id64, nickname)
-             VALUES ($1, $2, $3)
-             ON CONFLICT (steam_id64) DO UPDATE SET nickname = EXCLUDED.nickname",
+            "INSERT INTO players (player_id, steam_id64, nickname, current_team_id)
+             VALUES ($1, $2, $3, $4)
+             ON CONFLICT (steam_id64) DO UPDATE
+                 SET nickname = EXCLUDED.nickname,
+                     current_team_id = COALESCE(EXCLUDED.current_team_id, players.current_team_id)",
         )
         .bind(player_uuid(p.steamid))
         .bind(p.steamid as i64)
         .bind(&p.name)
+        .bind(team_id_of(&p.team_name))
         .execute(&mut *tx)
         .await?;
     }
@@ -98,8 +128,8 @@ pub async fn write_metadata(pool: &PgPool, match_id: Uuid, result: &ParseResult)
             r#"
             INSERT INTO rounds (match_id, round_number, start_tick, freeze_end_tick, end_tick,
                                 winner_side, end_reason, bomb_plant_tick, bomb_site,
-                                t_equip_value, ct_equip_value)
-            VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+                                t_equip_value, ct_equip_value, t_team_id, ct_team_id)
+            VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
             "#,
         )
         .bind(match_id)
@@ -113,6 +143,8 @@ pub async fn write_metadata(pool: &PgPool, match_id: Uuid, result: &ParseResult)
         .bind(&r.bomb_site)
         .bind(r.t_equip_value)
         .bind(r.ct_equip_value)
+        .bind(team_id_of(&r.t_team_name))
+        .bind(team_id_of(&r.ct_team_name))
         .execute(&mut *tx)
         .await?;
     }
@@ -204,11 +236,23 @@ pub async fn write_metadata(pool: &PgPool, match_id: Uuid, result: &ParseResult)
         .await?;
     }
 
-    sqlx::query("UPDATE matches SET map_name = $2, status = 'enriching' WHERE match_id = $1")
-        .bind(match_id)
-        .bind(&result.map_name)
-        .execute(&mut *tx)
-        .await?;
+    // Maç takımları: 1. rauntun T/CT'si (side-swap raunt seviyesinde çözülür)
+    let (team_a, team_b) = result
+        .rounds
+        .first()
+        .map(|r| (team_id_of(&r.t_team_name), team_id_of(&r.ct_team_name)))
+        .unwrap_or((None, None));
+    sqlx::query(
+        "UPDATE matches SET map_name = $2, status = 'enriching',
+                team_a_id = COALESCE($3, team_a_id), team_b_id = COALESCE($4, team_b_id)
+         WHERE match_id = $1",
+    )
+    .bind(match_id)
+    .bind(&result.map_name)
+    .bind(team_a)
+    .bind(team_b)
+    .execute(&mut *tx)
+    .await?;
 
     tx.commit().await.context("tx commit")?;
     Ok(())

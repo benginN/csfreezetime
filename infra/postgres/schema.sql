@@ -15,6 +15,8 @@ CREATE TABLE IF NOT EXISTS teams (
     tag         TEXT,
     region      TEXT
 );
+-- parser, takımları clan adıyla upsert eder (demolardan team_clan_name)
+CREATE UNIQUE INDEX IF NOT EXISTS teams_name_key ON teams (name);
 
 CREATE TABLE IF NOT EXISTS players (
     player_id       UUID PRIMARY KEY DEFAULT gen_random_uuid(),

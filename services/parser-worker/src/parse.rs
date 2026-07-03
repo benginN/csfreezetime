@@ -64,6 +64,8 @@ pub struct RoundMeta {
     pub bomb_site: Option<String>,
     pub t_equip_value: Option<i32>,
     pub ct_equip_value: Option<i32>,
+    pub t_team_name: Option<String>,
+    pub ct_team_name: Option<String>,
 }
 
 #[derive(Debug)]
@@ -101,6 +103,7 @@ pub struct GrenadeMeta {
 pub struct PlayerMeta {
     pub steamid: u64,
     pub name: String,
+    pub team_name: Option<String>,
 }
 
 #[derive(Debug, Default)]
@@ -155,7 +158,13 @@ const WANTED_EVENTS: &[&str] = &[
 ];
 
 /// Ekonomi mini-pass'inde istenen prop'lar (round_start + freeze_end tick'lerinde).
-const ECONOMY_PROPS: &[&str] = &["balance", "cash_spent_this_round", "current_equip_value", "team_num"];
+const ECONOMY_PROPS: &[&str] = &[
+    "balance",
+    "cash_spent_this_round",
+    "current_equip_value",
+    "team_num",
+    "team_clan_name",
+];
 
 /// 64 Hz -> 16 Hz (§4.3 tick örnekleme stratejisi).
 const TICK_SAMPLE_DIVISOR: i32 = 4;
@@ -380,6 +389,7 @@ pub fn parse_demo_bytes(bytes: &[u8], match_id: Uuid) -> Result<ParseResult> {
         .map(|idx| {
             let fe = freeze_for(idx);
             let (t_eq, ct_eq) = econ_team_equip(&econ, fe);
+            let (t_name, ct_name) = econ_team_names(&econ, fe);
             RoundMeta {
                 round_number: idx as i16,
                 start_tick: round_starts[idx - 1],
@@ -391,6 +401,8 @@ pub fn parse_demo_bytes(bytes: &[u8], match_id: Uuid) -> Result<ParseResult> {
                 bomb_site: None,
                 t_equip_value: t_eq,
                 ct_equip_value: ct_eq,
+                t_team_name: t_name,
+                ct_team_name: ct_name,
             }
         })
         .collect();
@@ -512,6 +524,17 @@ pub fn parse_demo_bytes(bytes: &[u8], match_id: Uuid) -> Result<ParseResult> {
         });
     }
 
+    // Oyuncu → güncel takım adı: en son freeze anındaki clan name
+    let mut player_team: AHashMap<u64, (i32, String)> = AHashMap::default();
+    for (&(tick, sid), e) in econ.iter() {
+        if let Some(tn) = &e.team_name {
+            let entry = player_team.entry(sid).or_insert((tick, tn.clone()));
+            if tick >= entry.0 {
+                *entry = (tick, tn.clone());
+            }
+        }
+    }
+
     // Oyuncular (roster; boşsa player_md)
     let roster = if output.roster.is_empty() { &output.player_md } else { &output.roster };
     let mut players_meta: Vec<PlayerMeta> = Vec::new();
@@ -519,7 +542,11 @@ pub fn parse_demo_bytes(bytes: &[u8], match_id: Uuid) -> Result<ParseResult> {
     for p in roster {
         if let (Some(sid), Some(name)) = (p.steamid, p.name.clone()) {
             if sid > 0 && seen.insert(sid) {
-                players_meta.push(PlayerMeta { steamid: sid, name });
+                players_meta.push(PlayerMeta {
+                    steamid: sid,
+                    name,
+                    team_name: player_team.get(&sid).map(|(_, t)| t.clone()),
+                });
             }
         }
     }
@@ -574,6 +601,32 @@ pub fn parse_demo_bytes(bytes: &[u8], match_id: Uuid) -> Result<ParseResult> {
     })
 }
 
+/// Freeze-end anında taraf → çoğunluk clan adı (side-swap güvenli: her raunt
+/// kendi anlık eşlemesini taşır).
+fn econ_team_names(
+    econ: &AHashMap<(i32, u64), EconSnapshot>,
+    freeze_tick: i32,
+) -> (Option<String>, Option<String>) {
+    let mut t_votes: AHashMap<&str, u32> = AHashMap::default();
+    let mut ct_votes: AHashMap<&str, u32> = AHashMap::default();
+    for (&(tick, _), e) in econ.iter() {
+        if tick != freeze_tick {
+            continue;
+        }
+        if let (Some(team), Some(name)) = (e.team, e.team_name.as_deref()) {
+            match team {
+                2 => *t_votes.entry(name).or_default() += 1,
+                3 => *ct_votes.entry(name).or_default() += 1,
+                _ => {}
+            }
+        }
+    }
+    let top = |v: AHashMap<&str, u32>| {
+        v.into_iter().max_by_key(|(_, c)| *c).map(|(n, _)| n.to_string())
+    };
+    (top(t_votes), top(ct_votes))
+}
+
 /// Freeze-end anında taraf toplam ekipman değeri.
 fn econ_team_equip(econ: &AHashMap<(i32, u64), EconSnapshot>, freeze_tick: i32) -> (Option<i32>, Option<i32>) {
     let (mut t, mut ct, mut any_t, mut any_ct) = (0i32, 0i32, false, false);
@@ -590,12 +643,13 @@ fn econ_team_equip(econ: &AHashMap<(i32, u64), EconSnapshot>, freeze_tick: i32) 
     (any_t.then_some(t), any_ct.then_some(ct))
 }
 
-#[derive(Debug, Default, Clone, Copy)]
+#[derive(Debug, Default, Clone)]
 struct EconSnapshot {
     balance: Option<i32>,
     spent: Option<i32>,
     equip: Option<i32>,
     team: Option<i64>,
+    team_name: Option<String>,
 }
 
 /// İkinci, ucuz parse: yalnızca verilen tick'lerde ekonomi prop'ları.
@@ -645,11 +699,12 @@ fn economy_pass(
         (Some(t), Some(s)) => (t, s),
         _ => bail!("ekonomi pass çıktısında tick/steamid kolonu yok"),
     };
-    let (c_bal, c_spent, c_eq, c_team) = (
+    let (c_bal, c_spent, c_eq, c_team, c_tname) = (
         col("balance"),
         col("cash_spent_this_round"),
         col("current_equip_value"),
         col("team_num"),
+        col("team_clan_name"),
     );
 
     let mut map = AHashMap::default();
@@ -665,6 +720,7 @@ fn economy_pass(
                 spent: c_spent.and_then(|c| as_i64(c, i)).map(|v| v as i32),
                 equip: c_eq.and_then(|c| as_i64(c, i)).map(|v| v as i32),
                 team: c_team.and_then(|c| as_i64(c, i)),
+                team_name: c_tname.and_then(|c| as_string(c, i)).filter(|s| !s.is_empty()),
             },
         );
     }
