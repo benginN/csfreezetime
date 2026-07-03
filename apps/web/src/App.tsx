@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Navigate, Route, Routes, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import Home from './pages/Home';
 import MatchPage from './pages/MatchPage';
+import Upload from './pages/Upload';
 
 export default function App() {
   return (
@@ -11,12 +12,14 @@ export default function App() {
           TacticalMind
         </span>
         <SearchBar />
+        <a href="/yukle" style={{ whiteSpace: 'nowrap' }}>⬆ Demo yükle</a>
       </nav>
       <main>
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/match/:id" element={<MatchPage />} />
           <Route path="/match/:id/round/:n" element={<OldRoundRedirect />} />
+          <Route path="/yukle" element={<Upload />} />
         </Routes>
       </main>
     </>

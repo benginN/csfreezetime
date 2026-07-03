@@ -205,8 +205,8 @@ export default function ReplayView({
           const col = SIDE_COLOR[p.side] ?? 0x999999;
           const g = node.g;
           g.clear();
-          // inset'te isim sığmaz; ana görünümde etiketlere bağlı
-          node.name.visible = labels && alive && s === 1;
+          node.name.visible = labels && alive;
+          node.name.scale.set(Math.max(s, 0.72)); // inset'te küçük ama okunur
 
           if (!alive) {
             g.moveTo(x - 4 * s, y - 4 * s).lineTo(x + 4 * s, y + 4 * s)
@@ -236,7 +236,7 @@ export default function ReplayView({
             g.circle(x, y, 12 * Math.max(s, 0.7))
              .stroke({ width: 3, color: 0xffffff, alpha: Math.min(0.9, fl / 3) });
           }
-          node.name.position.set(x + 10, y - 5);
+          node.name.position.set(x + 10 * Math.max(s, 0.72), y - 5 * Math.max(s, 0.72));
         });
 
         if (i0 !== lastHud) {

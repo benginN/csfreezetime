@@ -69,6 +69,11 @@ func main() {
 
 	engine := &dsl.Engine{PG: pg, CH: ch}
 	srv := &server{pg: pg, ch: ch, engine: engine}
+	if up, err := newUploader(); err != nil {
+		log.Printf("UYARI: yükleme devre dışı (%v)", err)
+	} else {
+		srv.up = up
+	}
 
 	r := chi.NewRouter()
 	r.Use(middleware.Recoverer, middleware.Logger)
@@ -95,6 +100,8 @@ func main() {
 	r.Handle("/radars/*", http.StripPrefix("/radars/", http.FileServer(http.Dir(radarDir))))
 	r.Post("/api/v1/query", srv.query)
 	r.Post("/api/v1/stack", srv.stack)
+	r.Post("/api/v1/upload", srv.upload)
+	r.Get("/api/v1/matches/{id}/status", srv.matchStatus)
 
 	// SPA (apps/web/dist): dosya varsa onu, yoksa index.html'i döndür
 	// (client-side routing); dist yoksa kök, test sayfasına düşer.
@@ -124,6 +131,7 @@ type server struct {
 	pg     *pgxpool.Pool
 	ch     chdriver.Conn
 	engine *dsl.Engine
+	up     *uploader
 }
 
 func writeJSON(w http.ResponseWriter, status int, v any) {
