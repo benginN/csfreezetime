@@ -53,6 +53,23 @@ export default function Player() {
                 <tr><td className="meta">util / round</td><td>{r.util_per_round?.toFixed(1) ?? '—'}</td>
                     <td className="meta">flash assists/r</td><td>{r.flash_assists_pr?.toFixed(2) ?? '—'}</td></tr>
                 {(() => {
+                  const tm = d.trades.find((t) => t.side === r.side);
+                  const dt = d.deaths_traded.find((t) => t.side === r.side);
+                  if (!tm && !dt) return null;
+                  return (
+                    <tr>
+                      <td className="meta">trades made</td>
+                      <td>{tm?.made ?? 0}</td>
+                      <td className="meta">deaths traded</td>
+                      <td>
+                        {dt && dt.deaths
+                          ? `${Math.round((100 * dt.traded) / dt.deaths)}% (${dt.traded}/${dt.deaths})`
+                          : '—'}
+                      </td>
+                    </tr>
+                  );
+                })()}
+                {(() => {
                   const fl = d.flash.find((f) => f.side === r.side);
                   if (!fl || !fl.thrown) return null;
                   return (

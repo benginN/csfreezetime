@@ -198,6 +198,84 @@ func (s *server) report(w http.ResponseWriter, r *http.Request) {
 		    FROM team_setups WHERE team_id = $1 AND map_name = $2
 		    ORDER BY side, t_offset, share DESC
 		) x`, teamID, mapName)
+	// Flash→kill senkronu: kör kurbana atılan kill payı + flash-kill arası
+	// medyan süre + "iyi flash dönüşümü" (düşman körleyen flash'ın 4 sn içinde
+	// takım kill'ine dönüşme oranı)
+	out["flash_sync"] = s.jsonQuery(ctx, `
+		WITH tk AS (
+		    SELECT k.match_id, k.round_number, k.tick, k.victim_blind, s.side
+		    FROM kills k
+		    JOIN rounds r USING (match_id, round_number)
+		    JOIN matches m ON m.match_id = k.match_id AND m.status = 'ready'
+		    JOIN player_round_states s ON (s.match_id, s.round_number, s.player_id)
+		         = (k.match_id, k.round_number, k.attacker_id)
+		    WHERE m.map_name = $2
+		      AND ((s.side = 'T' AND r.t_team_id = $1) OR (s.side = 'CT' AND r.ct_team_id = $1))
+		),
+		gaps AS (
+		    SELECT tk.side, g.gap
+		    FROM tk
+		    CROSS JOIN LATERAL (
+		        SELECT (tk.tick - g.detonate_tick) / 64.0 AS gap
+		        FROM grenades g
+		        WHERE g.match_id = tk.match_id AND g.round_number = tk.round_number
+		          AND g.type = 'flash' AND g.side = tk.side
+		          AND g.detonate_tick <= tk.tick AND tk.tick - g.detonate_tick <= 256
+		        ORDER BY g.detonate_tick DESC LIMIT 1
+		    ) g
+		    WHERE tk.victim_blind
+		),
+		fl AS (
+		    SELECT g.side,
+		           count(*) FILTER (WHERE g.enemies_flashed > 0) AS good,
+		           count(*) FILTER (WHERE g.enemies_flashed > 0 AND EXISTS (
+		               SELECT 1 FROM tk WHERE tk.match_id = g.match_id
+		                 AND tk.round_number = g.round_number AND tk.side = g.side
+		                 AND tk.tick > g.detonate_tick
+		                 AND tk.tick - g.detonate_tick <= 256)) AS converted
+		    FROM grenades g
+		    JOIN rounds r USING (match_id, round_number)
+		    JOIN matches m ON m.match_id = g.match_id AND m.status = 'ready'
+		    WHERE m.map_name = $2 AND g.type = 'flash'
+		      AND ((g.side = 'T' AND r.t_team_id = $1) OR (g.side = 'CT' AND r.ct_team_id = $1))
+		    GROUP BY g.side
+		)
+		SELECT COALESCE(json_agg(x), '[]'::json) FROM (
+		    SELECT t.side,
+		           count(*) AS kills,
+		           count(*) FILTER (WHERE t.victim_blind) AS blind_kills,
+		           (SELECT percentile_cont(0.5) WITHIN GROUP (ORDER BY gap)
+		            FROM gaps WHERE gaps.side = t.side) AS med_gap,
+		           (SELECT good FROM fl WHERE fl.side = t.side) AS good_flashes,
+		           (SELECT converted FROM fl WHERE fl.side = t.side) AS converted
+		    FROM tk t GROUP BY t.side ORDER BY t.side DESC
+		) x`, teamID, mapName)
+
+	// Trade ikilileri: kim kimin ölümünü trade ediyor (5 sn penceresi)
+	out["trade_pairs"] = s.jsonQuery(ctx, `
+		SELECT COALESCE(json_agg(x ORDER BY x.n DESC), '[]'::json) FROM (
+		    SELECT pt.nickname AS trader, pv.nickname AS avenged, count(*) AS n
+		    FROM kills k2
+		    JOIN matches m ON m.match_id = k2.match_id AND m.status = 'ready'
+		    JOIN rounds r ON (r.match_id, r.round_number) = (k2.match_id, k2.round_number)
+		    JOIN player_round_states s2 ON (s2.match_id, s2.round_number, s2.player_id)
+		         = (k2.match_id, k2.round_number, k2.attacker_id)
+		    CROSS JOIN LATERAL (
+		        SELECT k1.victim_id FROM kills k1
+		        WHERE k1.match_id = k2.match_id AND k1.round_number = k2.round_number
+		          AND k1.attacker_id = k2.victim_id
+		          AND k1.tick <= k2.tick AND k2.tick - k1.tick <= 320
+		        ORDER BY k1.tick DESC LIMIT 1
+		    ) prev
+		    JOIN players pt ON pt.player_id = k2.attacker_id
+		    JOIN players pv ON pv.player_id = prev.victim_id
+		    WHERE k2.is_trade AND m.map_name = $2
+		      AND ((s2.side = 'T' AND r.t_team_id = $1) OR (s2.side = 'CT' AND r.ct_team_id = $1))
+		    GROUP BY pt.nickname, pv.nickname
+		    HAVING count(*) >= 2
+		    LIMIT 10
+		) x`, teamID, mapName)
+
 	out["rotations"] = s.jsonQuery(ctx, `
 		SELECT COALESCE(json_agg(x), '[]'::json) FROM (
 		    SELECT side, pattern_id, place, n_contacts, rotate_rate,

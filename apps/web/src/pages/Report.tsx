@@ -136,6 +136,41 @@ export default function Report() {
       {/* 5 — Utility */}
       <h2>Utility habits</h2>
       <UtilitySection d={d} mapName={mapName} />
+      <div className="grid cards two" style={{ marginTop: 12 }}>
+        <div className="card">
+          <div className="teams"><span>Flash → kill sync</span></div>
+          <table style={{ marginTop: 6 }}>
+            <thead><tr><th>Side</th><th>Kills on blind</th><th>Flash→kill</th><th>Good flash converted</th></tr></thead>
+            <tbody>
+              {d.flash_sync.map((f) => (
+                <tr key={f.side}>
+                  <td><span className={`badge ${f.side}`}>{f.side}</span></td>
+                  <td>{f.blind_kills}/{f.kills} ({f.kills ? Math.round((100 * f.blind_kills) / f.kills) : 0}%)</td>
+                  <td>{f.med_gap != null ? `~${f.med_gap.toFixed(1)}s` : '—'}</td>
+                  <td>
+                    {f.good_flashes
+                      ? `${f.converted}/${f.good_flashes} (${Math.round((100 * (f.converted ?? 0)) / f.good_flashes)}%)`
+                      : '—'}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <p className="meta">good flash = blinded at least one enemy; converted = a team kill within 4 s</p>
+        </div>
+        <div className="card">
+          <div className="teams"><span>Trade pairs</span><span className="meta">who avenges whom</span></div>
+          <table style={{ marginTop: 6 }}>
+            <thead><tr><th>Trader</th><th>Avenges</th><th>n</th></tr></thead>
+            <tbody>
+              {d.trade_pairs.map((t, i) => (
+                <tr key={i}><td>{t.trader}</td><td>{t.avenged}</td><td>{t.n}</td></tr>
+              ))}
+              {!d.trade_pairs.length && <tr><td colSpan={3} className="meta">no recurring pairs (min 2)</td></tr>}
+            </tbody>
+          </table>
+        </div>
+      </div>
 
       {/* 6 — Positioning heatmaps */}
       <h2>Positioning <span className="meta">(all archived rounds)</span></h2>

@@ -83,6 +83,35 @@ func (s *server) playerProfile(w http.ResponseWriter, r *http.Request) {
 		    GROUP BY g.side ORDER BY g.side DESC
 		) x`, playerID)
 
+	// trade davranışı: yaptığı trade'ler + kendi ölümlerinin trade edilme oranı
+	out["trades"] = s.jsonQuery(ctx, `
+		SELECT COALESCE(json_agg(x), '[]'::json) FROM (
+		    SELECT s.side,
+		           count(*) FILTER (WHERE k.attacker_id = $1 AND k.is_trade) AS made
+		    FROM kills k
+		    JOIN matches m ON m.match_id = k.match_id AND m.status = 'ready'
+		    JOIN player_round_states s ON (s.match_id, s.round_number, s.player_id)
+		         = (k.match_id, k.round_number, $1::uuid)
+		    WHERE k.attacker_id = $1
+		    GROUP BY s.side
+		) x`, playerID)
+	out["deaths_traded"] = s.jsonQuery(ctx, `
+		SELECT COALESCE(json_agg(x), '[]'::json) FROM (
+		    SELECT sv.side,
+		           count(*) AS deaths,
+		           count(*) FILTER (WHERE EXISTS (
+		               SELECT 1 FROM kills k2
+		               WHERE k2.match_id = k1.match_id AND k2.round_number = k1.round_number
+		                 AND k2.victim_id = k1.attacker_id AND k2.is_trade
+		                 AND k2.tick >= k1.tick AND k2.tick - k1.tick <= 320)) AS traded
+		    FROM kills k1
+		    JOIN matches m ON m.match_id = k1.match_id AND m.status = 'ready'
+		    JOIN player_round_states sv ON (sv.match_id, sv.round_number, sv.player_id)
+		         = (k1.match_id, k1.round_number, k1.victim_id)
+		    WHERE k1.victim_id = $1
+		    GROUP BY sv.side
+		) x`, playerID)
+
 	// clutch istatistikleri (1vX): X başına deneme/kazanım + anlar
 	out["clutches"] = s.jsonQuery(ctx, `
 		SELECT COALESCE(json_agg(x ORDER BY x.versus), '[]'::json) FROM (

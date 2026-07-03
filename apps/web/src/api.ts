@@ -292,6 +292,11 @@ export interface ReportResp {
   utility: ReportUtility[];
   players: ReportPlayer[];
   thrown: { match_id: string; round_number: number; side: 'T' | 'CT'; peak: number }[];
+  flash_sync: {
+    side: 'T' | 'CT'; kills: number; blind_kills: number;
+    med_gap: number | null; good_flashes: number | null; converted: number | null;
+  }[];
+  trade_pairs: { trader: string; avenged: string; n: number }[];
 }
 
 export interface WinprobCell {
@@ -320,6 +325,8 @@ export interface PlayerProfile {
     side: 'T' | 'CT'; thrown: number; enemies: number;
     teammates: number; avg_blind: number | null;
   }[];
+  trades: { side: 'T' | 'CT'; made: number }[];
+  deaths_traded: { side: 'T' | 'CT'; deaths: number; traded: number }[];
   clutches: { versus: number; attempts: number; wins: number }[];
   clutch_moments: {
     match_id: string; round_number: number; versus: number;
