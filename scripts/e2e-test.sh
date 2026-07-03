@@ -4,7 +4,8 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-DEMO_FILE="${1:-$ROOT/test-data/mac.dem}"
+# Varsayılan: backfill/done altındaki ilk .dem; yoksa argümanla ver.
+DEMO_FILE="${1:-$(ls "$ROOT"/backfill/done/*.dem 2>/dev/null | head -1 || true)}"
 COMPOSE_NET="cs2-platform_default"
 
 # shellcheck disable=SC1091
@@ -13,7 +14,7 @@ set -a; source "$ROOT/infra/.env"; set +a
 log() { printf '\033[1;34m[e2e]\033[0m %s\n' "$*"; }
 fail() { printf '\033[1;31m[e2e] HATA:\033[0m %s\n' "$*"; exit 1; }
 
-[ -f "$DEMO_FILE" ] || fail "demo dosyası yok: $DEMO_FILE"
+[ -n "$DEMO_FILE" ] && [ -f "$DEMO_FILE" ] || fail "demo dosyası yok — kullanım: e2e-test.sh <dosya.dem>"
 
 ch_query() {
     curl -s "http://localhost:8123/?user=${CLICKHOUSE_USER}&password=${CLICKHOUSE_PASSWORD}&database=${CLICKHOUSE_DB}" --data "$1"
