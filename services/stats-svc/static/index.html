@@ -2,155 +2,175 @@
 <html lang="tr">
 <head>
 <meta charset="utf-8">
-<title>TacticalMind — Faz 3 test sayfası</title>
+<title>TacticalMind — analiz paneli</title>
 <style>
   :root { color-scheme: dark; }
-  body { font-family: -apple-system, system-ui, sans-serif; background:#111; color:#ddd; margin:0; padding:20px; }
-  h1 { font-size:18px; } h2 { font-size:15px; margin:0 0 12px; }
-  .row { display:flex; gap:24px; flex-wrap:wrap; align-items:flex-start; margin-bottom:24px; }
-  .panel { background:#1a1a1a; border:1px solid #2c2c2c; border-radius:8px; padding:16px; }
-  label { font-size:12px; color:#999; display:block; margin:8px 0 2px; }
-  select, input[type=range], textarea, button { font:inherit; background:#242424; color:#ddd; border:1px solid #3a3a3a; border-radius:4px; padding:4px 8px; }
+  * { box-sizing: border-box; }
+  body { font-family: -apple-system, system-ui, sans-serif; background:#101312; color:#ddd; margin:0; }
+  header { padding:10px 20px; border-bottom:1px solid #262b28; display:flex; align-items:baseline; gap:12px; }
+  header h1 { font-size:16px; margin:0; }
+  main { display:grid; grid-template-columns:repeat(auto-fit, minmax(660px, 1fr)); gap:14px; padding:14px 20px; }
+  .panel { background:#181c1a; border:1px solid #262b28; border-radius:8px; padding:12px 14px; }
+  .panel h2 { font-size:14px; margin:0 0 8px; color:#9fc79f; }
+  .toolbar { display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-bottom:8px; font-size:12px; }
+  .toolbar label { color:#8a938c; }
+  select, input[type=range], textarea, button { font:inherit; font-size:12px; background:#22272410; background:#222724; color:#ddd; border:1px solid #363c38; border-radius:4px; padding:3px 7px; }
   button { cursor:pointer; background:#2d4a2d; } button:hover { background:#3a5f3a; }
-  button.small { font-size:11px; padding:1px 6px; }
-  canvas { background:#0a0f0a; border:1px solid #333; }
-  textarea { width:480px; height:200px; font-family:ui-monospace,monospace; font-size:12px; }
-  table { border-collapse:collapse; font-size:12px; margin-top:8px; }
-  td, th { border:1px solid #333; padding:3px 8px; text-align:left; }
-  .meta { font-size:12px; color:#888; margin-top:6px; }
-  .timeline { position:relative; width:520px; height:26px; margin-top:8px; }
-  .timeline input[type=range] { width:100%; position:absolute; top:0; }
-  .killmark { position:absolute; top:18px; width:2px; height:8px; background:#e05545; pointer-events:none; }
+  button.small { font-size:11px; padding:0 5px; }
+  canvas { background:#0b0e0c; border:1px solid #262b28; border-radius:4px; display:block; width:100%; height:auto; }
+  textarea { width:100%; height:150px; font-family:ui-monospace,monospace; }
+  table { border-collapse:collapse; font-size:11.5px; margin-top:6px; width:100%; }
+  td, th { border:1px solid #2c322e; padding:2px 6px; text-align:left; white-space:nowrap; }
+  .meta { font-size:11.5px; color:#7f8881; margin-top:4px; }
+  .timeline { position:relative; height:24px; margin-top:6px; }
+  .timeline input[type=range] { width:100%; position:absolute; top:0; margin:0; }
+  .killmark { position:absolute; top:17px; width:2px; height:7px; background:#e05545; pointer-events:none; }
+  .split { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+  .resultbox { max-height:340px; overflow:auto; }
 </style>
 </head>
 <body>
-<h1>TacticalMind — Faz 3 test sayfası <span class="meta">(geçici arayüz; React+PixiJS ayrı fazda)</span></h1>
+<header>
+  <h1>TacticalMind</h1>
+  <span class="meta">harita layout'u arşivdeki pozisyon verisinden türetilir — demo arttıkça netleşir</span>
+</header>
+<main>
 
-<div class="row">
-  <div class="panel">
-    <h2>2D Replay</h2>
-    <label>Maç</label><select id="rMatch" style="max-width:280px"></select>
-    <label>Raunt</label><select id="rRound"></select>
-    <button id="rLoad" style="margin-top:10px">Yükle</button>
-    <span class="meta" id="rMeta"></span>
-    <div class="timeline">
-      <input type="range" id="rTime" min="0" max="100" value="0">
-      <div id="rKillmarks"></div>
-    </div>
-    <div style="margin-top:6px; display:flex; gap:8px; align-items:center">
-      <button id="rPlay">▶ Oynat</button>
-      <select id="rSpeed"><option value="1">1×</option><option value="2" selected>2×</option><option value="4">4×</option><option value="8">8×</option></select>
-      <span class="meta" id="rClock">0:00</span>
-    </div>
-    <div class="meta" id="rKillfeed" style="min-height:32px"></div>
+<section class="panel">
+  <h2>2D Replay</h2>
+  <div class="toolbar">
+    <select id="rMatch" style="max-width:250px"></select>
+    <select id="rRound"></select>
+    <button id="rLoad">Yükle</button>
+    <button id="rPlay">▶</button>
+    <select id="rSpeed"><option value="1">1×</option><option value="2" selected>2×</option><option value="4">4×</option><option value="8">8×</option></select>
+    <span class="meta" id="rClock">0:00</span>
+    <label><input type="checkbox" id="rLabels" checked> bölge adları</label>
   </div>
-  <div class="panel">
-    <canvas id="rCv" width="560" height="560"></canvas>
-    <div class="meta">T turuncu · CT mavi · çizgi bakış yönü · soluk ✕ ölü · kırmızı halka kill anı</div>
+  <canvas id="rCv" width="760" height="760"></canvas>
+  <div class="timeline">
+    <input type="range" id="rTime" min="0" max="100" value="0">
+    <div id="rKillmarks"></div>
   </div>
-</div>
+  <div class="meta" id="rMeta"></div>
+  <div class="meta" id="rKillfeed" style="min-height:28px"></div>
+</section>
 
-<div class="row">
-  <div class="panel">
-    <h2>Multi-View Stacking</h2>
-    <div class="meta">DSL sonucundaki rauntları üst üste koyar (aynı haritadan ilk 10).</div>
-    <label>Hizalama</label>
+<section class="panel">
+  <h2>Multi-View Stacking</h2>
+  <div class="toolbar">
     <select id="sAlign">
-      <option value="round_start">Raunt başı (freeze bitişi)</option>
-      <option value="bomb_plant">Bomba kurulumu</option>
-      <option value="first_kill">İlk temas (ilk kill)</option>
+      <option value="round_start">raunt başı</option>
+      <option value="bomb_plant">bomba kurulumu</option>
+      <option value="first_kill">ilk temas</option>
     </select>
-    <label>Taraf</label>
-    <select id="sSide"><option value="T">T</option><option value="CT">CT</option><option value="">İkisi</option></select>
-    <button id="sLoad" style="margin-top:10px">DSL sonucunu stack'le</button>
-    <div class="meta" id="sMeta"></div>
-    <label>Zaman: <span id="sTlabel">0</span> sn (hizalama anı = 0)</label>
-    <input type="range" id="sTime" min="-40" max="40" value="0" step="0.5" style="width:300px">
-    <label>İz uzunluğu (sn)</label>
-    <input type="range" id="sTrail" min="2" max="30" value="10" style="width:300px">
+    <select id="sSide"><option value="T">T</option><option value="CT">CT</option><option value="">ikisi</option></select>
+    <button id="sLoad">DSL sonucunu stack'le</button>
+    <label>t=<span id="sTlabel">0</span>s</label>
+    <input type="range" id="sTime" min="-40" max="40" value="0" step="0.5" style="width:150px">
+    <label>iz</label>
+    <input type="range" id="sTrail" min="2" max="30" value="10" style="width:90px">
   </div>
-  <div class="panel">
-    <canvas id="sCv" width="560" height="560"></canvas>
-    <div class="meta" id="sLegend"></div>
-  </div>
-</div>
+  <canvas id="sCv" width="760" height="760"></canvas>
+  <div class="meta" id="sMeta"></div>
+  <div class="meta" id="sLegend"></div>
+</section>
 
-<div class="row">
-  <div class="panel">
-    <h2>DSL sorgusu</h2>
-    <label>Hazır örnekler</label>
-    <select id="examples" style="width:480px"></select>
-    <textarea id="dsl"></textarea><br>
-    <button id="run" style="margin-top:8px">Çalıştır</button>
-    <div class="meta" id="qmeta"></div>
+<section class="panel">
+  <h2>DSL sorgusu</h2>
+  <div class="split">
+    <div>
+      <div class="toolbar"><select id="examples" style="width:100%"></select></div>
+      <textarea id="dsl"></textarea>
+      <div class="toolbar" style="margin-top:6px">
+        <button id="run">Çalıştır</button>
+        <span class="meta" id="qmeta"></span>
+      </div>
+    </div>
+    <div class="resultbox" id="result">—</div>
   </div>
-  <div class="panel" style="max-width:660px; overflow:auto">
-    <h2>Sonuç <span class="meta">(▶ = replay'de aç)</span></h2>
-    <div id="result">—</div>
-  </div>
-</div>
+</section>
 
-<div class="row">
-  <div class="panel">
-    <h2>Isı haritası</h2>
-    <label>Harita</label><select id="map"></select>
-    <label>Taraf</label>
+<section class="panel">
+  <h2>Isı haritası</h2>
+  <div class="toolbar">
+    <select id="map"></select>
     <select id="side"><option>T</option><option>CT</option></select>
-    <label>Buy tipi</label>
-    <select id="buy"><option value="">hepsi</option><option>pistol</option><option>eco</option><option>semi</option><option>force</option><option>full</option></select>
-    <button id="load" style="margin-top:12px">Yükle</button>
-    <label>Zaman aralığı (sn): <span id="timelabel">0–40</span></label>
-    <input type="range" id="t0" min="0" max="115" value="0" style="width:220px">
-    <input type="range" id="t1" min="0" max="115" value="40" style="width:220px">
-    <div class="meta" id="hmeta"></div>
+    <select id="buy"><option value="">tüm buy</option><option>pistol</option><option>eco</option><option>semi</option><option>force</option><option>full</option></select>
+    <button id="load">Yükle</button>
+    <label><span id="timelabel">0–40</span> sn</label>
+    <input type="range" id="t0" min="0" max="115" value="0" style="width:110px">
+    <input type="range" id="t1" min="0" max="115" value="40" style="width:110px">
+    <span class="meta" id="hmeta"></span>
   </div>
-  <div class="panel">
-    <canvas id="cv" width="520" height="520"></canvas>
-  </div>
-</div>
+  <canvas id="cv" width="760" height="760"></canvas>
+</section>
 
+</main>
 <script>
 const $ = id => document.getElementById(id);
 const SIDE_COLOR = { T: '#e8a33d', CT: '#4d9de0' };
 const LAYER_HUES = [30, 200, 120, 280, 0, 60, 170, 320, 90, 240];
-const RADAR = 1024; // radar koordinat uzayı
+const RADAR = 1024;
 
-// ── ortak ────────────────────────────────────────────────────────────
 async function getJSON(url) { const r = await fetch(url); const j = await r.json(); if (j.error) throw new Error(j.error); return j; }
 async function postJSON(url, body) {
   const r = await fetch(url, {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)});
   const j = await r.json(); if (j.error) throw new Error(j.error); return j;
 }
-function drawGrid(ctx, w) {
-  ctx.strokeStyle = '#1c241c'; ctx.lineWidth = 1;
-  for (let i = 0; i <= 8; i++) {
-    const p = i * w / 8;
-    ctx.beginPath(); ctx.moveTo(p, 0); ctx.lineTo(p, w); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(0, p); ctx.lineTo(w, p); ctx.stroke();
-  }
-}
 const toPx = (v, w) => v * w / RADAR;
 
+// ── harita silüeti (pozisyon verisinden) ─────────────────────────────
+const layoutCache = {};
+async function getLayout(mapName) {
+  if (!layoutCache[mapName]) layoutCache[mapName] = await getJSON('/api/v1/maplayout?map=' + mapName);
+  return layoutCache[mapName];
+}
+function drawMapBase(ctx, w, layout, showLabels) {
+  ctx.fillStyle = '#0b0e0c'; ctx.fillRect(0, 0, w, w);
+  if (!layout) return;
+  const cell = layout.cell_px * w / RADAR;
+  let maxc = 0;
+  for (const [,,c] of layout.cells) maxc = Math.max(maxc, c);
+  const lmax = Math.log(maxc + 1);
+  for (const [cx, cy, c] of layout.cells) {
+    const a = 0.10 + 0.30 * Math.log(c + 1) / lmax;   // yoğun koridorlar daha parlak
+    ctx.fillStyle = `rgba(120,140,125,${a.toFixed(3)})`;
+    ctx.fillRect(cx * cell, cy * cell, cell + 0.5, cell + 0.5);
+  }
+  if (showLabels) {
+    ctx.font = '10px system-ui'; ctx.textAlign = 'center';
+    for (const p of layout.places) {
+      const x = toPx(p.rx, w), y = toPx(p.ry, w);
+      ctx.fillStyle = 'rgba(0,0,0,0.55)';
+      ctx.fillRect(x - p.name.length * 2.8 - 3, y - 8, p.name.length * 5.6 + 6, 11);
+      ctx.fillStyle = 'rgba(200,215,205,0.85)';
+      ctx.fillText(p.name, x, y);
+    }
+    ctx.textAlign = 'left';
+  }
+}
+
 // ── 2D Replay ────────────────────────────────────────────────────────
-let rData = null, rIdx = 0, rPlaying = false, rLast = 0;
+let rData = null, rLayout = null, rIdx = 0, rPlaying = false, rLast = 0;
 
 async function replayInit() {
   const ms = await getJSON('/api/v1/matches');
   const ready = ms.filter(m => m.status === 'ready' && m.map_name);
   $('rMatch').innerHTML = ready.map(m =>
-    `<option value="${m.match_id}">${m.map_name} — ${m.rounds} raunt (${m.match_id.slice(0,8)})</option>`).join('');
+    `<option value="${m.match_id}">${m.map_name} — ${m.rounds}r (${m.match_id.slice(0,8)})</option>`).join('');
   $('rMatch').onchange = loadRoundList;
   await loadRoundList();
 }
 async function loadRoundList() {
   const d = await getJSON('/api/v1/matches/' + $('rMatch').value);
   $('rRound').innerHTML = d.rounds.map(r =>
-    `<option value="${r.round_number}">r${r.round_number} ${r.winner_side ?? '?'} ${r.bomb_site ? '· bomba ' + r.bomb_site : ''}</option>`).join('');
+    `<option value="${r.round_number}">r${r.round_number} ${r.winner_side ?? '?'}${r.bomb_site ? ' 💣' + r.bomb_site : ''}</option>`).join('');
 }
 async function loadRound(matchId, roundNo, seekTick) {
   if (matchId) { $('rMatch').value = matchId; await loadRoundList(); $('rRound').value = roundNo; }
   rData = await getJSON(`/api/v1/rounds/${$('rMatch').value}/${$('rRound').value}/ticks`);
-  // freeze başlangıcını at: kaydırıcı freeze bitişinden başlasın
+  rLayout = await getLayout(rData.map_name);
   const fe = rData.freeze_end_tick ?? rData.ticks[0];
   rData.startIdx = Math.max(0, rData.ticks.findIndex(t => t >= fe));
   $('rTime').min = rData.startIdx; $('rTime').max = rData.ticks.length - 1;
@@ -160,12 +180,11 @@ async function loadRound(matchId, roundNo, seekTick) {
     if (i >= 0) rIdx = i;
   }
   $('rTime').value = rIdx;
-  $('rMeta').textContent = `${rData.map_name} · ${rData.ticks.length} kare · ${rData.kills.length} kill`;
-  // kill işaretleri
+  $('rMeta').textContent = `${rData.map_name} · r${rData.round_number} · ${rData.ticks.length} kare · ${rData.kills.length} kill`;
   $('rKillmarks').innerHTML = rData.kills.map(k => {
     const i = rData.ticks.findIndex(t => t >= k.tick);
     const pct = 100 * (i - rData.startIdx) / (rData.ticks.length - 1 - rData.startIdx);
-    return `<div class="killmark" style="left:${pct}%"></div>`;
+    return `<div class="killmark" style="left:${Math.max(0, pct)}%"></div>`;
   }).join('');
   drawReplay();
 }
@@ -177,15 +196,13 @@ function replayClock() {
 function drawReplay() {
   if (!rData) return;
   const cv = $('rCv'), ctx = cv.getContext('2d'), w = cv.width;
-  ctx.fillStyle = '#0a0f0a'; ctx.fillRect(0, 0, w, w);
-  drawGrid(ctx, w);
+  drawMapBase(ctx, w, rLayout, $('rLabels').checked);
   const tick = rData.ticks[rIdx];
 
-  // yakın zamanda kill olduysa kurban konumunda halka
   for (const k of rData.kills) {
     if (k.victim_rx != null && tick >= k.tick && tick - k.tick < 3 * rData.tick_rate) {
       ctx.strokeStyle = 'rgba(224,85,69,0.8)'; ctx.lineWidth = 2;
-      ctx.beginPath(); ctx.arc(toPx(k.victim_rx, w), toPx(k.victim_ry, w), 10, 0, 7); ctx.stroke();
+      ctx.beginPath(); ctx.arc(toPx(k.victim_rx, w), toPx(k.victim_ry, w), 11, 0, 7); ctx.stroke();
     }
   }
   for (const p of rData.players) {
@@ -195,33 +212,33 @@ function drawReplay() {
     const alive = p.alive[rIdx], lower = p.lower ? p.lower[rIdx] : false;
     const col = SIDE_COLOR[p.side] || '#999';
     if (!alive) {
-      ctx.strokeStyle = 'rgba(150,150,150,0.5)'; ctx.lineWidth = 1.5;
+      ctx.strokeStyle = 'rgba(170,170,170,0.55)'; ctx.lineWidth = 1.5;
       ctx.beginPath(); ctx.moveTo(x-4, y-4); ctx.lineTo(x+4, y+4); ctx.moveTo(x+4, y-4); ctx.lineTo(x-4, y+4); ctx.stroke();
       continue;
     }
-    // bakış yönü (yaw: dünya açısı; radar y ekseni ters)
     const yaw = p.yaw[rIdx] * Math.PI / 180;
     ctx.strokeStyle = col; ctx.lineWidth = 1.5;
-    ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + 14 * Math.cos(yaw), y - 14 * Math.sin(yaw)); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + 15 * Math.cos(yaw), y - 15 * Math.sin(yaw)); ctx.stroke();
+    ctx.globalAlpha = lower ? 0.45 : 1;
     ctx.fillStyle = col;
-    ctx.globalAlpha = lower ? 0.45 : 1;    // alt kat soluk
-    ctx.beginPath(); ctx.arc(x, y, 5, 0, 7); ctx.fill();
+    ctx.beginPath(); ctx.arc(x, y, 5.5, 0, 7); ctx.fill();
+    ctx.strokeStyle = '#0b0e0c'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.arc(x, y, 5.5, 0, 7); ctx.stroke();
     ctx.globalAlpha = 1;
-    ctx.fillStyle = '#bbb'; ctx.font = '9px system-ui';
-    ctx.fillText(p.nickname || '', x + 7, y + 3);
+    ctx.fillStyle = '#cfd8d0'; ctx.font = '10px system-ui';
+    ctx.fillText(p.nickname || '', x + 8, y + 3);
   }
   $('rClock').textContent = replayClock();
-  // killfeed: son 5 sn içindeki kill'ler
   const recent = rData.kills.filter(k => tick >= k.tick && tick - k.tick < 5 * rData.tick_rate);
   $('rKillfeed').innerHTML = recent.map(k => `${k.attacker ?? '?'} ⟶ ${k.victim ?? '?'} <i>(${k.weapon ?? ''})</i>`).join('<br>');
 }
 function replayStep(ts) {
   if (!rPlaying) return;
   const speed = +$('rSpeed').value;
-  if (ts - rLast > 1000 / (16 * speed)) {   // 16 Hz kare / hız çarpanı
+  if (ts - rLast > 1000 / (16 * speed)) {
     rLast = ts;
     if (rIdx < rData.ticks.length - 1) { rIdx++; $('rTime').value = rIdx; drawReplay(); }
-    else { rPlaying = false; $('rPlay').textContent = '▶ Oynat'; }
+    else { rPlaying = false; $('rPlay').textContent = '▶'; }
   }
   requestAnimationFrame(replayStep);
 }
@@ -229,17 +246,17 @@ $('rLoad').onclick = () => loadRound().catch(e => $('rMeta').textContent = 'Hata
 $('rPlay').onclick = () => {
   if (!rData) return;
   rPlaying = !rPlaying;
-  $('rPlay').textContent = rPlaying ? '⏸ Durdur' : '▶ Oynat';
+  $('rPlay').textContent = rPlaying ? '⏸' : '▶';
   if (rPlaying) requestAnimationFrame(replayStep);
 };
 $('rTime').oninput = () => { rIdx = +$('rTime').value; drawReplay(); };
+$('rLabels').onchange = drawReplay;
 
 // ── Stacking ─────────────────────────────────────────────────────────
-let sData = null, lastClips = [];
+let sData = null, sLayout = null, lastClips = [];
 
 async function loadStack() {
   if (!lastClips.length) { $('sMeta').textContent = 'Önce bir DSL sorgusu çalıştır (clips/rounds dönmeli).'; return; }
-  // aynı haritadan ilk 10 benzersiz raunt
   const map0 = lastClips[0].map_name;
   const seen = new Set(); const rounds = [];
   for (const c of lastClips) {
@@ -249,9 +266,10 @@ async function loadStack() {
     if (rounds.length === 10) break;
   }
   sData = await postJSON('/api/v1/stack', { rounds, align: $('sAlign').value, side: $('sSide').value || undefined });
-  const ok = sData.layers.filter(l => !l.skipped).length;
-  $('sMeta').textContent = `${sData.map_name} · ${ok}/${sData.layers.length} katman` +
-    (ok < sData.layers.length ? ` (${sData.layers.filter(l=>l.skipped).map(l=>'r'+l.round_number+': '+l.skipped).join(', ')})` : '');
+  sLayout = await getLayout(sData.map_name);
+  const skipped = sData.layers.filter(l => l.skipped);
+  $('sMeta').textContent = `${sData.map_name} · ${sData.layers.length - skipped.length}/${sData.layers.length} katman` +
+    (skipped.length ? ` (${skipped.map(l => 'r' + l.round_number + ': ' + l.skipped).join(', ')})` : '');
   $('sLegend').innerHTML = sData.layers.map((l, i) =>
     l.skipped ? '' : `<span style="color:hsl(${LAYER_HUES[i%10]},70%,60%)">■ r${l.round_number}</span>`).join(' ');
   drawStack();
@@ -259,16 +277,14 @@ async function loadStack() {
 function drawStack() {
   if (!sData) return;
   const cv = $('sCv'), ctx = cv.getContext('2d'), w = cv.width;
-  ctx.fillStyle = '#0a0f0a'; ctx.fillRect(0, 0, w, w);
-  drawGrid(ctx, w);
+  drawMapBase(ctx, w, sLayout, true);
   const tNow = +$('sTime').value, trail = +$('sTrail').value;
   $('sTlabel').textContent = tNow.toFixed(1);
   sData.layers.forEach((ly, li) => {
     if (ly.skipped) return;
     const hue = LAYER_HUES[li % 10];
     for (const p of ly.players) {
-      // iz: [tNow-trail, tNow] aralığındaki örnekler
-      ctx.strokeStyle = `hsla(${hue},70%,60%,0.35)`; ctx.lineWidth = 1.5;
+      ctx.strokeStyle = `hsla(${hue},70%,60%,0.4)`; ctx.lineWidth = 1.5;
       ctx.beginPath();
       let started = false, lastIdx = -1;
       for (let i = 0; i < p.t.length; i++) {
@@ -278,14 +294,13 @@ function drawStack() {
         lastIdx = i;
       }
       ctx.stroke();
-      if (lastIdx >= 0) {  // güncel konum noktası
+      if (lastIdx >= 0) {
         ctx.fillStyle = `hsl(${hue},70%,60%)`;
         ctx.beginPath(); ctx.arc(toPx(p.rx[lastIdx], w), toPx(p.ry[lastIdx], w), 4, 0, 7); ctx.fill();
       }
     }
   });
-  // hizalama anı işareti
-  ctx.fillStyle = '#888'; ctx.font = '11px system-ui';
+  ctx.fillStyle = '#9aa39c'; ctx.font = '11px system-ui';
   ctx.fillText(`t = ${tNow.toFixed(1)} sn (${sData.align})`, 8, 14);
 }
 $('sLoad').onclick = () => loadStack().catch(e => $('sMeta').textContent = 'Hata: ' + e.message);
@@ -294,12 +309,12 @@ $('sTrail').oninput = drawStack;
 
 // ── DSL paneli ───────────────────────────────────────────────────────
 const EXAMPLES = {
-  "Mirage T full-buy A execute'ları (B'ye erken bomba değil)": {intent:"find_moments", filters:{map:"de_mirage", side:"T", buy_type:["full"], event:{type:"bomb", bomb_action:"plant", site:"A"}}, output:{format:"clips"}},
-  "Mirage'da ilk flash'lar (klip)": {intent:"find_moments", filters:{map:"de_mirage", event:{type:"grenade", grenade_type:"flash", order:"first_of_type_in_round"}}, output:{format:"clips"}},
+  "Mirage T full-buy A kurulumları": {intent:"find_moments", filters:{map:"de_mirage", side:"T", buy_type:["full"], event:{type:"bomb", bomb_action:"plant", site:"A"}}, output:{format:"clips"}},
+  "Mirage'da ilk flash'lar": {intent:"find_moments", filters:{map:"de_mirage", event:{type:"grenade", grenade_type:"flash", order:"first_of_type_in_round"}}, output:{format:"clips"}},
   "AWP açılış kill'leri": {intent:"find_moments", filters:{event:{type:"kill", weapon:"awp", first_kill:true}}, output:{format:"clips"}},
   "Dust2 B'ye erken bomba (ilk 35 sn)": {intent:"find_moments", filters:{map:"de_dust2", event:{type:"bomb", bomb_action:"plant", site:"B", time_window:{from:0,to:35}}}, output:{format:"clips"}},
   "Trade oranı (tüm arşiv)": {intent:"aggregate", filters:{event:{type:"kill", trade:true}}, output:{metric:"per_round"}},
-  "Dust2 A bölgesinde ≥3 T (ilk 60 sn)": {intent:"find_moments", filters:{map:"de_dust2", side:"T", event:{type:"presence", area:"BombsiteA", min_players:3, time_window:{from:0,to:60}}}, output:{format:"clips"}}
+  "Dust2 A'da ≥3 T (ilk 60 sn)": {intent:"find_moments", filters:{map:"de_dust2", side:"T", event:{type:"presence", area:"BombsiteA", min_players:3, time_window:{from:0,to:60}}}, output:{format:"clips"}}
 };
 $('examples').innerHTML = Object.keys(EXAMPLES).map(k => `<option>${k}</option>`).join('');
 const setEx = () => $('dsl').value = JSON.stringify(EXAMPLES[$('examples').value], null, 2);
@@ -310,7 +325,7 @@ $('run').onclick = async () => {
   try { q = JSON.parse($('dsl').value); } catch (e) { $('result').textContent = 'JSON hatası: ' + e.message; return; }
   let j;
   try { j = await postJSON('/api/v1/query', q); } catch (e) { $('result').textContent = 'Hata: ' + e.message; return; }
-  $('qmeta').textContent = `süre: ${j.duration_ms} ms · raunt kümesi: ${j.round_count ?? '-'}`;
+  $('qmeta').textContent = `${j.duration_ms} ms · raunt kümesi: ${j.round_count ?? '-'}`;
   const rows = j.clips || j.rounds;
   lastClips = rows || [];
   if (rows && rows.length) {
@@ -324,7 +339,6 @@ $('run').onclick = async () => {
     $('result').innerHTML = `<pre>${JSON.stringify(j, null, 2)}</pre>`;
   }
 };
-// DSL klibi → replay'de aç (NLP→klip akışının LLM'siz karşılığı)
 window.openClip = i => {
   const c = lastClips[i];
   if (!c) return;
@@ -333,8 +347,8 @@ window.openClip = i => {
     .catch(e => $('rMeta').textContent = 'Hata: ' + e.message);
 };
 
-// ── Isı haritası (Faz 2'den) ─────────────────────────────────────────
-let heat = null;
+// ── Isı haritası (radar uzayında, silüet üstünde) ────────────────────
+let heat = null, hLayout = null;
 async function heatInit() {
   const ms = await getJSON('/api/v1/matches');
   const maps = [...new Set(ms.map(m => m.map_name).filter(Boolean))].sort();
@@ -344,39 +358,39 @@ $('load').onclick = async () => {
   const p = new URLSearchParams({map: $('map').value, side: $('side').value});
   if ($('buy').value) p.set('buy_type', $('buy').value);
   heat = await getJSON('/api/v1/heatmap?' + p);
-  $('hmeta').textContent = `${heat.round_count} raunt · ${heat.buckets.length} zaman kovası · ${heat.duration_ms} ms`;
+  hLayout = await getLayout(heat.map);
+  $('hmeta').textContent = `${heat.round_count} raunt · ${heat.buckets.length} kova · ${heat.duration_ms} ms`;
   drawHeat();
 };
 function drawHeat() {
   if (!heat) return;
   const a = +$('t0').value, b = +$('t1').value;
   $('timelabel').textContent = `${Math.min(a,b)}–${Math.max(a,b)}`;
+  const cv = $('cv'), ctx = cv.getContext('2d'), w = cv.width;
+  drawMapBase(ctx, w, hLayout, true);
+  if (!heat.radar) return;
   const agg = new Map();
+  let maxv = 0;
   for (const bk of heat.buckets) {
     if (bk.t < Math.min(a,b) || bk.t > Math.max(a,b)) continue;
     for (const [gx, gy, p] of bk.cells) {
       const k = gx + ':' + gy;
-      agg.set(k, (agg.get(k) || 0) + p);
+      const v = (agg.get(k) || 0) + p;
+      agg.set(k, v);
+      if (v > maxv) maxv = v;
     }
   }
-  let gxMin=1e9, gxMax=-1e9, gyMin=1e9, gyMax=-1e9, maxv=0;
-  for (const k of agg.keys()) {
-    const [gx, gy] = k.split(':').map(Number);
-    gxMin=Math.min(gxMin,gx); gxMax=Math.max(gxMax,gx);
-    gyMin=Math.min(gyMin,gy); gyMax=Math.max(gyMax,gy);
-  }
-  for (const v of agg.values()) maxv = Math.max(maxv, v);
-  const cv = $('cv'), ctx = cv.getContext('2d');
-  ctx.fillStyle = '#000'; ctx.fillRect(0, 0, cv.width, cv.height);
   if (!agg.size) return;
-  const cell = Math.min(cv.width / (gxMax-gxMin+1), cv.height / (gyMax-gyMin+1));
+  // dünya ızgara hücresi (16 birim) → radar → piksel
+  const cal = heat.radar;
+  const cellW = 16 / cal.scale * w / RADAR;
   for (const [k, v] of agg) {
     const [gx, gy] = k.split(':').map(Number);
-    const x = (gx - gxMin) * cell;
-    const y = cv.height - (gy - gyMin + 1) * cell;
+    const rx = (gx * 16 - cal.pos_x) / cal.scale;
+    const ry = (cal.pos_y - (gy + 1) * 16) / cal.scale;   // y ters: hücre üst kenarı
     const i = Math.pow(v / maxv, 0.45);
-    ctx.fillStyle = `rgba(${Math.round(255*i)}, ${Math.round(90*i)}, ${Math.round(255*(1-i)*0.35)}, ${0.25+0.75*i})`;
-    ctx.fillRect(x, y, Math.ceil(cell), Math.ceil(cell));
+    ctx.fillStyle = `rgba(${Math.round(255*i)}, ${Math.round(80*i)}, 40, ${(0.15+0.6*i).toFixed(3)})`;
+    ctx.fillRect(toPx(rx, w), toPx(ry, w), cellW + 0.5, cellW + 0.5);
   }
 }
 $('t0').oninput = drawHeat; $('t1').oninput = drawHeat;

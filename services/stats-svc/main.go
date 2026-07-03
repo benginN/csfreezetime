@@ -80,6 +80,7 @@ func main() {
 	r.Get("/api/v1/matches/{id}", srv.matchDetail)
 	r.Get("/api/v1/rounds/{match_id}/{n}/ticks", srv.roundTicks)
 	r.Get("/api/v1/heatmap", srv.heatmap)
+	r.Get("/api/v1/maplayout", srv.mapLayoutHandler)
 	r.Post("/api/v1/query", srv.query)
 	r.Post("/api/v1/stack", srv.stack)
 
@@ -246,11 +247,14 @@ func (s *server) heatmap(w http.ResponseWriter, r *http.Request) {
 		}
 		cur.Cells = append(cur.Cells, [3]int64{int64(gx), int64(gy), int64(p)})
 	}
+	// radar kalibrasyonu: istemci ısı haritasını replay ile aynı uzayda çizsin
+	cal, _ := s.radarFor(r.Context(), mapName)
 	writeJSON(w, 200, map[string]any{
 		"map":         mapName,
 		"side":        side,
 		"round_count": len(refs),
 		"buckets":     buckets,
+		"radar":       cal,
 		"duration_ms": time.Since(start).Milliseconds(),
 	})
 }

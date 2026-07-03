@@ -49,6 +49,7 @@ scripts/test-dsl.sh          # 20 golden DSL + replay/stack + p95
 |---|---|
 | `POST /api/v1/query` | DSL sorgusu (şema: `GET /api/v1/schema`) → clips / rounds / aggregate |
 | `GET /api/v1/heatmap?map=&side=&buy_type=` | Tüm 1 sn zaman kovaları; kaydırıcı istemcide toplar |
+| `GET /api/v1/maplayout?map=` | Pozisyon verisinden türetilen yürünebilir alan silüeti + bölge etiketleri |
 | `GET /api/v1/matches` · `/matches/{id}` | Maç listesi · raunt + kill detayı |
 | `GET /api/v1/rounds/{match}/{n}/ticks` | Rauntun 16 Hz akışı, radar koordinatlı, kill işaretli |
 | `POST /api/v1/stack` | Multi-View Stacking: ≤10 raunt, `round_start\|bomb_plant\|first_kill` hizalama |
