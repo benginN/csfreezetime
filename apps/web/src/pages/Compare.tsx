@@ -156,6 +156,87 @@ function CompareBody({
       <UtilityCompare A={A} B={B} mapName={mapName} />
 
       <HeatCompare aId={aId} bId={bId} aName={A.team} bName={B.team} mapName={mapName} />
+
+      <VetoSim aId={aId} bId={bId} aName={A.team} bName={B.team} />
+    </>
+  );
+}
+
+// Veto simülasyonu: arşiv harita güçlerinden rasyonel ban/pick planı.
+function VetoSim({ aId, bId, aName, bName }: { aId: string; bId: string; aName: string; bName: string }) {
+  const [format, setFormat] = useState('bo3');
+  const sim = useQuery({
+    queryKey: ['veto', aId, bId, format],
+    queryFn: async () => {
+      const r = await fetch(`/api/v1/veto?a=${aId}&b=${bId}&format=${format}`);
+      const j = await r.json();
+      if (!r.ok) throw new Error(j.error ?? `HTTP ${r.status}`);
+      return j as {
+        steps: { action: string; map: string; edge: number; n: number }[];
+        finals: { map: string; prob_a: number; edge: number; n: number }[];
+        note: string;
+      };
+    },
+    retry: false,
+  });
+
+  const actLabel: Record<string, string> = {
+    banA: `${aName} bans`, banB: `${bName} bans`,
+    pickA: `${aName} picks`, pickB: `${bName} picks`, decider: 'decider',
+  };
+
+  return (
+    <>
+      <h2>
+        Veto simulation{' '}
+        <span className="toolbar" style={{ display: 'inline-flex', marginLeft: 10 }}>
+          <select value={format} onChange={(e) => setFormat(e.target.value)}>
+            <option value="bo1">BO1</option>
+            <option value="bo3">BO3</option>
+            <option value="bo5">BO5</option>
+          </select>
+        </span>
+      </h2>
+      {sim.error && <p className="meta">{String(sim.error)}</p>}
+      {sim.data && (
+        <div className="grid cards two">
+          <div className="card">
+            <div className="teams"><span>Rational veto sequence</span></div>
+            <table style={{ marginTop: 6 }}>
+              <tbody>
+                {sim.data.steps.map((s, i) => (
+                  <tr key={i}>
+                    <td className="meta">{i + 1}</td>
+                    <td>{actLabel[s.action]}</td>
+                    <td style={{ fontWeight: 600 }}>{s.map}</td>
+                    <td className="meta">
+                      edge {s.edge >= 0 ? '+' : ''}{Math.round(100 * s.edge)}% · n={s.n}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div className="card">
+            <div className="teams"><span>Projected maps</span></div>
+            <table style={{ marginTop: 6 }}>
+              <thead><tr><th>Map</th><th>{aName} win</th><th className="meta">rounds in archive</th></tr></thead>
+              <tbody>
+                {sim.data.finals.map((f) => (
+                  <tr key={f.map}>
+                    <td>{f.map}</td>
+                    <td style={{ color: f.prob_a >= 0.5 ? '#7fd88f' : '#e05545', fontWeight: 700 }}>
+                      {Math.round(100 * f.prob_a)}%
+                    </td>
+                    <td className="meta">{f.n}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <p className="meta" style={{ marginTop: 8 }}>{sim.data.note}</p>
+          </div>
+        </div>
+      )}
     </>
   );
 }
