@@ -106,6 +106,8 @@ func main() {
 	r.Get("/api/v1/matches/{id}/heatmap", srv.matchHeatmap)
 	r.Get("/api/v1/teams/{id}/heatmap", srv.teamHeatmap)
 	r.Get("/api/v1/teams/{id}/summary", srv.teamSummary)
+	r.Get("/api/v1/players/{id}/profile", srv.playerProfile)
+	r.Get("/api/v1/players/{id}/heatmap", srv.playerHeatmap)
 	r.Get("/api/v1/report", srv.report)
 
 	// SPA (apps/web/dist): dosya varsa onu, yoksa index.html'i döndür

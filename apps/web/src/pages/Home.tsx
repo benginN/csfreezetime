@@ -22,6 +22,16 @@ export default function Home() {
   return (
     <>
       {!q.trim() && <TeamStrip />}
+      {(res.data?.players ?? []).length > 0 && q.trim() && (
+        <div className="toolbar">
+          <span className="meta">players:</span>
+          {(res.data?.players ?? []).map((p) => (
+            <Link key={p.id} to={`/player/${p.id}`}>
+              <button className="ghost">👤 {p.name}</button>
+            </Link>
+          ))}
+        </div>
+      )}
       <div className="meta" style={{ margin: '4px 0 12px' }}>
         {res.isLoading ? 'searching…' : `${matches.length} matches`}
         {q && <> · “{q}”</>}

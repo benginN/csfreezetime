@@ -287,6 +287,30 @@ export interface ReportResp {
   players: ReportPlayer[];
 }
 
+export interface PlayerProfile {
+  player_id: string;
+  nickname: string;
+  team: string | null;
+  roles: {
+    side: 'T' | 'CT'; rounds: number;
+    entry_attempt_share: number | null; entry_success: number | null;
+    opening_kills: number; opening_deaths: number;
+    lurk_dist_avg: number | null;
+    anchor_place: string | null; anchor_share: number | null;
+    awp_round_share: number | null; util_per_round: number | null;
+    flash_assists_pr: number | null; adr: number | null; tags: string[];
+  }[];
+  maps: {
+    map_name: string; rounds: number; matches: number; adr: number;
+    kills: number; deaths: number; assists: number; survival_pct: number;
+  }[];
+  openings: { map_name: string; won: number; lost: number }[];
+  flags: {
+    metric: string; value: number; baseline_mean: number; baseline_std: number;
+    z: number; event_name: string | null; map_name: string | null; match_id: string;
+  }[];
+}
+
 export interface StackLayer {
   match_id: string;
   round_number: number;
@@ -355,6 +379,9 @@ export const api = {
   teamHeatmap: (id: string, p: URLSearchParams) =>
     get<MatchHeatmap>(`/api/v1/teams/${id}/heatmap?` + p),
   teamSummary: (id: string) => get<TeamSummary>(`/api/v1/teams/${id}/summary`),
+  playerProfile: (id: string) => get<PlayerProfile>(`/api/v1/players/${id}/profile`),
+  playerHeatmap: (id: string, p: URLSearchParams) =>
+    get<MatchHeatmap>(`/api/v1/players/${id}/heatmap?` + p),
   report: (teamId: string, map: string) =>
     get<ReportResp>(`/api/v1/report?team_id=${teamId}&map=${encodeURIComponent(map)}`),
   roundTicks: (id: string, n: number) => get<RoundTicks>(`/api/v1/rounds/${id}/${n}/ticks`),

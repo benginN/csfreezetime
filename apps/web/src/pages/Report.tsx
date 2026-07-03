@@ -159,7 +159,9 @@ export default function Report() {
         <tbody>
           {d.players.map((p, i) => (
             <tr key={i}>
-              <td style={{ fontWeight: 600 }}>{p.nickname}</td>
+              <td style={{ fontWeight: 600 }}>
+                <Link to={`/player/${p.player_id}`}>{p.nickname}</Link>
+              </td>
               <td><span className={`badge ${p.side}`}>{p.side}</span></td>
               <td>
                 {p.tags.length

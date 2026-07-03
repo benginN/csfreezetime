@@ -7,6 +7,7 @@ import Report from './pages/Report';
 import Team from './pages/Team';
 import Moments from './pages/Moments';
 import Compare from './pages/Compare';
+import Player from './pages/Player';
 
 export default function App() {
   return (
@@ -31,6 +32,7 @@ export default function App() {
           <Route path="/team/:teamId" element={<Team />} />
           <Route path="/moments" element={<Moments />} />
           <Route path="/compare" element={<Compare />} />
+          <Route path="/player/:playerId" element={<Player />} />
         </Routes>
       </main>
     </>
