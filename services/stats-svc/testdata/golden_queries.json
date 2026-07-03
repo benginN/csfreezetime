@@ -1,84 +1,422 @@
 {
   "_comment": "Faz 2 çıkış kriteri: DSL 20 sorgu kalıbını karşılıyor (mimari.md §11). Beklenen değerler 14 maçlık test arşivinden bir kez türetilip sabitlendi; expect.value=null olanlar yalnızca şema/çalışabilirlik doğrular (op ge 0).",
   "queries": [
-    {"name": "01 kill: silah filtresi (ak47, klip)",
-     "dsl": {"intent":"find_moments","filters":{"event":{"type":"kill","weapon":"ak47"}},"output":{"format":"clips"}},
-     "expect": {"field":"clips","op":"ge","value":100}},
-
-    {"name": "02 kill: açılış kill'leri (mirage)",
-     "dsl": {"intent":"find_moments","filters":{"map":"de_mirage","event":{"type":"kill","first_kill":true}},"output":{"format":"clips"}},
-     "expect": {"field":"clips","op":"eq","value":90}},
-
-    {"name": "03 kill: T tarafı trade'leri (raunt listesi)",
-     "dsl": {"intent":"find_moments","filters":{"side":"T","event":{"type":"kill","trade":true}},"output":{"format":"rounds"}},
-     "expect": {"field":"rounds","op":"ge","value":50}},
-
-    {"name": "04 kill: headshot + kurban bölgesi (mirage BombsiteA)",
-     "dsl": {"intent":"find_moments","filters":{"map":"de_mirage","event":{"type":"kill","headshot":true,"area":"BombsiteA"}},"output":{"format":"clips"}},
-     "expect": {"field":"clips","op":"ge","value":1}},
-
-    {"name": "05 kill: saldırgan bölgesi (area_of=attacker)",
-     "dsl": {"intent":"find_moments","filters":{"map":"de_dust2","event":{"type":"kill","area":"BombsiteA","area_of":"attacker"}},"output":{"format":"clips"}},
-     "expect": {"field":"clips","op":"ge","value":1}},
-
-    {"name": "06 kill: erken kill'ler (ilk 20 sn, aggregate)",
-     "dsl": {"intent":"aggregate","filters":{"event":{"type":"kill","time_window":{"from":0,"to":20}}}},
-     "expect": {"field":"count","op":"ge","value":100}},
-
-    {"name": "07 kill: oyuncu kapsamı (sh1ro'nun kill'leri)",
-     "dsl": {"intent":"aggregate","filters":{"player":{"nickname":"sh1ro"},"event":{"type":"kill"}}},
-     "expect": {"field":"count","op":"eq","value":143}},
-
-    {"name": "08 grenade: ilk flash'lar (mirage, klip)",
-     "dsl": {"intent":"find_moments","filters":{"map":"de_mirage","event":{"type":"grenade","grenade_type":"flash","order":"first_of_type_in_round"}},"output":{"format":"clips"}},
-     "expect": {"field":"clips","op":"eq","value":88}},
-
-    {"name": "09 grenade: erken smoke'lar (ilk 25 sn, raunt)",
-     "dsl": {"intent":"find_moments","filters":{"event":{"type":"grenade","grenade_type":"smoke","order":"first_of_type_in_round","time_window":{"from":0,"to":25}}},"output":{"format":"rounds"}},
-     "expect": {"field":"rounds","op":"ge","value":50}},
-
-    {"name": "10 grenade: molotov sıklığı (raunt başına)",
-     "dsl": {"intent":"aggregate","filters":{"event":{"type":"grenade","grenade_type":"molotov"}},"output":{"metric":"per_round"}},
-     "expect": {"field":"count","op":"ge","value":200}},
-
-    {"name": "11 grenade: oyuncunun attıkları (donk)",
-     "dsl": {"intent":"aggregate","filters":{"player":{"nickname":"donk"},"event":{"type":"grenade"}}},
-     "expect": {"field":"count","op":"ge","value":50}},
-
-    {"name": "12 bomb: A kurulumları (raunt)",
-     "dsl": {"intent":"find_moments","filters":{"event":{"type":"bomb","bomb_action":"plant","site":"A"}},"output":{"format":"rounds"}},
-     "expect": {"field":"rounds","op":"ge","value":30}},
-
-    {"name": "13 bomb: erken B kurulumu (ilk 35 sn, klip)",
-     "dsl": {"intent":"find_moments","filters":{"event":{"type":"bomb","bomb_action":"plant","site":"B","time_window":{"from":0,"to":35}}},"output":{"format":"clips"}},
-     "expect": {"field":"clips","op":"ge","value":1}},
-
-    {"name": "14 bomb: çözülen bombalar (aggregate)",
-     "dsl": {"intent":"aggregate","filters":{"event":{"type":"bomb","bomb_action":"defuse"}}},
-     "expect": {"field":"count","op":"ge","value":10}},
-
-    {"name": "15 bomb: patlayan bombalar (raunt)",
-     "dsl": {"intent":"find_moments","filters":{"event":{"type":"bomb","bomb_action":"explode"}},"output":{"format":"rounds"}},
-     "expect": {"field":"rounds","op":"ge","value":10}},
-
-    {"name": "16 presence: dust2 A'da ≥3 T (ilk 60 sn, klip)",
-     "dsl": {"intent":"find_moments","filters":{"map":"de_dust2","side":"T","event":{"type":"presence","area":"BombsiteA","min_players":3,"time_window":{"from":0,"to":60}}},"output":{"format":"clips"}},
-     "expect": {"field":"clips","op":"ge","value":1}},
-
-    {"name": "17 presence: mirage B'de ≥2 CT (raunt)",
-     "dsl": {"intent":"find_moments","filters":{"map":"de_mirage","side":"CT","event":{"type":"presence","area":"BombsiteB","min_players":2}},"output":{"format":"rounds"}},
-     "expect": {"field":"rounds","op":"ge","value":10}},
-
-    {"name": "18 economy: T tam ekipman eşiği (≥20k, aggregate)",
-     "dsl": {"intent":"aggregate","filters":{"side":"T","event":{"type":"economy","equip_min":20000}}},
-     "expect": {"field":"count","op":"ge","value":100}},
-
-    {"name": "19 heatmap_filterset: mirage T full buy",
-     "dsl": {"intent":"heatmap_filterset","filters":{"map":"de_mirage","side":"T","buy_type":["full"]}},
-     "expect": {"field":"round_count","op":"eq","value":65}},
-
-    {"name": "20 raunt filtresi: regülasyon ilk yarı (1-12, aggregate)",
-     "dsl": {"intent":"aggregate","filters":{"round_number":{"min":1,"max":12}}},
-     "expect": {"field":"count","op":"eq","value":162}}
+    {
+      "name": "01 kill: silah filtresi (ak47, klip)",
+      "dsl": {
+        "intent": "find_moments",
+        "filters": {
+          "event": {
+            "type": "kill",
+            "weapon": "ak47"
+          }
+        },
+        "output": {
+          "format": "clips"
+        }
+      },
+      "expect": {
+        "field": "clips",
+        "op": "ge",
+        "value": 100
+      }
+    },
+    {
+      "name": "02 kill: açılış kill'leri (mirage)",
+      "dsl": {
+        "intent": "find_moments",
+        "filters": {
+          "map": "de_mirage",
+          "event": {
+            "type": "kill",
+            "first_kill": true
+          }
+        },
+        "output": {
+          "format": "clips"
+        }
+      },
+      "expect": {
+        "field": "clips",
+        "op": "eq",
+        "value": 132
+      }
+    },
+    {
+      "name": "03 kill: T tarafı trade'leri (raunt listesi)",
+      "dsl": {
+        "intent": "find_moments",
+        "filters": {
+          "side": "T",
+          "event": {
+            "type": "kill",
+            "trade": true
+          }
+        },
+        "output": {
+          "format": "rounds"
+        }
+      },
+      "expect": {
+        "field": "rounds",
+        "op": "ge",
+        "value": 50
+      }
+    },
+    {
+      "name": "04 kill: headshot + kurban bölgesi (mirage BombsiteA)",
+      "dsl": {
+        "intent": "find_moments",
+        "filters": {
+          "map": "de_mirage",
+          "event": {
+            "type": "kill",
+            "headshot": true,
+            "area": "BombsiteA"
+          }
+        },
+        "output": {
+          "format": "clips"
+        }
+      },
+      "expect": {
+        "field": "clips",
+        "op": "ge",
+        "value": 1
+      }
+    },
+    {
+      "name": "05 kill: saldırgan bölgesi (area_of=attacker)",
+      "dsl": {
+        "intent": "find_moments",
+        "filters": {
+          "map": "de_dust2",
+          "event": {
+            "type": "kill",
+            "area": "BombsiteA",
+            "area_of": "attacker"
+          }
+        },
+        "output": {
+          "format": "clips"
+        }
+      },
+      "expect": {
+        "field": "clips",
+        "op": "ge",
+        "value": 1
+      }
+    },
+    {
+      "name": "06 kill: erken kill'ler (ilk 20 sn, aggregate)",
+      "dsl": {
+        "intent": "aggregate",
+        "filters": {
+          "event": {
+            "type": "kill",
+            "time_window": {
+              "from": 0,
+              "to": 20
+            }
+          }
+        }
+      },
+      "expect": {
+        "field": "count",
+        "op": "ge",
+        "value": 100
+      }
+    },
+    {
+      "name": "07 kill: oyuncu kapsamı (sh1ro'nun kill'leri)",
+      "dsl": {
+        "intent": "aggregate",
+        "filters": {
+          "player": {
+            "nickname": "sh1ro"
+          },
+          "event": {
+            "type": "kill"
+          }
+        }
+      },
+      "expect": {
+        "field": "count",
+        "op": "eq",
+        "value": 179
+      }
+    },
+    {
+      "name": "08 grenade: ilk flash'lar (mirage, klip)",
+      "dsl": {
+        "intent": "find_moments",
+        "filters": {
+          "map": "de_mirage",
+          "event": {
+            "type": "grenade",
+            "grenade_type": "flash",
+            "order": "first_of_type_in_round"
+          }
+        },
+        "output": {
+          "format": "clips"
+        }
+      },
+      "expect": {
+        "field": "clips",
+        "op": "eq",
+        "value": 128
+      }
+    },
+    {
+      "name": "09 grenade: erken smoke'lar (ilk 25 sn, raunt)",
+      "dsl": {
+        "intent": "find_moments",
+        "filters": {
+          "event": {
+            "type": "grenade",
+            "grenade_type": "smoke",
+            "order": "first_of_type_in_round",
+            "time_window": {
+              "from": 0,
+              "to": 25
+            }
+          }
+        },
+        "output": {
+          "format": "rounds"
+        }
+      },
+      "expect": {
+        "field": "rounds",
+        "op": "ge",
+        "value": 50
+      }
+    },
+    {
+      "name": "10 grenade: molotov sıklığı (raunt başına)",
+      "dsl": {
+        "intent": "aggregate",
+        "filters": {
+          "event": {
+            "type": "grenade",
+            "grenade_type": "molotov"
+          }
+        },
+        "output": {
+          "metric": "per_round"
+        }
+      },
+      "expect": {
+        "field": "count",
+        "op": "ge",
+        "value": 200
+      }
+    },
+    {
+      "name": "11 grenade: oyuncunun attıkları (donk)",
+      "dsl": {
+        "intent": "aggregate",
+        "filters": {
+          "player": {
+            "nickname": "donk"
+          },
+          "event": {
+            "type": "grenade"
+          }
+        }
+      },
+      "expect": {
+        "field": "count",
+        "op": "ge",
+        "value": 50
+      }
+    },
+    {
+      "name": "12 bomb: A kurulumları (raunt)",
+      "dsl": {
+        "intent": "find_moments",
+        "filters": {
+          "event": {
+            "type": "bomb",
+            "bomb_action": "plant",
+            "site": "A"
+          }
+        },
+        "output": {
+          "format": "rounds"
+        }
+      },
+      "expect": {
+        "field": "rounds",
+        "op": "ge",
+        "value": 30
+      }
+    },
+    {
+      "name": "13 bomb: erken B kurulumu (ilk 35 sn, klip)",
+      "dsl": {
+        "intent": "find_moments",
+        "filters": {
+          "event": {
+            "type": "bomb",
+            "bomb_action": "plant",
+            "site": "B",
+            "time_window": {
+              "from": 0,
+              "to": 35
+            }
+          }
+        },
+        "output": {
+          "format": "clips"
+        }
+      },
+      "expect": {
+        "field": "clips",
+        "op": "ge",
+        "value": 1
+      }
+    },
+    {
+      "name": "14 bomb: çözülen bombalar (aggregate)",
+      "dsl": {
+        "intent": "aggregate",
+        "filters": {
+          "event": {
+            "type": "bomb",
+            "bomb_action": "defuse"
+          }
+        }
+      },
+      "expect": {
+        "field": "count",
+        "op": "ge",
+        "value": 10
+      }
+    },
+    {
+      "name": "15 bomb: patlayan bombalar (raunt)",
+      "dsl": {
+        "intent": "find_moments",
+        "filters": {
+          "event": {
+            "type": "bomb",
+            "bomb_action": "explode"
+          }
+        },
+        "output": {
+          "format": "rounds"
+        }
+      },
+      "expect": {
+        "field": "rounds",
+        "op": "ge",
+        "value": 10
+      }
+    },
+    {
+      "name": "16 presence: dust2 A'da ≥3 T (ilk 60 sn, klip)",
+      "dsl": {
+        "intent": "find_moments",
+        "filters": {
+          "map": "de_dust2",
+          "side": "T",
+          "event": {
+            "type": "presence",
+            "area": "BombsiteA",
+            "min_players": 3,
+            "time_window": {
+              "from": 0,
+              "to": 60
+            }
+          }
+        },
+        "output": {
+          "format": "clips"
+        }
+      },
+      "expect": {
+        "field": "clips",
+        "op": "ge",
+        "value": 1
+      }
+    },
+    {
+      "name": "17 presence: mirage B'de ≥2 CT (raunt)",
+      "dsl": {
+        "intent": "find_moments",
+        "filters": {
+          "map": "de_mirage",
+          "side": "CT",
+          "event": {
+            "type": "presence",
+            "area": "BombsiteB",
+            "min_players": 2
+          }
+        },
+        "output": {
+          "format": "rounds"
+        }
+      },
+      "expect": {
+        "field": "rounds",
+        "op": "ge",
+        "value": 10
+      }
+    },
+    {
+      "name": "18 economy: T tam ekipman eşiği (≥20k, aggregate)",
+      "dsl": {
+        "intent": "aggregate",
+        "filters": {
+          "side": "T",
+          "event": {
+            "type": "economy",
+            "equip_min": 20000
+          }
+        }
+      },
+      "expect": {
+        "field": "count",
+        "op": "ge",
+        "value": 100
+      }
+    },
+    {
+      "name": "19 heatmap_filterset: mirage T full buy",
+      "dsl": {
+        "intent": "heatmap_filterset",
+        "filters": {
+          "map": "de_mirage",
+          "side": "T",
+          "buy_type": [
+            "full"
+          ]
+        }
+      },
+      "expect": {
+        "field": "round_count",
+        "op": "eq",
+        "value": 92
+      }
+    },
+    {
+      "name": "20 raunt filtresi: regülasyon ilk yarı (1-12, aggregate)",
+      "dsl": {
+        "intent": "aggregate",
+        "filters": {
+          "round_number": {
+            "min": 1,
+            "max": 12
+          }
+        }
+      },
+      "expect": {
+        "field": "count",
+        "op": "eq",
+        "value": 405
+      }
+    }
   ]
 }
