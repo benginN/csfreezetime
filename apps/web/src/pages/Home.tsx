@@ -14,8 +14,9 @@ export default function Home() {
   });
 
   const matches = res.data?.matches ?? [];
+  const teams = res.data?.teams ?? [];
   // Sorgu tek takıma denk düşüyorsa altta eğilim + tahmin blokları
-  const soloTeam = q.trim() && res.data?.teams.length === 1 ? res.data.teams[0] : null;
+  const soloTeam = q.trim() && teams.length === 1 ? teams[0] : null;
 
   return (
     <>

@@ -9,12 +9,39 @@ const qc = new QueryClient({
   defaultOptions: { queries: { staleTime: 60_000, retry: 1 } },
 });
 
+// Güvenlik ağı: bir bileşen çökerse siyah ekran yerine hata mesajı göster.
+class ErrorBoundary extends React.Component<
+  { children: React.ReactNode },
+  { error: Error | null }
+> {
+  state = { error: null as Error | null };
+  static getDerivedStateFromError(error: Error) {
+    return { error };
+  }
+  render() {
+    if (this.state.error) {
+      return (
+        <div style={{ padding: 24 }}>
+          <h1>Bir şeyler ters gitti</h1>
+          <p className="error">{String(this.state.error)}</p>
+          <button onClick={() => { this.setState({ error: null }); window.location.href = '/'; }}>
+            Ana sayfaya dön
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
-    <QueryClientProvider client={qc}>
-      <BrowserRouter>
-        <App />
-      </BrowserRouter>
-    </QueryClientProvider>
+    <ErrorBoundary>
+      <QueryClientProvider client={qc}>
+        <BrowserRouter>
+          <App />
+        </BrowserRouter>
+      </QueryClientProvider>
+    </ErrorBoundary>
   </React.StrictMode>,
 );

@@ -38,7 +38,8 @@ func (s *server) search(w http.ResponseWriter, r *http.Request) {
 		ID   uuid.UUID `json:"id"`
 		Name string    `json:"name"`
 	}
-	var teams, players []hit
+	// boş dilimler JSON'da null değil [] olmalı — istemci .length okuyor
+	teams, players := []hit{}, []hit{}
 	if q != "" {
 		trows, err := s.pg.Query(ctx,
 			"SELECT team_id, name FROM teams WHERE lower(name) LIKE '%'||$1||'%' LIMIT 8",
@@ -105,7 +106,7 @@ func (s *server) search(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer rows.Close()
-	var matches []searchMatch
+	matches := []searchMatch{}
 	for rows.Next() {
 		var m searchMatch
 		if err := rows.Scan(&m.MatchID, &m.MapName, &m.Name, &m.TeamA, &m.TeamB,
