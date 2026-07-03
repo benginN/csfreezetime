@@ -120,15 +120,28 @@ async function postJSON(url, body) {
 }
 const toPx = (v, w) => v * w / RADAR;
 
-// ── harita silüeti (pozisyon verisinden) ─────────────────────────────
-const layoutCache = {};
+// ── harita arka planı: gerçek radar PNG varsa o, yoksa veri silüeti ──
+const layoutCache = {}, radarImgs = {};
 async function getLayout(mapName) {
   if (!layoutCache[mapName]) layoutCache[mapName] = await getJSON('/api/v1/maplayout?map=' + mapName);
+  if (!radarImgs[mapName]) {
+    const img = new Image();
+    img.onload = () => { img.ok = true; drawReplay(); drawStack(); drawHeat(); };
+    img.src = '/radars/' + mapName + '.png';
+    radarImgs[mapName] = img;
+  }
   return layoutCache[mapName];
 }
 function drawMapBase(ctx, w, layout, showLabels) {
   ctx.fillStyle = '#0b0e0c'; ctx.fillRect(0, 0, w, w);
   if (!layout) return;
+  const img = radarImgs[layout.map];
+  if (img && img.ok) {              // gerçek radar görseli (static/radars/)
+    ctx.globalAlpha = 0.8;
+    ctx.drawImage(img, 0, 0, w, w);
+    ctx.globalAlpha = 1;
+    return;
+  }
   const cell = layout.cell_px * w / RADAR;
   let maxc = 0;
   for (const [,,c] of layout.cells) maxc = Math.max(maxc, c);
@@ -158,7 +171,7 @@ async function replayInit() {
   const ms = await getJSON('/api/v1/matches');
   const ready = ms.filter(m => m.status === 'ready' && m.map_name);
   $('rMatch').innerHTML = ready.map(m =>
-    `<option value="${m.match_id}">${m.map_name} — ${m.rounds}r (${m.match_id.slice(0,8)})</option>`).join('');
+    `<option value="${m.match_id}">${m.name ?? m.match_id.slice(0,8)} · ${m.map_name} (${m.rounds}r)</option>`).join('');
   $('rMatch').onchange = loadRoundList;
   await loadRoundList();
 }
@@ -193,11 +206,48 @@ function replayClock() {
   const s = Math.max(0, (rData.ticks[rIdx] - fe) / rData.tick_rate);
   return Math.floor(s / 60) + ':' + String(Math.floor(s % 60)).padStart(2, '0');
 }
+// bomba görsel ömürleri (sn) — smoke/molotof oyun süreleriyle uyumlu
+const NADE_LIFE = { smoke: 20, molotov: 7, incendiary: 7, flash: 0.7, he: 0.7, decoy: 15 };
+
+function drawGrenades(ctx, w, tick) {
+  if (!rData.grenades || !rData.radar) return;
+  const tr = rData.tick_rate, scale = rData.radar.scale;
+  const worldPx = u => toPx(u / scale, w);        // dünya birimi → canvas px
+  for (const g of rData.grenades) {
+    if (g.rx == null) continue;
+    const dt = (tick - g.tick) / tr;              // patlamadan bu yana sn
+    const life = NADE_LIFE[g.type] ?? 1;
+    if (dt < 0 || dt > life) continue;
+    const x = toPx(g.rx, w), y = toPx(g.ry, w);
+    const fade = Math.min(1, (life - dt) / 2);    // son 2 sn'de sön
+    if (g.type === 'smoke') {
+      ctx.fillStyle = `rgba(180,185,190,${(0.45 * fade).toFixed(3)})`;
+      ctx.beginPath(); ctx.arc(x, y, worldPx(144), 0, 7); ctx.fill();
+    } else if (g.type === 'molotov' || g.type === 'incendiary') {
+      ctx.fillStyle = `rgba(235,120,30,${(0.4 * fade).toFixed(3)})`;
+      ctx.beginPath(); ctx.arc(x, y, worldPx(120), 0, 7); ctx.fill();
+    } else if (g.type === 'flash') {
+      const k = dt / life;                        // 0→1: beyaz patlama büyüyüp söner
+      ctx.fillStyle = `rgba(255,255,255,${(0.9 * (1 - k)).toFixed(3)})`;
+      ctx.beginPath(); ctx.arc(x, y, 4 + 14 * k, 0, 7); ctx.fill();
+    } else if (g.type === 'he') {
+      const k = dt / life;
+      ctx.fillStyle = `rgba(255,140,60,${(0.8 * (1 - k)).toFixed(3)})`;
+      ctx.beginPath(); ctx.arc(x, y, 4 + 12 * k, 0, 7); ctx.fill();
+    } else if (g.type === 'decoy') {
+      ctx.strokeStyle = `rgba(200,200,120,${(0.5 * fade).toFixed(3)})`;
+      ctx.beginPath(); ctx.arc(x, y, 5, 0, 7); ctx.stroke();
+    }
+  }
+}
+
 function drawReplay() {
   if (!rData) return;
   const cv = $('rCv'), ctx = cv.getContext('2d'), w = cv.width;
   drawMapBase(ctx, w, rLayout, $('rLabels').checked);
   const tick = rData.ticks[rIdx];
+
+  drawGrenades(ctx, w, tick);   // bombalar oyuncuların altında
 
   for (const k of rData.kills) {
     if (k.victim_rx != null && tick >= k.tick && tick - k.tick < 3 * rData.tick_rate) {
@@ -224,9 +274,25 @@ function drawReplay() {
     ctx.beginPath(); ctx.arc(x, y, 5.5, 0, 7); ctx.fill();
     ctx.strokeStyle = '#0b0e0c'; ctx.lineWidth = 1;
     ctx.beginPath(); ctx.arc(x, y, 5.5, 0, 7); ctx.stroke();
+    // can halkası: yeşil→kırmızı, HP oranı kadar yay
+    const hp = p.hp[rIdx] ?? 0;
+    ctx.strokeStyle = `hsl(${Math.round(120 * hp / 100)},75%,50%)`; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(x, y, 8.5, -Math.PI/2, -Math.PI/2 + 2*Math.PI*hp/100); ctx.stroke();
+    // körlük: beyaz hale (flash_remaining sn kaldıysa)
+    const fl = p.flash[rIdx] ?? 0;
+    if (fl > 0.2) {
+      ctx.strokeStyle = `rgba(255,255,255,${Math.min(0.9, fl / 3).toFixed(2)})`; ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.arc(x, y, 12, 0, 7); ctx.stroke();
+    }
     ctx.globalAlpha = 1;
     ctx.fillStyle = '#cfd8d0'; ctx.font = '10px system-ui';
-    ctx.fillText(p.nickname || '', x + 8, y + 3);
+    ctx.fillText(p.nickname || '', x + 10, y + 1);
+    // aktif silah
+    const wep = p.weapon[rIdx];
+    if (wep) {
+      ctx.fillStyle = 'rgba(160,170,162,0.85)'; ctx.font = '8.5px system-ui';
+      ctx.fillText(wep, x + 10, y + 10);
+    }
   }
   $('rClock').textContent = replayClock();
   const recent = rData.kills.filter(k => tick >= k.tick && tick - k.tick < 5 * rData.tick_rate);

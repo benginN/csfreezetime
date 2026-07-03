@@ -433,4 +433,3 @@ func (e *Engine) presenceMoments(ctx context.Context, q *Query, roundsSQL string
 	}
 	return out, len(refs), rows.Err()
 }
-

@@ -22,6 +22,9 @@ struct DemoIngested {
     demo_sha256: String,
     match_id: Uuid,
     object_key: String,
+    /// Kaynak dosya adı (takım adlarını içerir); matches.event_name'e yazılır
+    #[serde(default)]
+    source_file: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -187,7 +190,10 @@ async fn handle_message(
 
     // Kanonik match_id: aynı demo daha önce işlendiyse mevcut id korunur (§4.3
     // idempotency); CH dahil tüm yazımlar bu id ile yapılır.
-    let match_id = pg::upsert_match(pg, job.match_id, &job.demo_sha256, &job.object_key, PARSER_VERSION).await?;
+    let match_id = pg::upsert_match(
+        pg, job.match_id, &job.demo_sha256, &job.object_key,
+        PARSER_VERSION, job.source_file.as_deref(),
+    ).await?;
     if match_id != job.match_id {
         info!(canonical = %match_id, "demo daha önce işlenmiş; mevcut match_id kullanılıyor");
     }

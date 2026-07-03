@@ -130,12 +130,14 @@ type playerTrack struct {
 	Nickname string    `json:"nickname"`
 	Side     string    `json:"side"`
 	// tick eksenine paralel diziler; oyuncunun o tick'te verisi yoksa null
-	RX    []*float64 `json:"rx"`
-	RY    []*float64 `json:"ry"`
-	Yaw   []*float64 `json:"yaw"`
-	HP    []*int32   `json:"hp"`
-	Alive []*bool    `json:"alive"`
-	Lower []*bool    `json:"lower,omitempty"` // çok katlı haritada alt kat mı
+	RX     []*float64 `json:"rx"`
+	RY     []*float64 `json:"ry"`
+	Yaw    []*float64 `json:"yaw"`
+	HP     []*int32   `json:"hp"`
+	Alive  []*bool    `json:"alive"`
+	Weapon []*string  `json:"weapon"`
+	Flash  []*float64 `json:"flash"`           // kalan körlük süresi (sn)
+	Lower  []*bool    `json:"lower,omitempty"` // çok katlı haritada alt kat mı
 }
 
 // GET /api/v1/rounds/{match_id}/{n}/ticks — rauntun tüm 16 Hz akışı, radar koordinatlı
@@ -186,7 +188,8 @@ func (s *server) roundTicks(w http.ResponseWriter, r *http.Request) {
 	}
 
 	chRows, err := s.ch.Query(ctx, `
-		SELECT tick, player_id, side, x, y, z, yaw, health, is_alive
+		SELECT tick, player_id, side, x, y, z, yaw, health, is_alive,
+		       active_weapon, flash_remaining
 		FROM player_ticks
 		WHERE match_id = ? AND round_number = ?
 		ORDER BY tick, player_id`, matchID, uint8(roundNo))
@@ -202,17 +205,19 @@ func (s *server) roundTicks(w http.ResponseWriter, r *http.Request) {
 		hp          int32
 		alive       bool
 		lower       bool
+		weapon      string
+		flash       float64
 	}
 	perPlayer := map[uuid.UUID]map[uint32]sample{}
 	sides := map[uuid.UUID]string{}
 	for chRows.Next() {
 		var tick uint32
 		var pid uuid.UUID
-		var side string
-		var x, y, z, yaw float32
+		var side, weapon string
+		var x, y, z, yaw, flash float32
 		var hp uint8
 		var alive bool
-		if err := chRows.Scan(&tick, &pid, &side, &x, &y, &z, &yaw, &hp, &alive); err != nil {
+		if err := chRows.Scan(&tick, &pid, &side, &x, &y, &z, &yaw, &hp, &alive, &weapon, &flash); err != nil {
 			writeErr(w, 500, err)
 			return
 		}
@@ -225,6 +230,7 @@ func (s *server) roundTicks(w http.ResponseWriter, r *http.Request) {
 		perPlayer[pid][tick] = sample{
 			rx: (float64(x) - cal.PosX) / cal.Scale, ry: (cal.PosY - float64(y)) / cal.Scale,
 			yaw: float64(yaw), hp: int32(hp), alive: alive, lower: lower,
+			weapon: weapon, flash: float64(flash),
 		}
 	}
 	if len(tickSet) == 0 {
@@ -244,7 +250,8 @@ func (s *server) roundTicks(w http.ResponseWriter, r *http.Request) {
 			PlayerID: pid, Nickname: nicks[pid], Side: sides[pid],
 			RX: make([]*float64, len(ticks)), RY: make([]*float64, len(ticks)),
 			Yaw: make([]*float64, len(ticks)), HP: make([]*int32, len(ticks)),
-			Alive: make([]*bool, len(ticks)),
+			Alive:  make([]*bool, len(ticks)),
+			Weapon: make([]*string, len(ticks)), Flash: make([]*float64, len(ticks)),
 		}
 		if cal.HasLower {
 			tr.Lower = make([]*bool, len(ticks))
@@ -252,8 +259,10 @@ func (s *server) roundTicks(w http.ResponseWriter, r *http.Request) {
 		for i, t := range ticks {
 			if sm, ok := samples[t]; ok {
 				rx, ry, yaw, hp, alive, lower := sm.rx, sm.ry, sm.yaw, sm.hp, sm.alive, sm.lower
+				weapon, flash := sm.weapon, sm.flash
 				tr.RX[i], tr.RY[i], tr.Yaw[i] = &rx, &ry, &yaw
 				tr.HP[i], tr.Alive[i] = &hp, &alive
+				tr.Weapon[i], tr.Flash[i] = &weapon, &flash
 				if cal.HasLower {
 					tr.Lower[i] = &lower
 				}
@@ -300,10 +309,43 @@ func (s *server) roundTicks(w http.ResponseWriter, r *http.Request) {
 		krows.Close()
 	}
 
+	// Rauntun bombaları: patlama anı + radar konumu (görsel ömür istemcide:
+	// smoke ~20 sn, molotof ~7 sn, flash/he anlık patlama)
+	type grenadeMark struct {
+		Type    string   `json:"type"`
+		Tick    int32    `json:"tick"`
+		Side    *string  `json:"side"`
+		Thrower *string  `json:"thrower"`
+		RX      *float64 `json:"rx"`
+		RY      *float64 `json:"ry"`
+	}
+	var grenades []grenadeMark
+	grows, err := s.pg.Query(ctx, `
+		SELECT g.type, g.detonate_tick, g.side, p.nickname, g.det_x, g.det_y
+		FROM grenades g LEFT JOIN players p ON p.player_id = g.thrower_id
+		WHERE g.match_id = $1 AND g.round_number = $2 AND g.detonate_tick IS NOT NULL
+		ORDER BY g.detonate_tick`, matchID, roundNo)
+	if err == nil {
+		for grows.Next() {
+			var gm grenadeMark
+			var dx, dy *float64
+			if grows.Scan(&gm.Type, &gm.Tick, &gm.Side, &gm.Thrower, &dx, &dy) == nil {
+				if dx != nil && dy != nil {
+					rx := (*dx - cal.PosX) / cal.Scale
+					ry := (cal.PosY - *dy) / cal.Scale
+					gm.RX, gm.RY = &rx, &ry
+				}
+				grenades = append(grenades, gm)
+			}
+		}
+		grows.Close()
+	}
+
 	writeJSON(w, 200, map[string]any{
 		"match_id": matchID, "map_name": mapName, "round_number": roundNo,
 		"freeze_end_tick": freezeEnd, "tick_rate": tickRate,
 		"radar": cal, "ticks": ticks, "players": players, "kills": kills,
+		"grenades": grenades,
 	})
 }
 

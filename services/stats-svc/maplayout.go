@@ -11,7 +11,7 @@ import (
 )
 
 // silüet çözünürlüğü: radar uzayı (1024) / cellPx birimlik hücreler
-const layoutCellPx = 8
+const layoutCellPx = 4
 
 var mapNameRe = regexp.MustCompile(`^de_[a-z0-9_]+$`)
 

@@ -81,6 +81,10 @@ func main() {
 	r.Get("/api/v1/rounds/{match_id}/{n}/ticks", srv.roundTicks)
 	r.Get("/api/v1/heatmap", srv.heatmap)
 	r.Get("/api/v1/maplayout", srv.mapLayoutHandler)
+	// Kullanıcının kendi oyun dosyalarından çıkardığı radar görselleri
+	// (opsiyonel; yoksa istemci veri silüetine düşer)
+	radarDir := envOr("STATS_RADAR_DIR", "services/stats-svc/static/radars")
+	r.Handle("/radars/*", http.StripPrefix("/radars/", http.FileServer(http.Dir(radarDir))))
 	r.Post("/api/v1/query", srv.query)
 	r.Post("/api/v1/stack", srv.stack)
 
@@ -113,9 +117,9 @@ func (s *server) index(w http.ResponseWriter, r *http.Request) {
 
 func (s *server) matches(w http.ResponseWriter, r *http.Request) {
 	rows, err := s.pg.Query(r.Context(), `
-		SELECT m.match_id, m.map_name, m.status, count(r.*) AS rounds
+		SELECT m.match_id, m.map_name, m.status, m.event_name, count(r.*) AS rounds
 		FROM matches m LEFT JOIN rounds r ON r.match_id = m.match_id
-		GROUP BY m.match_id, m.map_name, m.status ORDER BY m.map_name`)
+		GROUP BY m.match_id, m.map_name, m.status, m.event_name ORDER BY m.event_name NULLS LAST, m.map_name`)
 	if err != nil {
 		writeErr(w, 500, err)
 		return
@@ -125,12 +129,13 @@ func (s *server) matches(w http.ResponseWriter, r *http.Request) {
 		MatchID uuid.UUID `json:"match_id"`
 		MapName *string   `json:"map_name"`
 		Status  string    `json:"status"`
+		Name    *string   `json:"name"`
 		Rounds  int       `json:"rounds"`
 	}
 	var out []match
 	for rows.Next() {
 		var m match
-		if err := rows.Scan(&m.MatchID, &m.MapName, &m.Status, &m.Rounds); err != nil {
+		if err := rows.Scan(&m.MatchID, &m.MapName, &m.Status, &m.Name, &m.Rounds); err != nil {
 			writeErr(w, 500, err)
 			return
 		}
@@ -228,7 +233,7 @@ func (s *server) heatmap(w http.ResponseWriter, r *http.Request) {
 	defer chRows.Close()
 
 	type bucket struct {
-		T     uint16    `json:"t"`
+		T     uint16     `json:"t"`
 		Cells [][3]int64 `json:"cells"` // [grid_x, grid_y, presence]
 	}
 	var buckets []bucket
