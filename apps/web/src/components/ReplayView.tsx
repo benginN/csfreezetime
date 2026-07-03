@@ -53,10 +53,11 @@ function shortInv(inv: string[] | null): string {
 }
 
 export default function ReplayView({
-  matchId, round, seekTick, matchKills, rounds, teams,
+  matchId, round, onRound, seekTick, matchKills, rounds, teams,
 }: {
   matchId: string;
   round: number;
+  onRound: (n: number) => void;
   seekTick: number | null;
   matchKills: KillRow[];
   rounds: RoundRow[];
@@ -584,16 +585,8 @@ export default function ReplayView({
 
   return (
     <div className="replaylayout">
-      {/* Sol: harita + oynatma */}
+      {/* Sol: yalnız harita + zaman çubuğu — üstte hiçbir şey yok */}
       <div>
-        <div className="toolbar">
-          <button onClick={() => setPlaying(!playing)}>{playing ? '⏸' : '▶'}</button>
-          <select value={speed} onChange={(e) => setSpeed(Number(e.target.value))}>
-            {[1, 2, 4, 8].map((s) => <option key={s} value={s}>{s}×</option>)}
-          </select>
-          <span className="meta" style={{ fontVariantNumeric: 'tabular-nums' }}>{clock}</span>
-          {(heatQ.isFetching || ghostQ.isFetching) && <span className="meta">loading layers…</span>}
-        </div>
         <div className="stagebox">
           <div ref={stageRef} />
           {showReplay && <HudPanel rows={tRows} cls="left" />}
@@ -623,16 +616,47 @@ export default function ReplayView({
             <input type="checkbox" checked={showReplay} onChange={(e) => setShowReplay(e.target.checked)} />
             Replay
           </label>
-          {showReplay && (
-            <div className="layerbody">
-              <label>
-                <input type="checkbox" checked={showNames} onChange={(e) => setShowNames(e.target.checked)} /> player names
-              </label>
-              <label>
-                <input type="checkbox" checked={showPlaces} onChange={(e) => setShowPlaces(e.target.checked)} /> map callouts
-              </label>
+          {/* oynatma + raunt seçimi her zaman görünür: saat hayaletleri de sürer */}
+          <div className="layerbody">
+            <div className="row">
+              <button onClick={() => setPlaying(!playing)}>{playing ? '⏸' : '▶'}</button>
+              <select value={speed} onChange={(e) => setSpeed(Number(e.target.value))}>
+                {[1, 2, 4, 8].map((s) => <option key={s} value={s}>{s}×</option>)}
+              </select>
+              <span className="meta" style={{ fontVariantNumeric: 'tabular-nums' }}>{clock}</span>
+              {(heatQ.isFetching || ghostQ.isFetching) && <span className="meta">…</span>}
             </div>
-          )}
+            {showReplay && (
+              <>
+                <label>
+                  <input type="checkbox" checked={showNames} onChange={(e) => setShowNames(e.target.checked)} /> player names
+                </label>
+                <label>
+                  <input type="checkbox" checked={showPlaces} onChange={(e) => setShowPlaces(e.target.checked)} /> map callouts
+                </label>
+              </>
+            )}
+            <div className="chiplegend" style={{ marginBottom: 2 }}>
+              <span><i style={{ background: '#86d8e8' }} />{teams.a ?? 'Team A'}</span>
+              <span><i style={{ background: '#dcaaea' }} />{teams.b ?? 'Team B'}</span>
+              <span><span className="sideT" />T</span>
+              <span><span className="sideCT" />CT</span>
+            </div>
+            <div className="roundchips">
+              {rounds.map((r, i) => (
+                <Fragment key={r.round_number}>
+                  {isSideSwap(rounds[i - 1], r) && <span className="halfdiv" title="side swap" />}
+                  <button
+                    className={`${winnerTeamClass(r, teams.aId)} win${r.winner_side ?? ''} ${r.round_number === round ? 'sel' : ''}`}
+                    onClick={() => onRound(r.round_number)}
+                    title={chipTitle(r, teams)}
+                  >
+                    {r.round_number}
+                  </button>
+                </Fragment>
+              ))}
+            </div>
+          </div>
         </div>
 
         <div className="layerpanel">

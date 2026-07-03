@@ -1,8 +1,7 @@
-import { Fragment } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../api';
-import { chipTitle, isSideSwap, winnerTeamClass } from '../lib/rounds';
+import { winnerTeamClass } from '../lib/rounds';
 import ReplayView from '../components/ReplayView';
 
 // Maç sayfası: kompakt başlık + sekmeler. Çipler kazanan TAKIM renginde
@@ -53,31 +52,11 @@ export default function MatchPage() {
         <span className="meta">{d.map_name}{summary.data?.played_at ? ` · ${summary.data.played_at}` : ''}</span>
       </h1>
 
-      <div className="chiplegend">
-        <span><i style={{ background: '#86d8e8' }} />{d.team_a ?? 'Team A'}</span>
-        <span><i style={{ background: '#dcaaea' }} />{d.team_b ?? 'Team B'}</span>
-        <span><span className="sideT" />won as T</span>
-        <span><span className="sideCT" />won as CT</span>
-        <span className="meta">| = side swap</span>
-      </div>
-      <div className="roundchips">
-        {d.rounds.map((r, i) => (
-          <Fragment key={r.round_number}>
-            {isSideSwap(d.rounds[i - 1], r) && <span className="halfdiv" title="side swap" />}
-            <button
-              className={`${winnerTeamClass(r, d.team_a_id)} win${r.winner_side ?? ''} ${r.round_number === round ? 'sel' : ''}`}
-              onClick={() => setRound(r.round_number)}
-              title={chipTitle(r, teams)}
-            >
-              {r.round_number}
-            </button>
-          </Fragment>
-        ))}
-      </div>
       <ReplayView
         key={`${id}-${round}`}
         matchId={id}
         round={round}
+        onRound={setRound}
         seekTick={seekTick}
         matchKills={d.kills}
         rounds={d.rounds}
