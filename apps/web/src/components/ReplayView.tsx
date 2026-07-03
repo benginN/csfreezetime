@@ -26,6 +26,15 @@ function lowerBound(arr: number[], v: number): number {
   return lo;
 }
 
+/** İki rengi karıştırır (t=0 → a, t=1 → b). */
+function mixColor(a: number, b: number, t: number): number {
+  const ar = a >> 16, ag = (a >> 8) & 255, ab = a & 255;
+  const br = b >> 16, bg = (b >> 8) & 255, bb = b & 255;
+  return (Math.round(ar + (br - ar) * t) << 16)
+    | (Math.round(ag + (bg - ag) * t) << 8)
+    | Math.round(ab + (bb - ab) * t);
+}
+
 function hslToRgbHex(h: number, s: number, l: number): number {
   const a = s * Math.min(l, 1 - l);
   const f = (k: number) => {
@@ -781,7 +790,20 @@ export default function ReplayView({
               g.circle(mx0, my0, 1.8 * s).fill({ color: 0xfff6d8, alpha: 0.9 * fade });
             }
           }
-          g.circle(x, y, 5.5 * Math.max(s, 0.7)).fill({ color: col })
+          // körlük: sert halka yerine yumuşak beyazlama — nokta beyaza döner
+          // ve kalan körlük süresiyle YAVAŞÇA takım rengine geri solar.
+          // fl kareler arası interpolasyonlu (akıcı sönüş).
+          const fl0 = p.flash[i0] ?? 0;
+          const fl1 = p.flash[i1] ?? fl0;
+          const fl = fl0 + (fl1 - fl0) * frac;
+          const blind = Math.min(1, fl / 2.5); // 0..1
+          const dotCol = blind > 0.02 ? mixColor(col, 0xffffff, 0.85 * blind) : col;
+          if (blind > 0.02) {
+            // dıştan içe sönen yumuşak beyaz ışıma
+            g.circle(x, y, (9 + 7 * blind) * Math.max(s, 0.7))
+             .fill({ color: 0xffffff, alpha: 0.35 * blind });
+          }
+          g.circle(x, y, 5.5 * Math.max(s, 0.7)).fill({ color: dotCol })
            .stroke({ width: 1, color: 0x0b0e0c });
           // can halkası — yay başlangıcına moveTo: aksi halde yol (0,0)'dan
           // bağlanıp sol üstten gelen hayalet çizgi oluşturuyordu
@@ -793,11 +815,6 @@ export default function ReplayView({
             g.moveTo(x + r * Math.cos(a0), y + r * Math.sin(a0));
             g.arc(x, y, r, a0, a1);
             g.stroke({ width: 2, color: hslToHex(Math.round((120 * hp) / 100), 0.75, 0.5) });
-          }
-          const fl = p.flash[i0] ?? 0;
-          if (fl > 0.2) {
-            g.circle(x, y, 12 * Math.max(s, 0.7))
-             .stroke({ width: 3, color: 0xffffff, alpha: Math.min(0.9, fl / 3) });
           }
           // seçili oyuncu vurgusu (zaman çubuğu onu takip ediyor)
           if (p.nickname === selPlayerRef.current) {
