@@ -141,15 +141,18 @@ INSERT INTO orgs (org_id, name)
 VALUES ('00000000-0000-0000-0000-000000000001', 'default')
 ON CONFLICT (org_id) DO NOTHING;
 
--- Aktif harita havuzu; radar kalibrasyonu placeholder (gerçek meta Faz 2, §4.5).
+-- Aktif harita havuzu; radar kalibrasyonu (§4.5) overview meta verilerinden.
+-- ancient/anubis/dust2/mirage/nuke/overpass gerçek maç verisiyle doğrulandı
+-- (tüm pozisyonlar [0,1024] radar aralığında); inferno/train/vertigo henüz
+-- verisiz, ilk demo işlendiğinde doğrulanmalı.
 INSERT INTO maps (map_name, radar_pos_x, radar_pos_y, radar_scale, has_lower_level, level_split_z) VALUES
-    ('de_ancient',  0, 0, 1, FALSE, NULL),
-    ('de_anubis',   0, 0, 1, FALSE, NULL),
-    ('de_dust2',    0, 0, 1, FALSE, NULL),
-    ('de_inferno',  0, 0, 1, FALSE, NULL),
-    ('de_mirage',   0, 0, 1, FALSE, NULL),
-    ('de_nuke',     0, 0, 1, TRUE,  -480),
-    ('de_overpass', 0, 0, 1, FALSE, NULL),
-    ('de_train',    0, 0, 1, FALSE, NULL),
-    ('de_vertigo',  0, 0, 1, TRUE,  11700)
+    ('de_ancient',  -2953, 2164, 5.00,  FALSE, NULL),
+    ('de_anubis',   -2796, 3328, 5.22,  FALSE, NULL),
+    ('de_dust2',    -2476, 3239, 4.40,  FALSE, NULL),
+    ('de_inferno',  -2087, 3870, 4.90,  FALSE, NULL),
+    ('de_mirage',   -3230, 1713, 5.00,  FALSE, NULL),
+    ('de_nuke',     -3453, 2887, 7.00,  TRUE,  -495),
+    ('de_overpass', -4831, 1781, 5.20,  FALSE, NULL),
+    ('de_train',    -2308, 2078, 4.082, FALSE, NULL),
+    ('de_vertigo',  -3168, 1762, 4.00,  TRUE,  11700)
 ON CONFLICT (map_name) DO NOTHING;
