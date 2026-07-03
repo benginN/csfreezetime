@@ -159,7 +159,7 @@ function HeatCard({
     const cv = cvRef.current;
     if (!cv || !base) return;
     const ctx = hidpiCtx(cv, MAPW);
-    drawMapBase(ctx, MAPW, base, true);
+    drawMapBase(ctx, MAPW, base, false);
     if (heat.data) paintHeat(ctx, MAPW, base, heat.data);
   }, [base, heat.data]);
   return (

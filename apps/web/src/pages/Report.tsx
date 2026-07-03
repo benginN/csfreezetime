@@ -315,7 +315,7 @@ function UtilitySection({ d, mapName }: { d: ReportResp; mapName: string }) {
     const cv = cvRef.current;
     if (!cv || !base) return;
     const ctx = hidpiCtx(cv, MAPW);
-    drawMapBase(ctx, MAPW, base, true);
+    drawMapBase(ctx, MAPW, base, false);
     const maxC = Math.max(1, ...spots.map((s) => s.count));
     for (const sp of spots) {
       const x = (sp.det_rx * MAPW) / RADAR, y = (sp.det_ry * MAPW) / RADAR;
