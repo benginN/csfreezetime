@@ -655,14 +655,15 @@ export default function ReplayView({
 
   return (
     <div className="replaylayout">
-      {/* Sol: yalnız harita + zaman çubuğu — üstte hiçbir şey yok */}
-      <div>
+      {/* Sol: yalnız harita + zaman çubuğu. Genişlik görünür yüksekliğe göre
+          kısıtlanır ki zaman çubuğu kaydırmadan görünsün. */}
+      <div className="mapcol" style={{ width: `min(${W}px, calc(100vh - 150px))` }}>
         <div className="stagebox">
           <div ref={stageRef} />
-          {showReplay && <HudPanel rows={tRows} cls="left" />}
-          {showReplay && <HudPanel rows={ctRows} cls="right" />}
+          {showReplay && <HudPanel rows={tRows} cls="left" sel={selPlayer} onSel={setSelPlayer} />}
+          {showReplay && <HudPanel rows={ctRows} cls="right" sel={selPlayer} onSel={setSelPlayer} />}
         </div>
-        <div className="timeline" style={{ width: W }}>
+        <div className="timeline" style={{ width: '100%' }}>
           <input
             ref={sliderRef}
             type="range"
@@ -872,7 +873,14 @@ export default function ReplayView({
   );
 }
 
-function HudPanel({ rows, cls }: { rows: HudRow[]; cls: string }) {
+function HudPanel({
+  rows, cls, sel, onSel,
+}: {
+  rows: HudRow[];
+  cls: string;
+  sel: string;
+  onSel: (n: string | ((cur: string) => string)) => void;
+}) {
   return (
     <div className={`hud ${cls}`}>
       <table>
@@ -888,7 +896,13 @@ function HudPanel({ rows, cls }: { rows: HudRow[]; cls: string }) {
           {rows.map((r) => (
             <>
               <tr key={r.nick} style={{ opacity: r.alive ? 1 : 0.4 }}>
-                <td className="cut" style={{ fontWeight: 600 }}>{r.nick}</td>
+                <td
+                  className={`cut nick ${sel === r.nick ? 'selnick' : ''}`}
+                  title="focus timeline on this player"
+                  onClick={() => onSel((cur) => (cur === r.nick ? '' : r.nick))}
+                >
+                  {r.nick}
+                </td>
                 <td>
                   <span className="hpbar">
                     <i style={{ width: `${r.hp}%`, background: `hsl(${(120 * r.hp) / 100},70%,45%)` }} />
