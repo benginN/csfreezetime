@@ -140,6 +140,20 @@ canvas.flat { border: 1px solid #232a26; border-radius: 6px; display:block; }
 .roundchips button.A { background: #14424a; color: #86d8e8; }
 .roundchips button.B { background: #46274f; color: #dcaaea; }
 .roundchips button.sel { outline: 2px solid #4c8f52; color: #fff; }
+/* kazananın o rauntta oynadığı taraf: alt şerit (T amber, CT mavi) */
+.roundchips button { position: relative; }
+.roundchips button.winT::after, .roundchips button.winCT::after {
+  content: ''; position: absolute; bottom: 2px; left: 6px; right: 6px;
+  height: 3px; border-radius: 2px;
+}
+.roundchips button.winT::after { background: #eec27f; }
+.roundchips button.winCT::after { background: #9ecbf0; }
+.chiplegend .sideT, .chiplegend .sideCT {
+  display: inline-block; width: 14px; height: 3px; border-radius: 2px;
+  margin-right: 5px; vertical-align: 3px;
+}
+.chiplegend .sideT { background: #eec27f; }
+.chiplegend .sideCT { background: #9ecbf0; }
 .halfdiv {
   width: 2px; height: 30px; background: #4c5a50; border-radius: 1px;
   margin: 0 4px; align-self: center;

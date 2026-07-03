@@ -161,7 +161,7 @@ export default function StackView({
           <Fragment key={r.round_number}>
             {isSideSwap(rounds[i - 1], r) && <span className="halfdiv" title="side swap" />}
             <button
-              className={`${winnerTeamClass(r, teams.aId)} ${selected.has(r.round_number) ? 'sel' : ''}`}
+              className={`${winnerTeamClass(r, teams.aId)} win${r.winner_side ?? ''} ${selected.has(r.round_number) ? 'sel' : ''}`}
               onClick={() => toggle(r.round_number)}
               title={chipTitle(r, teams)}
             >

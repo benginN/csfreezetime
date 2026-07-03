@@ -70,14 +70,16 @@ export default function MatchPage() {
           <div className="chiplegend">
             <span><i style={{ background: '#86d8e8' }} />{d.team_a ?? 'Team A'}</span>
             <span><i style={{ background: '#dcaaea' }} />{d.team_b ?? 'Team B'}</span>
-            <span className="meta">chip color = round winner · divider = side swap</span>
+            <span><span className="sideT" />won as T</span>
+            <span><span className="sideCT" />won as CT</span>
+            <span className="meta">| = side swap</span>
           </div>
           <div className="roundchips">
             {d.rounds.map((r, i) => (
               <Fragment key={r.round_number}>
                 {isSideSwap(d.rounds[i - 1], r) && <span className="halfdiv" title="side swap" />}
                 <button
-                  className={`${winnerTeamClass(r, d.team_a_id)} ${r.round_number === round ? 'sel' : ''}`}
+                  className={`${winnerTeamClass(r, d.team_a_id)} win${r.winner_side ?? ''} ${r.round_number === round ? 'sel' : ''}`}
                   onClick={() => setRound(r.round_number)}
                   title={chipTitle(r, teams)}
                 >
