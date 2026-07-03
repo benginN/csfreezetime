@@ -18,3 +18,5 @@ gitignore'da). Kendi CS2 kurulumundan çıkarabilirsin:
 
 Radar görseli, `maps` tablosundaki kalibrasyonla (pos_x/pos_y/scale) aynı
 uzayı kullanır — CS2'nin kendi overview meta verisi olduğu için birebir oturur.
+4. **Vektör (SVG) radar da desteklenir** — `de_<harita>.svg` PNG'den önce denenir;
+   zoom'da çözünürlük sınırı olmadan keskin kalır. AI dosyasını SVG olarak export et.
