@@ -4,6 +4,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -110,49 +111,89 @@ func (s *server) matchHeatmap(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, 500, err)
 		return
 	}
-	var windows []string
-	nRounds := 0
+	var windows []heatWindow
 	for prows.Next() {
 		var rn int16
 		var fe, end *int32
 		if prows.Scan(&rn, &fe, &end) != nil || fe == nil {
 			continue
 		}
-		lo := *fe + int32(t0)*tickRate
-		hi := *fe + int32(t1)*tickRate
-		if end != nil && hi > *end {
-			hi = *end
+		if hw, ok := makeWindow(matchID, rn, *fe, end, t0, t1); ok {
+			windows = append(windows, hw)
 		}
-		if hi <= lo {
-			continue
-		}
-		windows = append(windows,
-			fmt.Sprintf("(round_number = %d AND tick BETWEEN %d AND %d)", rn, lo, hi))
-		nRounds++
 	}
 	prows.Close()
-	if len(windows) == 0 {
-		writeJSON(w, 200, map[string]any{"cells": [][3]int32{}, "round_count": 0, "radar": cal})
-		return
-	}
 
-	const cellRadar = 8.0 // radar birimi; 1024/8 = 128×128 ızgara
-	cond := "match_id = ? AND is_alive AND (" + strings.Join(windows, " OR ") + ")"
-	args := []any{matchID}
-	if side != "" {
-		cond += " AND side = ?"
-		args = append(args, side)
-	}
+	var playerID *uuid.UUID
 	if pid := q.Get("player_id"); pid != "" {
 		pu, err := uuid.Parse(pid)
 		if err != nil {
 			writeErr(w, 400, fmt.Errorf("invalid player_id"))
 			return
 		}
-		cond += " AND player_id = ?"
-		args = append(args, pu)
+		playerID = &pu
 	}
-	// Çok katlı haritada hücreler kata göre ayrışır (istemci inset'e çizer)
+	cells, cellsLower, err := s.heatCells(ctx, cal, mapName, windows, side, playerID)
+	if err != nil {
+		writeErr(w, 500, err)
+		return
+	}
+	resp := map[string]any{
+		"cells": cells, "cell_radar": heatCellRadar,
+		"round_count": len(windows), "radar": cal,
+	}
+	if cal.HasLower {
+		resp["cells_lower"] = cellsLower
+	}
+	writeJSON(w, 200, resp)
+}
+
+const heatCellRadar = 8.0 // radar birimi; 1024/8 = 128×128 ızgara
+
+type heatWindow struct {
+	matchID uuid.UUID
+	round   int16
+	lo, hi  int32
+}
+
+func makeWindow(matchID uuid.UUID, rn int16, freezeEnd int32, end *int32, t0, t1 int) (heatWindow, bool) {
+	lo := freezeEnd + int32(t0)*tickRate
+	hi := freezeEnd + int32(t1)*tickRate
+	if end != nil && hi > *end {
+		hi = *end
+	}
+	if hi <= lo {
+		return heatWindow{}, false
+	}
+	return heatWindow{matchID: matchID, round: rn, lo: lo, hi: hi}, true
+}
+
+// heatCells: pencere listesinden radar-hücre yoğunlukları (kat ayrımlı).
+// Maç-bazlı ve takım-arşivi ısı haritaları bu tek sorguyu paylaşır.
+func (s *server) heatCells(
+	ctx context.Context, cal *radarCal, mapName string,
+	windows []heatWindow, side string, playerID *uuid.UUID,
+) (cells, cellsLower [][3]int32, err error) {
+	cells, cellsLower = [][3]int32{}, [][3]int32{}
+	if len(windows) == 0 {
+		return cells, cellsLower, nil
+	}
+	parts := make([]string, 0, len(windows))
+	for _, hw := range windows {
+		parts = append(parts, fmt.Sprintf(
+			"(match_id = '%s' AND round_number = %d AND tick BETWEEN %d AND %d)",
+			hw.matchID, hw.round, hw.lo, hw.hi))
+	}
+	cond := "map_name = ? AND is_alive AND (" + strings.Join(parts, " OR ") + ")"
+	args := []any{mapName}
+	if side != "" {
+		cond += " AND side = ?"
+		args = append(args, side)
+	}
+	if playerID != nil {
+		cond += " AND player_id = ?"
+		args = append(args, *playerID)
+	}
 	lvlExpr := "0"
 	if cal.HasLower && cal.SplitZ != nil {
 		lvlExpr = fmt.Sprintf("toUInt8(z < %f)", *cal.SplitZ)
@@ -163,15 +204,12 @@ func (s *server) matchHeatmap(w http.ResponseWriter, r *http.Request) {
 		       %s AS lvl,
 		       toInt32(count()) AS w
 		FROM player_ticks WHERE %s GROUP BY cx, cy, lvl`,
-		cal.PosX, cal.Scale, cellRadar, cal.PosY, cal.Scale, cellRadar, lvlExpr, cond)
+		cal.PosX, cal.Scale, heatCellRadar, cal.PosY, cal.Scale, heatCellRadar, lvlExpr, cond)
 	rows, err := s.ch.Query(ctx, chq, args...)
 	if err != nil {
-		writeErr(w, 500, err)
-		return
+		return nil, nil, err
 	}
 	defer rows.Close()
-	cells := [][3]int32{}
-	cellsLower := [][3]int32{}
 	for rows.Next() {
 		var cx, cy, wt int32
 		var lvl uint8
@@ -183,9 +221,70 @@ func (s *server) matchHeatmap(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
+	return cells, cellsLower, rows.Err()
+}
+
+// GET /api/v1/teams/{id}/heatmap?map&side=T&t0&t1 — takımın arşiv geneli
+// ısı haritası (taraf-farkındalıklı raunt seçimi: t/ct_team_id).
+func (s *server) teamHeatmap(w http.ResponseWriter, r *http.Request) {
+	teamID, err := uuid.Parse(chi.URLParam(r, "id"))
+	if err != nil {
+		writeErr(w, 400, fmt.Errorf("invalid team_id"))
+		return
+	}
+	q := r.URL.Query()
+	mapName, side := q.Get("map"), q.Get("side")
+	if mapName == "" || (side != "T" && side != "CT") {
+		writeErr(w, 400, fmt.Errorf("map and side (T|CT) are required"))
+		return
+	}
+	t0, _ := strconv.Atoi(q.Get("t0"))
+	t1 := 115
+	if v, err := strconv.Atoi(q.Get("t1")); err == nil {
+		t1 = v
+	}
+	if t1 < t0 {
+		t0, t1 = t1, t0
+	}
+	ctx := r.Context()
+	cal, err := s.radarFor(ctx, mapName)
+	if err != nil {
+		writeErr(w, 500, err)
+		return
+	}
+	teamCol := "t_team_id"
+	if side == "CT" {
+		teamCol = "ct_team_id"
+	}
+	prows, err := s.pg.Query(ctx, `
+		SELECT r.match_id, r.round_number, COALESCE(r.freeze_end_tick, r.start_tick), r.end_tick
+		FROM rounds r JOIN matches m ON m.match_id = r.match_id AND m.status = 'ready'
+		WHERE m.map_name = $1 AND r.`+teamCol+` = $2`, mapName, teamID)
+	if err != nil {
+		writeErr(w, 500, err)
+		return
+	}
+	var windows []heatWindow
+	for prows.Next() {
+		var mid uuid.UUID
+		var rn int16
+		var fe, end *int32
+		if prows.Scan(&mid, &rn, &fe, &end) != nil || fe == nil {
+			continue
+		}
+		if hw, ok := makeWindow(mid, rn, *fe, end, t0, t1); ok {
+			windows = append(windows, hw)
+		}
+	}
+	prows.Close()
+	cells, cellsLower, err := s.heatCells(ctx, cal, mapName, windows, side, nil)
+	if err != nil {
+		writeErr(w, 500, err)
+		return
+	}
 	resp := map[string]any{
-		"cells": cells, "cell_radar": cellRadar,
-		"round_count": nRounds, "radar": cal,
+		"cells": cells, "cell_radar": heatCellRadar,
+		"round_count": len(windows), "radar": cal,
 	}
 	if cal.HasLower {
 		resp["cells_lower"] = cellsLower

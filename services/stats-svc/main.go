@@ -104,6 +104,8 @@ func main() {
 	r.Get("/api/v1/matches/{id}/status", srv.matchStatus)
 	r.Get("/api/v1/matches/{id}/players", srv.matchPlayers)
 	r.Get("/api/v1/matches/{id}/heatmap", srv.matchHeatmap)
+	r.Get("/api/v1/teams/{id}/heatmap", srv.teamHeatmap)
+	r.Get("/api/v1/report", srv.report)
 
 	// SPA (apps/web/dist): dosya varsa onu, yoksa index.html'i döndür
 	// (client-side routing); dist yoksa kök, test sayfasına düşer.
