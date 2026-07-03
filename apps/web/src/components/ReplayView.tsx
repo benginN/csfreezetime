@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Application, Container, Graphics, Sprite, Text, Texture } from 'pixi.js';
 import { api, type KillRow } from '../api';
-import { loadMapBase, renderMapBaseCanvas, RADAR, SIDE_COLOR, type MapBase, type MapLevel } from '../lib/mapbase';
+import { loadMapBase, renderMapBaseCanvas, RADAR, SIDE_COLOR, type MapBase } from '../lib/mapbase';
 
 const W = 860;
 const NADE_LIFE: Record<string, number> = { smoke: 20, molotov: 7, incendiary: 7, flash: 0.7, he: 0.7, decoy: 15 };
@@ -48,7 +48,6 @@ export default function ReplayView({
   const [playing, setPlaying] = useState(false);
   const [speed, setSpeed] = useState(2);
   const [labels, setLabels] = useState(true);
-  const [level, setLevel] = useState<MapLevel>('upper'); // nuke/vertigo katı
   const [clock, setClock] = useState('0:00');
   const [hudRows, setHudRows] = useState<HudRow[]>([]);
 
@@ -83,24 +82,49 @@ export default function ReplayView({
       const px = (v: number) => (v * W) / RADAR;
       const worldPx = (u: number) => px(u / d.radar.scale);
 
-      const baseSprite = new Sprite(Texture.from(renderMapBaseCanvas(base, W, labels, level)));
-      // seçili kat dışındaki nesneler soluk çizilir
-      const onLevel = (lower: boolean | null | undefined) =>
-        !d.radar.has_lower || lower == null || (level === 'lower') === lower;
+      const baseSprite = new Sprite(Texture.from(renderMapBaseCanvas(base, W, labels, 'upper')));
+      // Çok katlı haritada alt kat: sağ üstte sabit mini harita (turnuva stili)
+      const hasLower = d.radar.has_lower;
+      const INS = Math.round(W * 0.38);         // inset boyutu
+      const IX = W - INS - 8, IY = 8;           // inset konumu (sağ üst)
       const gNades = new Graphics();
       const gKills = new Graphics();
       const playersLayer = new Container();
-      const feedLayer = new Container(); // canvas içi killfeed (sağ üst, gri)
-      app.stage.addChild(baseSprite, gNades, gKills, playersLayer, feedLayer);
+      const feedLayer = new Container(); // canvas içi killfeed (gri)
+      app.stage.addChild(baseSprite);
+      if (hasLower) {
+        const insetSprite = new Sprite(Texture.from(renderMapBaseCanvas(base, INS, false, 'lower')));
+        insetSprite.position.set(IX, IY);
+        const border = new Graphics()
+          .rect(IX - 1, IY - 1, INS + 2, INS + 2)
+          .stroke({ width: 1.5, color: 0x3a5f3e });
+        const tag = new Text({
+          text: 'ALT KAT',
+          style: { fontSize: 10, fill: 0x9fc79f, fontFamily: 'system-ui' },
+        });
+        tag.position.set(IX + 5, IY + INS - 16);
+        app.stage.addChild(insetSprite, border, tag);
+      }
+      app.stage.addChild(gNades, gKills, playersLayer, feedLayer);
+
+      // Konum eşleme: nesne kendi katının görünümüne çizilir.
+      // s = boyut ölçeği (inset'te her şey küçülür).
+      const place = (rx: number, ry: number, lower: boolean | null | undefined) => {
+        if (hasLower && lower) {
+          return { x: IX + (rx * INS) / RADAR, y: IY + (ry * INS) / RADAR, s: INS / W };
+        }
+        return { x: (rx * W) / RADAR, y: (ry * W) / RADAR, s: 1 };
+      };
 
       const feedTexts: Text[] = [];
+      const feedX = hasLower ? IX - 12 : W - 10; // inset varsa onun soluna
       for (let i = 0; i < 6; i++) {
         const t = new Text({
           text: '',
           style: { fontSize: 12, fill: 0xb9c2bb, fontFamily: 'system-ui' },
         });
         t.anchor.set(1, 0);
-        t.position.set(W - 10, 10 + i * 17);
+        t.position.set(feedX, 10 + i * 17);
         feedLayer.addChild(t);
         feedTexts.push(t);
       }
@@ -134,34 +158,32 @@ export default function ReplayView({
         gNades.clear();
         for (const g of d.grenades ?? []) {
           if (g.rx == null || g.ry == null) continue;
-          if (!onLevel(g.lower)) continue; // diğer kattaki bomba çizilmez
           const dt = (tick - g.tick) / d.tick_rate;
           const life = NADE_LIFE[g.type] ?? 1;
           if (dt < 0 || dt > life) continue;
-          const x = px(g.rx), y = px(g.ry);
+          const { x, y, s } = place(g.rx, g.ry, g.lower);
           const fade = Math.min(1, (life - dt) / 2);
           if (g.type === 'smoke') {
-            gNades.circle(x, y, worldPx(144)).fill({ color: 0xb4b9be, alpha: 0.45 * fade });
+            gNades.circle(x, y, worldPx(144) * s).fill({ color: 0xb4b9be, alpha: 0.45 * fade });
           } else if (g.type === 'molotov' || g.type === 'incendiary') {
-            gNades.circle(x, y, worldPx(120)).fill({ color: 0xeb781e, alpha: 0.4 * fade });
+            gNades.circle(x, y, worldPx(120) * s).fill({ color: 0xeb781e, alpha: 0.4 * fade });
           } else if (g.type === 'flash') {
             const k = dt / life;
-            gNades.circle(x, y, 4 + 14 * k).fill({ color: 0xffffff, alpha: 0.9 * (1 - k) });
+            gNades.circle(x, y, (4 + 14 * k) * s).fill({ color: 0xffffff, alpha: 0.9 * (1 - k) });
           } else if (g.type === 'he') {
             const k = dt / life;
-            gNades.circle(x, y, 4 + 12 * k).fill({ color: 0xff8c3c, alpha: 0.8 * (1 - k) });
+            gNades.circle(x, y, (4 + 12 * k) * s).fill({ color: 0xff8c3c, alpha: 0.8 * (1 - k) });
           } else if (g.type === 'decoy') {
-            gNades.circle(x, y, 5).stroke({ width: 1, color: 0xc8c878, alpha: 0.5 * fade });
+            gNades.circle(x, y, 5 * s).stroke({ width: 1, color: 0xc8c878, alpha: 0.5 * fade });
           }
         }
 
         gKills.clear();
         for (const k of d.kills) {
           if (k.victim_rx == null || k.victim_ry == null) continue;
-          if (!onLevel(k.lower)) continue;
           if (tick >= k.tick && tick - k.tick < 3 * d.tick_rate) {
-            gKills.circle(px(k.victim_rx), px(k.victim_ry), 11)
-              .stroke({ width: 2, color: 0xe05545, alpha: 0.8 });
+            const { x, y, s } = place(k.victim_rx, k.victim_ry, k.lower);
+            gKills.circle(x, y, 11 * s).stroke({ width: 2, color: 0xe05545, alpha: 0.8 });
           }
         }
 
@@ -173,42 +195,46 @@ export default function ReplayView({
             return;
           }
           const rx1 = p.rx[i1] ?? rx0, ry1 = p.ry[i1] ?? ry0;
-          const x = px(rx0 + (rx1 - rx0) * frac);
-          const y = px(ry0 + (ry1 - ry0) * frac);
+          const lower = p.lower ? (p.lower[i0] ?? false) : false;
+          const { x, y, s } = place(
+            rx0 + (rx1 - rx0) * frac,
+            ry0 + (ry1 - ry0) * frac,
+            lower,
+          );
           const alive = p.alive[i0] ?? false;
           const col = SIDE_COLOR[p.side] ?? 0x999999;
           const g = node.g;
           g.clear();
-          node.name.visible = labels && alive;
+          // inset'te isim sığmaz; ana görünümde etiketlere bağlı
+          node.name.visible = labels && alive && s === 1;
 
           if (!alive) {
-            g.moveTo(x - 4, y - 4).lineTo(x + 4, y + 4)
-             .moveTo(x + 4, y - 4).lineTo(x - 4, y + 4)
+            g.moveTo(x - 4 * s, y - 4 * s).lineTo(x + 4 * s, y + 4 * s)
+             .moveTo(x + 4 * s, y - 4 * s).lineTo(x - 4 * s, y + 4 * s)
              .stroke({ width: 1.5, color: 0xaaaaaa, alpha: 0.55 });
+            node.name.visible = false;
             return;
           }
-          const lower = p.lower ? (p.lower[i0] ?? false) : false;
           const yaw = ((p.yaw[i0] ?? 0) * Math.PI) / 180;
-          // seçili kattaki oyuncu tam, diğer kattaki hayalet gibi soluk
-          const alpha = onLevel(lower) ? 1 : 0.22;
-          node.name.visible = labels && alive && onLevel(lower);
-          g.moveTo(x, y).lineTo(x + 15 * Math.cos(yaw), y - 15 * Math.sin(yaw))
-           .stroke({ width: 1.5, color: col, alpha });
-          g.circle(x, y, 5.5).fill({ color: col, alpha })
+          g.moveTo(x, y).lineTo(x + 15 * s * Math.cos(yaw), y - 15 * s * Math.sin(yaw))
+           .stroke({ width: 1.5, color: col });
+          g.circle(x, y, 5.5 * Math.max(s, 0.7)).fill({ color: col })
            .stroke({ width: 1, color: 0x0b0e0c });
           // can halkası — yay başlangıcına moveTo: aksi halde yol (0,0)'dan
           // bağlanıp sol üstten gelen hayalet çizgi oluşturuyordu
           const hp = p.hp[i0] ?? 0;
           if (hp > 0) {
+            const r = 8.5 * Math.max(s, 0.7);
             const a0 = -Math.PI / 2;
             const a1 = a0 + (2 * Math.PI * hp) / 100;
-            g.moveTo(x + 8.5 * Math.cos(a0), y + 8.5 * Math.sin(a0));
-            g.arc(x, y, 8.5, a0, a1);
-            g.stroke({ width: 2, color: hslToHex(Math.round((120 * hp) / 100), 0.75, 0.5), alpha });
+            g.moveTo(x + r * Math.cos(a0), y + r * Math.sin(a0));
+            g.arc(x, y, r, a0, a1);
+            g.stroke({ width: 2, color: hslToHex(Math.round((120 * hp) / 100), 0.75, 0.5) });
           }
           const fl = p.flash[i0] ?? 0;
           if (fl > 0.2) {
-            g.circle(x, y, 12).stroke({ width: 3, color: 0xffffff, alpha: Math.min(0.9, fl / 3) });
+            g.circle(x, y, 12 * Math.max(s, 0.7))
+             .stroke({ width: 3, color: 0xffffff, alpha: Math.min(0.9, fl / 3) });
           }
           node.name.position.set(x + 10, y - 5);
         });
@@ -275,7 +301,7 @@ export default function ReplayView({
       try { app.destroy(true, { children: true }); } catch { /* init yarıda */ }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [d, base, labels, level, matchKills]);
+  }, [d, base, labels, matchKills]);
 
   if (ticksQ.isLoading) return <p className="meta">raunt yükleniyor…</p>;
   if (ticksQ.error || !d) return <p className="error">{String(ticksQ.error)}</p>;
@@ -294,12 +320,6 @@ export default function ReplayView({
         <label>
           <input type="checkbox" checked={labels} onChange={(e) => setLabels(e.target.checked)} /> etiketler
         </label>
-        {d.radar.has_lower && (
-          <span style={{ display: 'inline-flex', gap: 4 }}>
-            <button className={level === 'upper' ? '' : 'ghost'} onClick={() => setLevel('upper')}>Üst kat</button>
-            <button className={level === 'lower' ? '' : 'ghost'} onClick={() => setLevel('lower')}>Alt kat</button>
-          </span>
-        )}
       </div>
 
       <div className="stagebox">
