@@ -151,11 +151,106 @@ export default function Upload() {
         )}
       </div>
 
+      <FaceitPanel onImported={(matchId) => { setSt({ phase: 'queued', progress: 100, matchId, message: '', duplicate: false }); poll(matchId); }} />
+
       <p className="meta">
         Note: strategy clusters and tendencies for a new demo are refreshed the
         next time the stats jobs (ml-jobs) run. Accounts and private demo spaces
         arrive with the production-readiness phase.
       </p>
     </>
+  );
+}
+
+// FACEIT'ten otomatik çekme: oda URL'si/ID ile tek maç, ya da nickname ile
+// son maçları listeleyip seçme. Demo indirme Downloads API onayı ister;
+// onaysız anahtarla arayüz bunu açıkça söyler.
+function FaceitPanel({ onImported }: { onImported: (matchId: string) => void }) {
+  const [room, setRoom] = useState('');
+  const [nick, setNick] = useState('');
+  const [list, setList] = useState<{ match_id: string; started_at: string; label: string }[]>([]);
+  const [msg, setMsg] = useState('');
+  const [busy, setBusy] = useState('');
+
+  async function importMatch(match: string) {
+    setBusy(match);
+    setMsg('');
+    try {
+      const r = await fetch('/api/v1/faceit/import', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ match }),
+      });
+      const j = await r.json();
+      if (!r.ok) throw new Error(j.error ?? `HTTP ${r.status}`);
+      if (j.duplicate) setMsg('Already in the archive — opening existing match.');
+      onImported(j.match_id);
+    } catch (e) {
+      setMsg(String(e));
+    } finally {
+      setBusy('');
+    }
+  }
+
+  async function listMatches() {
+    setMsg('');
+    setList([]);
+    try {
+      const r = await fetch(`/api/v1/faceit/matches?nickname=${encodeURIComponent(nick.trim())}`);
+      const j = await r.json();
+      if (!r.ok) throw new Error(j.error ?? `HTTP ${r.status}`);
+      setList(j.matches);
+      if (!j.matches.length) setMsg('No recent CS2 matches found.');
+    } catch (e) {
+      setMsg(String(e));
+    }
+  }
+
+  return (
+    <div className="panel">
+      <h2 style={{ marginTop: 0 }}>Import from FACEIT</h2>
+      <div className="toolbar">
+        <input
+          style={{ flex: 1, minWidth: 260 }}
+          placeholder="paste a match room URL or match id…"
+          value={room}
+          onChange={(e) => setRoom(e.target.value)}
+          onKeyDown={(e) => e.key === 'Enter' && room.trim() && importMatch(room.trim())}
+        />
+        <button disabled={!room.trim() || !!busy} onClick={() => importMatch(room.trim())}>
+          {busy ? 'importing…' : 'Import'}
+        </button>
+      </div>
+      <div className="toolbar">
+        <input
+          style={{ width: 200 }}
+          placeholder="or a FACEIT nickname…"
+          value={nick}
+          onChange={(e) => setNick(e.target.value)}
+          onKeyDown={(e) => e.key === 'Enter' && nick.trim() && listMatches()}
+        />
+        <button className="ghost" disabled={!nick.trim()} onClick={listMatches}>
+          List recent matches
+        </button>
+      </div>
+      {list.length > 0 && (
+        <table style={{ maxWidth: 620 }}>
+          <tbody>
+            {list.map((m) => (
+              <tr key={m.match_id}>
+                <td>{m.label}</td>
+                <td className="meta">{m.started_at}</td>
+                <td>
+                  <button className="ghost" disabled={!!busy} onClick={() => importMatch(m.match_id)}>
+                    {busy === m.match_id ? '…' : 'import'}
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+      {msg && <p className="meta" style={{ color: msg.includes('Error') || msg.includes('API') ? '#e08585' : undefined }}>{msg}</p>}
+    </div>
   );
 }

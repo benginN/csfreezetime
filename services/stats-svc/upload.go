@@ -116,34 +116,46 @@ func (s *server) upload(w http.ResponseWriter, r *http.Request) {
 	}
 	defer os.Remove(tmpPath)
 
+	resp, code, err := s.ingestLocalDemo(tmpPath, sha, size,
+		strings.TrimSuffix(fileName, ".dem"), playedAt)
+	if err != nil {
+		writeErr(w, code, err)
+		return
+	}
+	writeJSON(w, 200, resp)
+}
+
+// ingestLocalDemo: geçici .dem dosyasını boru hattına verir (dedup → MinIO →
+// demo.ingested). Manuel upload ve FACEIT import bu tek yolu paylaşır.
+func (s *server) ingestLocalDemo(
+	tmpPath, sha string, size int64, sourceFile, playedAt string,
+) (map[string]any, int, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	defer cancel()
+
 	// Dedup: aynı demo daha önce işlendiyse doğrudan mevcut maça yönlendir
 	var existingID uuid.UUID
 	var existingStatus string
-	err = s.pg.QueryRow(r.Context(),
+	err := s.pg.QueryRow(ctx,
 		"SELECT match_id, status FROM matches WHERE demo_sha256 = $1", sha).
 		Scan(&existingID, &existingStatus)
 	if err == nil && existingStatus == "ready" {
-		writeJSON(w, 200, map[string]any{
+		return map[string]any{
 			"match_id": existingID, "demo_sha256": sha,
 			"status": "ready", "duplicate": true,
-		})
-		return
+		}, 200, nil
 	}
 
 	// MinIO'ya yükle
 	objectKey := "raw/" + sha + ".dem"
 	f, err := os.Open(tmpPath)
 	if err != nil {
-		writeErr(w, 500, err)
-		return
+		return nil, 500, err
 	}
 	defer f.Close()
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
-	defer cancel()
 	if _, err := s.up.mc.PutObject(ctx, s.up.bucket, objectKey, f, size,
 		minio.PutObjectOptions{ContentType: "application/octet-stream"}); err != nil {
-		writeErr(w, 500, fmt.Errorf("S3 upload failed: %w", err))
-		return
+		return nil, 500, fmt.Errorf("S3 upload failed: %w", err)
 	}
 
 	// demo.ingested yayınla — parser worker'ı devralır
@@ -155,17 +167,16 @@ func (s *server) upload(w http.ResponseWriter, r *http.Request) {
 		"demo_sha256": sha,
 		"match_id":    matchID,
 		"object_key":  objectKey,
-		"source_file": strings.TrimSuffix(fileName, ".dem"),
+		"source_file": sourceFile,
 		"played_at":   playedAt,
 	})
 	if err := s.up.nc.Publish("demo.ingested", payload); err != nil {
-		writeErr(w, 500, fmt.Errorf("failed to enqueue: %w", err))
-		return
+		return nil, 500, fmt.Errorf("failed to enqueue: %w", err)
 	}
-	writeJSON(w, 200, map[string]any{
+	return map[string]any{
 		"match_id": matchID, "demo_sha256": sha,
 		"status": "queued", "size_bytes": size,
-	})
+	}, 200, nil
 }
 
 // GET /api/v1/matches/{id}/status — yükleme sonrası ilerleme takibi

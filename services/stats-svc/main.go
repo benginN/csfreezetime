@@ -101,6 +101,8 @@ func main() {
 	r.Post("/api/v1/query", srv.query)
 	r.Post("/api/v1/stack", srv.stack)
 	r.Post("/api/v1/upload", srv.upload)
+	r.Get("/api/v1/faceit/matches", srv.faceitMatches)
+	r.Post("/api/v1/faceit/import", srv.faceitImport)
 	r.Get("/api/v1/matches/{id}/status", srv.matchStatus)
 	r.Get("/api/v1/matches/{id}/players", srv.matchPlayers)
 	r.Get("/api/v1/matches/{id}/heatmap", srv.matchHeatmap)
