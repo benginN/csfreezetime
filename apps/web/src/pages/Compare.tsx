@@ -1,0 +1,403 @@
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
+import { api, type ReportResp } from '../api';
+import { drawMapBase, hidpiCtx, loadMapBase, RADAR, type MapBase } from '../lib/mapbase';
+import { paintHeat } from '../lib/heatpaint';
+import { teamHue, teamInitials } from '../lib/rounds';
+
+// Takım karşılaştırma: iki rakip raporu yan yana. Maç hazırlığının
+// "biz vs onlar" ekranı — tüm veriler mevcut /report ve /teams/{id}/heatmap
+// endpoint'lerinden gelir; her sayı n ile.
+const MAPW = 400;
+
+export default function Compare() {
+  const [params, setParams] = useSearchParams();
+  const a = params.get('a') ?? '';
+  const b = params.get('b') ?? '';
+  const teams = useQuery({ queryKey: ['teams'], queryFn: () => api.teams() });
+  const list = (teams.data ?? []).filter((t) => t.matches > 0);
+
+  const sumA = useQuery({
+    queryKey: ['teamSummary', a], queryFn: () => api.teamSummary(a), enabled: !!a,
+  });
+  const sumB = useQuery({
+    queryKey: ['teamSummary', b], queryFn: () => api.teamSummary(b), enabled: !!b,
+  });
+  // harita listesi: iki takımın da oynadıkları önce, tek taraflılar işaretli
+  const maps = useMemo(() => {
+    const ma = new Set((sumA.data?.maps ?? []).map((m) => m.map_name));
+    const mb = new Set((sumB.data?.maps ?? []).map((m) => m.map_name));
+    const both = [...ma].filter((m) => mb.has(m)).sort();
+    const only = [...new Set([...ma, ...mb])].filter((m) => !both.includes(m)).sort();
+    return { both, only };
+  }, [sumA.data, sumB.data]);
+  const mapName = params.get('map') || maps.both[0] || maps.only[0] || '';
+
+  const repA = useQuery({
+    queryKey: ['report', a, mapName], queryFn: () => api.report(a, mapName),
+    enabled: !!a && !!mapName,
+  });
+  const repB = useQuery({
+    queryKey: ['report', b, mapName], queryFn: () => api.report(b, mapName),
+    enabled: !!b && !!mapName,
+  });
+
+  const set = (k: string, v: string) => {
+    const p = new URLSearchParams(params);
+    if (v) p.set(k, v); else p.delete(k);
+    setParams(p, { replace: true });
+  };
+
+  return (
+    <>
+      <h1>Team comparison</h1>
+      <div className="toolbar">
+        <TeamPick label="Team A" value={a} list={list} onPick={(v) => set('a', v)} />
+        <span className="meta">vs</span>
+        <TeamPick label="Team B" value={b} list={list} onPick={(v) => set('b', v)} />
+        {a && b && (
+          <select value={mapName} onChange={(e) => set('map', e.target.value)}>
+            {maps.both.map((m) => <option key={m} value={m}>{m}</option>)}
+            {maps.only.map((m) => <option key={m} value={m}>{m} (one side only)</option>)}
+          </select>
+        )}
+      </div>
+
+      {(!a || !b) && <p className="meta">Pick two teams to compare.</p>}
+      {a && b && (repA.isLoading || repB.isLoading) && <p className="meta">building comparison…</p>}
+      {repA.data && repB.data && (
+        <CompareBody A={repA.data} B={repB.data} mapName={mapName} aId={a} bId={b} />
+      )}
+    </>
+  );
+}
+
+function TeamPick({
+  label, value, list, onPick,
+}: {
+  label: string;
+  value: string;
+  list: { team_id: string; name: string }[];
+  onPick: (v: string) => void;
+}) {
+  return (
+    <select value={value} onChange={(e) => onPick(e.target.value)}>
+      <option value="">{label}…</option>
+      {list.map((t) => <option key={t.team_id} value={t.team_id}>{t.name}</option>)}
+    </select>
+  );
+}
+
+const pct = (x: number, n: number) => (n ? Math.round((100 * x) / n) : null);
+
+function CompareBody({
+  A, B, mapName, aId, bId,
+}: {
+  A: ReportResp; B: ReportResp; mapName: string; aId: string; bId: string;
+}) {
+  return (
+    <>
+      <div className="cmphead">
+        <TeamBadge name={A.team} id={aId} />
+        <span className="meta">{mapName}</span>
+        <TeamBadge name={B.team} id={bId} right />
+      </div>
+      {(A.insufficient || B.insufficient) && (
+        <p className="error">small sample on at least one side — treat numbers with caution</p>
+      )}
+
+      <h2>Head to head numbers</h2>
+      <div className="panel">
+        <VsRow label="Map record" a={`${A.overview.wins}–${A.overview.matches - A.overview.wins}`}
+          b={`${B.overview.wins}–${B.overview.matches - B.overview.wins}`}
+          av={A.overview.matches ? A.overview.wins / A.overview.matches : 0}
+          bv={B.overview.matches ? B.overview.wins / B.overview.matches : 0}
+          an={`${A.overview.matches} matches`} bn={`${B.overview.matches} matches`} />
+        <VsRow label="T round win" a={fmtPct(A.overview.t_wins, A.overview.t_rounds)}
+          b={fmtPct(B.overview.t_wins, B.overview.t_rounds)}
+          av={ratio(A.overview.t_wins, A.overview.t_rounds)} bv={ratio(B.overview.t_wins, B.overview.t_rounds)}
+          an={`${A.overview.t_wins}/${A.overview.t_rounds}`} bn={`${B.overview.t_wins}/${B.overview.t_rounds}`} />
+        <VsRow label="CT round win" a={fmtPct(A.overview.ct_wins, A.overview.ct_rounds)}
+          b={fmtPct(B.overview.ct_wins, B.overview.ct_rounds)}
+          av={ratio(A.overview.ct_wins, A.overview.ct_rounds)} bv={ratio(B.overview.ct_wins, B.overview.ct_rounds)}
+          an={`${A.overview.ct_wins}/${A.overview.ct_rounds}`} bn={`${B.overview.ct_wins}/${B.overview.ct_rounds}`} />
+        <VsRow label="Pistol rounds" a={fmtPct(A.overview.pistol_wins, A.overview.pistol_rounds)}
+          b={fmtPct(B.overview.pistol_wins, B.overview.pistol_rounds)}
+          av={ratio(A.overview.pistol_wins, A.overview.pistol_rounds)} bv={ratio(B.overview.pistol_wins, B.overview.pistol_rounds)}
+          an={`${A.overview.pistol_wins}/${A.overview.pistol_rounds}`} bn={`${B.overview.pistol_wins}/${B.overview.pistol_rounds}`} />
+        <VsRow label="Convert after pistol win"
+          a={A.overview.conv_after_pistol_win_n ? `${Math.round(100 * A.overview.conv_after_pistol_win)}%` : '—'}
+          b={B.overview.conv_after_pistol_win_n ? `${Math.round(100 * B.overview.conv_after_pistol_win)}%` : '—'}
+          av={A.overview.conv_after_pistol_win} bv={B.overview.conv_after_pistol_win}
+          an={`n=${A.overview.conv_after_pistol_win_n}`} bn={`n=${B.overview.conv_after_pistol_win_n}`} />
+      </div>
+
+      <h2>After losing a pistol</h2>
+      <div className="grid cards two">
+        <BuyMini title={A.team} dist={A.economy.after_pistol_loss} />
+        <BuyMini title={B.team} dist={B.economy.after_pistol_loss} />
+      </div>
+
+      <h2>Strategy tendencies</h2>
+      {(['T', 'CT'] as const).map((side) => (
+        <div key={side} className="grid cards two">
+          <TendCard rep={A} side={side} />
+          <TendCard rep={B} side={side} />
+        </div>
+      ))}
+
+      <h2>Default setups <span className="meta">(15 s)</span></h2>
+      <div className="grid cards two">
+        <SetupMini rep={A} mapName={mapName} />
+        <SetupMini rep={B} mapName={mapName} />
+      </div>
+
+      <UtilityCompare A={A} B={B} mapName={mapName} />
+
+      <HeatCompare aId={aId} bId={bId} aName={A.team} bName={B.team} mapName={mapName} />
+    </>
+  );
+}
+
+const fmtPct = (x: number, n: number) => (n ? `${pct(x, n)}%` : '—');
+const ratio = (x: number, n: number) => (n ? x / n : 0);
+
+function TeamBadge({ name, id, right }: { name: string; id: string; right?: boolean }) {
+  return (
+    <Link to={`/team/${id}`} style={{ display: 'flex', alignItems: 'center', gap: 10, flexDirection: right ? 'row-reverse' : 'row' }}>
+      <span className="monogram lg" style={{ background: `hsl(${teamHue(name)},45%,32%)` }}>
+        {teamInitials(name)}
+      </span>
+      <span style={{ fontSize: 18, fontWeight: 700 }}>{name}</span>
+    </Link>
+  );
+}
+
+// İki yönlü metrik satırı: ortada etiket, iki yana bar; iyi taraf parlak.
+function VsRow({
+  label, a, b, av, bv, an, bn,
+}: {
+  label: string; a: string; b: string; av: number; bv: number; an: string; bn: string;
+}) {
+  const max = Math.max(av, bv, 0.0001);
+  return (
+    <div className="vsrow">
+      <span className="val" style={{ color: av >= bv ? '#b6e2b6' : '#8a938c' }}>{a} <i>{an}</i></span>
+      <div className="bar left"><div style={{ width: `${(100 * av) / max}%`, opacity: av >= bv ? 1 : 0.45 }} /></div>
+      <span className="lbl">{label}</span>
+      <div className="bar right"><div style={{ width: `${(100 * bv) / max}%`, opacity: bv >= av ? 1 : 0.45 }} /></div>
+      <span className="val" style={{ color: bv >= av ? '#b6e2b6' : '#8a938c', textAlign: 'right' }}><i>{bn}</i> {b}</span>
+    </div>
+  );
+}
+
+function BuyMini({ title, dist }: { title: string; dist: Record<string, number> }) {
+  const total = Object.values(dist).reduce((x, y) => x + y, 0);
+  const order = ['full', 'force', 'semi', 'eco', 'unknown'];
+  return (
+    <div className="card">
+      <div className="teams"><span>{title}</span><span className="meta">n={total}</span></div>
+      {order.filter((k) => dist[k]).map((k) => (
+        <MiniBar key={k} prob={total ? dist[k] / total : 0} label={`${k} (${dist[k]})`} />
+      ))}
+      {!total && <p className="meta">no data</p>}
+    </div>
+  );
+}
+
+function MiniBar({ prob, label }: { prob: number; label: string }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4 }}>
+      <div style={{ flex: '0 0 42px', fontVariantNumeric: 'tabular-nums' }}>{Math.round(100 * prob)}%</div>
+      <div style={{ flex: 1, background: '#232a26', borderRadius: 3, height: 9 }}>
+        <div style={{ width: `${100 * prob}%`, height: '100%', background: '#4c8f52', borderRadius: 3 }} />
+      </div>
+      <div className="meta" style={{ flex: '0 0 55%' }}>{label}</div>
+    </div>
+  );
+}
+
+function TendCard({ rep, side }: { rep: ReportResp; side: 'T' | 'CT' }) {
+  const rows = rep.tendencies.filter((t) => t.side === side).slice(0, 3);
+  return (
+    <div className="card">
+      <div className="teams">
+        <span>{rep.team} <span className={`badge ${side}`}>{side}</span></span>
+        <span className="meta">{rows[0]?.sample_size ?? 0} rounds</span>
+      </div>
+      {rows.map((t) => (
+        <MiniBar key={t.cluster_id} prob={t.prob}
+          label={t.label ?? t.top_places.slice(0, 3).map((p) => p.place).join(' → ')} />
+      ))}
+      {!rows.length && <p className="meta">no data</p>}
+    </div>
+  );
+}
+
+function SetupMini({ rep, mapName }: { rep: ReportResp; mapName: string }) {
+  const setup = rep.setups.filter((s) => s.side === 'CT' && s.t_offset === 15)[0];
+  const cvRef = useRef<HTMLCanvasElement>(null);
+  const [base, setBase] = useState<MapBase | null>(null);
+  useEffect(() => { loadMapBase(mapName).then(setBase); }, [mapName]);
+  useEffect(() => {
+    const cv = cvRef.current;
+    if (!cv || !base) return;
+    const ctx = hidpiCtx(cv, MAPW);
+    drawMapBase(ctx, MAPW, base, false);
+    if (!setup) return;
+    const centro = new Map(base.layout.places.map((p) => [p.name, p]));
+    for (const pp of setup.pattern) {
+      const c = centro.get(pp.place);
+      if (!c) continue;
+      const x = (c.rx * MAPW) / RADAR, y = (c.ry * MAPW) / RADAR;
+      ctx.fillStyle = '#4d9de0';
+      ctx.beginPath(); ctx.arc(x, y, 9, 0, 7); ctx.fill();
+      ctx.strokeStyle = '#0b0e0c'; ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.arc(x, y, 9, 0, 7); ctx.stroke();
+      ctx.fillStyle = '#0b0e0c'; ctx.font = 'bold 11px system-ui'; ctx.textAlign = 'center';
+      ctx.fillText(String(pp.n), x, y + 4);
+      ctx.fillStyle = '#dbe4dc'; ctx.font = '10px system-ui';
+      ctx.fillText(pp.place, x, y - 13);
+      ctx.textAlign = 'left';
+    }
+  }, [base, setup]);
+  return (
+    <div className="card">
+      <div className="teams">
+        <span>{rep.team} <span className="badge CT">CT</span></span>
+        <span className="meta">
+          {setup ? `${Math.round(100 * setup.share)}% of ${setup.sample_size} rounds` : ''}
+        </span>
+      </div>
+      <canvas ref={cvRef} className="flat" width={MAPW} height={MAPW} style={{ marginTop: 6 }} />
+      {!setup && <p className="meta">not enough rounds for a reliable pattern</p>}
+    </div>
+  );
+}
+
+const UTIL_CSS: Record<string, string> = {
+  smoke: '#b4b9be', molotov: '#eb781e', flash: '#ffffff', he: '#ff8c3c',
+};
+
+function UtilityCompare({ A, B, mapName }: { A: ReportResp; B: ReportResp; mapName: string }) {
+  const [side, setSide] = useState<'T' | 'CT'>('T');
+  const [type, setType] = useState('smoke');
+  return (
+    <>
+      <h2>
+        Utility habits{' '}
+        <span className="toolbar" style={{ display: 'inline-flex', marginLeft: 10 }}>
+          <select value={side} onChange={(e) => setSide(e.target.value as 'T' | 'CT')}>
+            <option>T</option><option>CT</option>
+          </select>
+          {['smoke', 'molotov', 'flash'].map((t) => (
+            <button key={t} className={t === type ? '' : 'ghost'} onClick={() => setType(t)}>{t}</button>
+          ))}
+        </span>
+      </h2>
+      <div className="grid cards two">
+        <UtilMap rep={A} mapName={mapName} side={side} type={type} />
+        <UtilMap rep={B} mapName={mapName} side={side} type={type} />
+      </div>
+    </>
+  );
+}
+
+function UtilMap({ rep, mapName, side, type }: { rep: ReportResp; mapName: string; side: 'T' | 'CT'; type: string }) {
+  const spots = useMemo(
+    () => rep.utility.filter((u) => u.side === side && u.type === type).slice(0, 8),
+    [rep.utility, side, type],
+  );
+  const cvRef = useRef<HTMLCanvasElement>(null);
+  const [base, setBase] = useState<MapBase | null>(null);
+  useEffect(() => { loadMapBase(mapName).then(setBase); }, [mapName]);
+  useEffect(() => {
+    const cv = cvRef.current;
+    if (!cv || !base) return;
+    const ctx = hidpiCtx(cv, MAPW);
+    drawMapBase(ctx, MAPW, base, true);
+    const maxC = Math.max(1, ...spots.map((s) => s.count));
+    for (const sp of spots) {
+      const x = (sp.det_rx * MAPW) / RADAR, y = (sp.det_ry * MAPW) / RADAR;
+      const r = 4 + 8 * Math.sqrt(sp.count / maxC);
+      ctx.fillStyle = UTIL_CSS[type] ?? '#ccc';
+      ctx.globalAlpha = 0.75;
+      ctx.beginPath(); ctx.arc(x, y, r, 0, 7); ctx.fill();
+      ctx.globalAlpha = 1;
+      ctx.strokeStyle = '#0b0e0c';
+      ctx.beginPath(); ctx.arc(x, y, r, 0, 7); ctx.stroke();
+    }
+  }, [base, spots, type]);
+  return (
+    <div className="card">
+      <div className="teams">
+        <span>{rep.team}</span>
+        <span className="meta">{spots.length} recurring spots</span>
+      </div>
+      <canvas ref={cvRef} className="flat" width={MAPW} height={MAPW} style={{ marginTop: 6 }} />
+    </div>
+  );
+}
+
+function HeatCompare({
+  aId, bId, aName, bName, mapName,
+}: {
+  aId: string; bId: string; aName: string; bName: string; mapName: string;
+}) {
+  const [side, setSide] = useState<'T' | 'CT'>('T');
+  const [wnd, setWnd] = useState<'0-25' | '25-115'>('0-25');
+  const [t0, t1] = wnd === '0-25' ? [0, 25] : [25, 115];
+  return (
+    <>
+      <h2>
+        Positioning{' '}
+        <span className="toolbar" style={{ display: 'inline-flex', marginLeft: 10 }}>
+          <select value={side} onChange={(e) => setSide(e.target.value as 'T' | 'CT')}>
+            <option>T</option><option>CT</option>
+          </select>
+          <select value={wnd} onChange={(e) => setWnd(e.target.value as typeof wnd)}>
+            <option value="0-25">first 25 s</option>
+            <option value="25-115">after 25 s</option>
+          </select>
+        </span>
+      </h2>
+      <div className="grid cards two">
+        <HeatMini teamId={aId} name={aName} mapName={mapName} side={side} t0={t0} t1={t1} />
+        <HeatMini teamId={bId} name={bName} mapName={mapName} side={side} t0={t0} t1={t1} />
+      </div>
+    </>
+  );
+}
+
+function HeatMini({
+  teamId, name, mapName, side, t0, t1,
+}: {
+  teamId: string; name: string; mapName: string; side: 'T' | 'CT'; t0: number; t1: number;
+}) {
+  const cvRef = useRef<HTMLCanvasElement>(null);
+  const [base, setBase] = useState<MapBase | null>(null);
+  useEffect(() => { loadMapBase(mapName).then(setBase); }, [mapName]);
+  const heat = useQuery({
+    queryKey: ['teamHeat', teamId, mapName, side, t0, t1],
+    queryFn: () => api.teamHeatmap(teamId, new URLSearchParams({
+      map: mapName, side, t0: String(t0), t1: String(t1),
+    })),
+  });
+  useEffect(() => {
+    const cv = cvRef.current;
+    if (!cv || !base) return;
+    const ctx = hidpiCtx(cv, MAPW);
+    drawMapBase(ctx, MAPW, base, false);
+    if (heat.data) paintHeat(ctx, MAPW, base, heat.data);
+  }, [base, heat.data]);
+  return (
+    <div className="card">
+      <div className="teams">
+        <span>{name}</span>
+        <span className="meta">{heat.data?.round_count ?? '…'} rounds</span>
+      </div>
+      <canvas ref={cvRef} className="flat" width={MAPW} height={MAPW} style={{ marginTop: 6 }} />
+    </div>
+  );
+}

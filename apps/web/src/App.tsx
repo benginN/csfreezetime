@@ -6,6 +6,7 @@ import Upload from './pages/Upload';
 import Report from './pages/Report';
 import Team from './pages/Team';
 import Moments from './pages/Moments';
+import Compare from './pages/Compare';
 
 export default function App() {
   return (
@@ -16,6 +17,7 @@ export default function App() {
         </span>
         <SearchBar />
         <a href="/moments" style={{ whiteSpace: 'nowrap' }}>🔎 Moments</a>
+        <a href="/compare" style={{ whiteSpace: 'nowrap' }}>⚔ Compare</a>
         <a href="/upload" style={{ whiteSpace: 'nowrap' }}>⬆ Upload demo</a>
       </nav>
       <main>
@@ -28,6 +30,7 @@ export default function App() {
           <Route path="/report/:teamId" element={<Report />} />
           <Route path="/team/:teamId" element={<Team />} />
           <Route path="/moments" element={<Moments />} />
+          <Route path="/compare" element={<Compare />} />
         </Routes>
       </main>
     </>

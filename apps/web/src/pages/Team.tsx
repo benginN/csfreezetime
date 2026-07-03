@@ -33,6 +33,9 @@ export default function Team() {
         <Link to={`/report/${teamId}`} style={{ fontSize: 13, fontWeight: 400 }}>
           Full opponent report →
         </Link>
+        <Link to={`/compare?a=${teamId}`} style={{ fontSize: 13, fontWeight: 400 }}>
+          ⚔ Compare with…
+        </Link>
       </h1>
 
       <div className="grid cards statgrid">
