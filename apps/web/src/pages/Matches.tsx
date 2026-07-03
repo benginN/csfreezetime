@@ -62,7 +62,75 @@ export default function Matches() {
         <p className="meta">Filtreye uyan maç yok.</p>
       )}
 
-      {teamId && <TendencyPanel teamId={teamId} name={(teams.data ?? []).find((t) => t.team_id === teamId)?.name ?? ''} />}
+      {teamId && (
+        <>
+          <PredictWidget teamId={teamId} name={(teams.data ?? []).find((t) => t.team_id === teamId)?.name ?? ''} maps={maps} />
+          <TendencyPanel teamId={teamId} name={(teams.data ?? []).find((t) => t.team_id === teamId)?.name ?? ''} />
+        </>
+      )}
+    </>
+  );
+}
+
+// Sonraki raunt tahmini (§6.2 Aşama 2): yöntem sunucuda seçilir — zamansal
+// testte taban çizgiyi geçemeyen model sunulmaz; kanıt notu her zaman görünür.
+function PredictWidget({ teamId, name, maps }: { teamId: string; name: string; maps: string[] }) {
+  const [mapName, setMapName] = useState(maps[0] ?? '');
+  const [side, setSide] = useState('T');
+  const [buy, setBuy] = useState('');
+  const effMap = mapName || maps[0] || '';
+
+  const q = useQuery({
+    queryKey: ['predict', teamId, effMap, side, buy],
+    queryFn: () => {
+      const p = new URLSearchParams({ team_id: teamId, map: effMap, side });
+      if (buy) p.set('buy_type', buy);
+      return api.predict(p);
+    },
+    enabled: !!effMap,
+  });
+
+  const methodLabel: Record<string, string> = {
+    league: 'lig geneli',
+    team: 'takım eğilimi',
+    team_buy: 'takım + buy koşullu',
+  };
+
+  return (
+    <>
+      <h2>{name} — sonraki raunt tahmini</h2>
+      <div className="panel">
+        <div className="toolbar">
+          <select value={effMap} onChange={(e) => setMapName(e.target.value)}>
+            {maps.map((m) => <option key={m}>{m}</option>)}
+          </select>
+          <select value={side} onChange={(e) => setSide(e.target.value)}>
+            <option>T</option><option>CT</option>
+          </select>
+          <select value={buy} onChange={(e) => setBuy(e.target.value)}>
+            <option value="">buy bilinmiyor</option>
+            {['pistol', 'eco', 'semi', 'force', 'full'].map((b) => <option key={b}>{b}</option>)}
+          </select>
+          {q.data && (
+            <span className="meta">
+              yöntem: {methodLabel[q.data.method]} · {q.data.evidence.note}
+            </span>
+          )}
+        </div>
+        {(q.data?.clusters ?? []).slice(0, 4).map((c) => (
+          <div key={c.cluster_id} style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4 }}>
+            <div style={{ flex: '0 0 44px', fontVariantNumeric: 'tabular-nums' }}>
+              %{Math.round(100 * c.prob)}
+            </div>
+            <div style={{ flex: 1, background: '#232a26', borderRadius: 3, height: 10 }}>
+              <div style={{ width: `${100 * c.prob}%`, height: '100%', background: '#8f6a2e', borderRadius: 3 }} />
+            </div>
+            <div className="meta" style={{ flex: '0 0 55%' }}>
+              {c.label ?? c.top_places.slice(0, 3).map((p) => p.place).join(' → ')}
+            </div>
+          </div>
+        ))}
+      </div>
     </>
   );
 }

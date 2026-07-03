@@ -69,4 +69,7 @@ scripts/test-ml.sh           # kümeleme/eğilim/anomali tutarlılığı
 - ✅ Faz 3 (revize) — replay endpoint'leri + Multi-View Stacking + radar kalibrasyonu
 - ✅ Frontend — React + TypeScript + PixiJS SPA (maçlar/replay/analiz, takım filtresi)
 - ✅ Faz 4 (v1) — strateji kümeleme + Bayesçi eğilimler + z-skor anomali (yerel, LLM'siz)
-- ⬜ Faz 4 devamı — LightGBM'li raunt tahmini, küme isimlendirme arayüzü, koç raporu
+- ✅ Faz 4 devamı — koşullu raunt tahmini (/predict, zamansal log-loss değerlendirmeli
+  yöntem seçimi), küme isimlendirme (/stratejiler sayfası, insan döngüde)
+- ⬜ Sonrası — LightGBM adayı (lig ≥50k raunt eşiğinde değerlendirme düzeneğine girer),
+  koç raporu, yayına hazırlık (ingest-svc, auth)

@@ -8,6 +8,22 @@ export default function MatchDetail() {
 
   const detail = useQuery({ queryKey: ['match', id], queryFn: () => api.matchDetail(id) });
   const matches = useQuery({ queryKey: ['matches', ''], queryFn: () => api.matches() });
+  const mapName = detail.data?.map_name ?? '';
+  const clT = useQuery({
+    queryKey: ['clusters', mapName, 'T'],
+    queryFn: () => api.clusters(mapName, 'T'),
+    enabled: !!mapName,
+  });
+  const clCT = useQuery({
+    queryKey: ['clusters', mapName, 'CT'],
+    queryFn: () => api.clusters(mapName, 'CT'),
+    enabled: !!mapName,
+  });
+  const labelOf = (side: 'T' | 'CT', cid: number | null): string | null => {
+    if (cid == null) return null;
+    const list = side === 'T' ? clT.data : clCT.data;
+    return list?.find((c) => c.cluster_id === cid)?.label ?? null;
+  };
 
   if (detail.isLoading) return <p className="meta">yükleniyor…</p>;
   if (detail.error || !detail.data) return <p className="error">{String(detail.error)}</p>;
@@ -76,8 +92,8 @@ export default function MatchDetail() {
                   <td>{r.bomb_site ?? '—'}</td>
                   <td>{r.t_buy_type ?? '—'}</td>
                   <td>{r.ct_buy_type ?? '—'}</td>
-                  <td>{r.t_cluster != null ? <span className="badge gray">#{r.t_cluster}</span> : '—'}</td>
-                  <td>{r.ct_cluster != null ? <span className="badge gray">#{r.ct_cluster}</span> : '—'}</td>
+                  <td>{r.t_cluster != null ? <span className="badge gray">{labelOf('T', r.t_cluster) ?? `#${r.t_cluster}`}</span> : '—'}</td>
+                  <td>{r.ct_cluster != null ? <span className="badge gray">{labelOf('CT', r.ct_cluster) ?? `#${r.ct_cluster}`}</span> : '—'}</td>
                   <td>{kc}</td>
                 </tr>
               );

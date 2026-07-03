@@ -187,9 +187,36 @@ async function post<T>(url: string, body: unknown): Promise<T> {
   return j as T;
 }
 
+export interface ClusterInfo {
+  cluster_id: number;
+  label: string | null;
+  size: number;
+  top_places: { place: string; weight: number }[];
+  representatives: { match_id: string; round_number: number }[];
+}
+
+export interface Prediction {
+  method: 'league' | 'team' | 'team_buy';
+  clusters: {
+    cluster_id: number;
+    label: string | null;
+    top_places: { place: string; weight: number }[];
+    prob: number;
+  }[];
+  evidence: { sample_size: number; note: string };
+}
+
 export const api = {
   teams: () => get<Team[]>('/api/v1/teams'),
   tendencies: (teamId: string) => get<Tendency[]>(`/api/v1/teams/${teamId}/tendencies`),
+  clusters: (map: string, side: string) => get<ClusterInfo[]>(`/api/v1/clusters?map=${map}&side=${side}`),
+  renameCluster: (map: string, side: string, id: number, label: string) =>
+    fetch(`/api/v1/clusters/${map}/${side}/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ label }),
+    }).then((r) => r.json()),
+  predict: (p: URLSearchParams) => get<Prediction>('/api/v1/predict?' + p),
   matches: (teamId?: string) =>
     get<MatchSummary[]>('/api/v1/matches' + (teamId ? `?team_id=${teamId}` : '')),
   matchDetail: (id: string) => get<MatchDetail>(`/api/v1/matches/${id}`),
