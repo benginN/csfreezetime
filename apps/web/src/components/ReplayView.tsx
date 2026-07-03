@@ -2,14 +2,15 @@ import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Application, Container, Graphics, Sprite, Text, Texture } from 'pixi.js';
 import { api, type KillRow, type RoundRow, type StackResp } from '../api';
-import { DPR, insetGeom, loadMapBase, renderMapBaseCanvas, RADAR, SIDE_COLOR, type MapBase } from '../lib/mapbase';
+import { DPR, insetGeom, isVectorBase, loadMapBase, renderMapBaseCanvas, RADAR, SIDE_COLOR, type MapBase } from '../lib/mapbase';
 import { renderHeatLayer } from '../lib/heatpaint';
 import { chipTitle, isSideSwap, winnerTeamClass } from '../lib/rounds';
 
 const W = 860;
 // Zemin dokusu için aşırı örnekleme: zoom'da bloklaşmayı azaltır
 // (kaynak PNG 1024 olduğundan ~4x üstü yine yumuşar ama pikselleşmez)
-const BASE_OVERSAMPLE = 2;
+const BASE_OVERSAMPLE = 2;      // PNG kaynak: 2x yeterli
+const VECTOR_OVERSAMPLE = 3;    // SVG kaynak: daha yükseğe değer (keskin kalır)
 const NADE_LIFE: Record<string, number> = { smoke: 20, molotov: 7, incendiary: 7, flash: 0.7, he: 0.7, decoy: 15 };
 const GHOST_TRAIL = 8;   // sn — hayalet iz uzunluğu
 const ghostHue = (i: number) => Math.round((i * 137.508) % 360);
@@ -188,7 +189,7 @@ export default function ReplayView({
     const sp = baseSpriteRef.current;
     if (sp && base) {
       const old = sp.texture;
-      sp.texture = Texture.from(renderMapBaseCanvas(base, W * DPR * BASE_OVERSAMPLE, showPlaces, 'upper'));
+      sp.texture = Texture.from(renderMapBaseCanvas(base, W * DPR * (isVectorBase(base) ? VECTOR_OVERSAMPLE : BASE_OVERSAMPLE), showPlaces, 'upper'));
       sp.setSize(W, W);
       old.destroy(true);
     }
@@ -223,7 +224,7 @@ export default function ReplayView({
 
       // arka plan tuvali fiziksel çözünürlükte üretilir, sprite CSS boyutuna oturur
       const baseSprite = new Sprite(
-        Texture.from(renderMapBaseCanvas(base, W * DPR * BASE_OVERSAMPLE, showPlaces, 'upper')),
+        Texture.from(renderMapBaseCanvas(base, W * DPR * (isVectorBase(base) ? VECTOR_OVERSAMPLE : BASE_OVERSAMPLE), showPlaces, 'upper')),
       );
       baseSprite.setSize(W, W);
       baseSpriteRef.current = baseSprite;
@@ -244,7 +245,7 @@ export default function ReplayView({
       const feedLayer = new Container();   // canvas içi killfeed (gri, sabit)
       world.addChild(baseSprite);
       if (hasLower) {
-        const insetSprite = new Sprite(Texture.from(renderMapBaseCanvas(base, INS * DPR * BASE_OVERSAMPLE, false, 'lower')));
+        const insetSprite = new Sprite(Texture.from(renderMapBaseCanvas(base, INS * DPR * (isVectorBase(base) ? VECTOR_OVERSAMPLE : BASE_OVERSAMPLE), false, 'lower')));
         insetSprite.setSize(INS, INS);
         insetSprite.position.set(IX, IY);
         const tag = new Text({

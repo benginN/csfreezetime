@@ -20,15 +20,23 @@ export function getLayout(map: string): Promise<MapLayout> {
 export function getRadarImage(map: string): Promise<HTMLImageElement | null> {
   let p = imgCache.get(map);
   if (!p) {
-    p = new Promise((resolve) => {
+    // Önce vektör (SVG) denenir — zoom'da çözünürlük sınırı yok;
+    // yoksa PNG'ye düşülür.
+    const tryLoad = (src: string) => new Promise<HTMLImageElement | null>((resolve) => {
       const img = new Image();
       img.onload = () => resolve(img);
       img.onerror = () => resolve(null);
-      img.src = `/radars/${map}.png`;
+      img.src = src;
     });
+    p = tryLoad(`/radars/${map}.svg`).then((svg) => svg ?? tryLoad(`/radars/${map}.png`));
     imgCache.set(map, p);
   }
   return p;
+}
+
+/** Zemin görseli vektör mü (SVG rasterizasyonu her boyutta keskindir). */
+export function isVectorBase(base: MapBase): boolean {
+  return !!base.radarImg && base.radarImg.src.endsWith('.svg');
 }
 
 export interface MapBase {
