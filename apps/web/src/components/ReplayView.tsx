@@ -234,8 +234,11 @@ export default function ReplayView({
       const heatSprite = new Sprite(Texture.EMPTY); // ısı katmanı (zemin üstü)
       heatSprite.visible = false;
       const playersLayer = new Container();
-      const feedLayer = new Container(); // canvas içi killfeed (gri)
-      app.stage.addChild(baseSprite);
+      // world: zoom/pan uygulanan tüm harita içeriği; feedLayer ekran sabiti
+      const world = new Container();
+      const worldLabels = new Container(); // bomba/hayalet etiketleri (zoom'la ölçeklenir)
+      const feedLayer = new Container();   // canvas içi killfeed (gri, sabit)
+      world.addChild(baseSprite);
       if (hasLower) {
         const insetSprite = new Sprite(Texture.from(renderMapBaseCanvas(base, INS * DPR, false, 'lower')));
         insetSprite.setSize(INS, INS);
@@ -245,9 +248,62 @@ export default function ReplayView({
           style: { fontSize: 9, fill: 0x9fc79f, fontFamily: 'system-ui' },
         });
         tag.position.set(IX + 4, IY + INS - 14);
-        app.stage.addChild(insetSprite, tag);
+        world.addChild(insetSprite, tag);
       }
-      app.stage.addChild(heatSprite, gGhosts, gNades, gKills, playersLayer, feedLayer);
+      world.addChild(heatSprite, gGhosts, gNades, gKills, playersLayer, worldLabels);
+      app.stage.addChild(world, feedLayer);
+
+      // --- Zoom & pan: tekerlek imlece doğru yakınlaşır, sürükle kaydırır,
+      //     çift tık sıfırlar. Killfeed ve HUD ekranda sabit kalır. ---
+      const view = { s: 1, x: 0, y: 0 };
+      const clampView = () => {
+        view.s = Math.min(8, Math.max(1, view.s));
+        const min = W - W * view.s;
+        view.x = Math.min(0, Math.max(min, view.x));
+        view.y = Math.min(0, Math.max(min, view.y));
+        world.scale.set(view.s);
+        world.position.set(view.x, view.y);
+        app.canvas.style.cursor = view.s > 1 ? 'grab' : 'default';
+      };
+      const onWheel = (e: WheelEvent) => {
+        e.preventDefault();
+        const rect = app.canvas.getBoundingClientRect();
+        const mx = e.clientX - rect.left;
+        const my = e.clientY - rect.top;
+        const k = Math.pow(1.0015, -e.deltaY);
+        const ns = Math.min(8, Math.max(1, view.s * k));
+        // imleç altındaki dünya noktası sabit kalsın
+        view.x = mx - ((mx - view.x) / view.s) * ns;
+        view.y = my - ((my - view.y) / view.s) * ns;
+        view.s = ns;
+        clampView();
+      };
+      let panning = false;
+      let panStart = { x: 0, y: 0, vx: 0, vy: 0 };
+      const onDown = (e: PointerEvent) => {
+        if (view.s <= 1) return;
+        panning = true;
+        panStart = { x: e.clientX, y: e.clientY, vx: view.x, vy: view.y };
+        app.canvas.setPointerCapture(e.pointerId);
+        app.canvas.style.cursor = 'grabbing';
+      };
+      const onMove = (e: PointerEvent) => {
+        if (!panning) return;
+        view.x = panStart.vx + (e.clientX - panStart.x);
+        view.y = panStart.vy + (e.clientY - panStart.y);
+        clampView();
+      };
+      const onUp = () => {
+        panning = false;
+        app.canvas.style.cursor = view.s > 1 ? 'grab' : 'default';
+      };
+      const onDbl = () => { view.s = 1; view.x = 0; view.y = 0; clampView(); };
+      app.canvas.addEventListener('wheel', onWheel, { passive: false });
+      app.canvas.addEventListener('pointerdown', onDown);
+      app.canvas.addEventListener('pointermove', onMove);
+      app.canvas.addEventListener('pointerup', onUp);
+      app.canvas.addEventListener('pointercancel', onUp);
+      app.canvas.addEventListener('dblclick', onDbl);
 
       // hayalet raunt etiketleri (r7 gibi) — yeniden kullanılan havuz
       const ghostLabels: Text[] = [];
@@ -257,7 +313,7 @@ export default function ReplayView({
           style: { fontSize: 10, fontWeight: '700', fill: 0xffffff, fontFamily: 'system-ui' },
         });
         t.visible = false;
-        feedLayer.addChild(t);
+        worldLabels.addChild(t);
         ghostLabels.push(t);
       }
       let appliedHeat: HTMLCanvasElement | null = null;
@@ -280,7 +336,7 @@ export default function ReplayView({
         });
         t.anchor.set(0.5, 1);
         t.visible = false;
-        feedLayer.addChild(t); // en üst katman: etiket okunur kalsın
+        worldLabels.addChild(t); // dünya uzayında: zoom'la birlikte hareket eder
         nadeLabelPool.push(t);
       }
       const NADE_LABEL: Record<string, string> = {
@@ -678,6 +734,9 @@ export default function ReplayView({
                 <input type="checkbox" checked={showPlaces} onChange={(e) => setShowPlaces(e.target.checked)} /> map callouts
               </label>
             </div>
+            <p className="meta" style={{ margin: 0 }}>
+              scroll on the map to zoom · drag to pan · double-click to reset
+            </p>
           </div>
         </div>
 
