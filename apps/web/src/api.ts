@@ -395,6 +395,12 @@ export const api = {
   teams: () => get<Team[]>('/api/v1/teams'),
   tendencies: (teamId: string) => get<Tendency[]>(`/api/v1/teams/${teamId}/tendencies`),
   clusters: (map: string, side: string) => get<ClusterInfo[]>(`/api/v1/clusters?map=${map}&side=${side}`),
+  renameCluster: (map: string, side: string, id: number, label: string) =>
+    fetch(`/api/v1/clusters/${map}/${side}/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ label }),
+    }).then((r) => r.json()),
   predict: (p: URLSearchParams) => get<Prediction>('/api/v1/predict?' + p),
   matches: (teamId?: string) =>
     get<MatchSummary[]>('/api/v1/matches' + (teamId ? `?team_id=${teamId}` : '')),

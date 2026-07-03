@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, type ReportResp } from '../api';
 import { drawMapBase, hidpiCtx, loadMapBase, RADAR, type MapBase } from '../lib/mapbase';
 import { paintHeat } from '../lib/heatpaint';
@@ -85,8 +85,8 @@ export default function Report() {
         <BuyCard title="After losing a pistol" dist={d.economy.after_pistol_loss} />
       </div>
 
-      {/* 3 — Strategy tendencies */}
-      <h2>Strategy tendencies</h2>
+      {/* 3 — Strategy tendencies (küme adları koçça düzenlenebilir) */}
+      <h2>Strategy tendencies <span className="meta">— ✏ names strategies for everyone</span></h2>
       <div className="grid cards">
         {(['T', 'CT'] as const).map((side) => {
           const rows = d.tendencies.filter((t) => t.side === side).slice(0, 4);
@@ -98,8 +98,7 @@ export default function Report() {
                 <span className="meta">{rows[0].sample_size} rounds</span>
               </div>
               {rows.map((t) => (
-                <Bar key={t.cluster_id} prob={t.prob}
-                  label={t.label ?? t.top_places.slice(0, 3).map((p) => p.place).join(' → ')} />
+                <NamableBar key={t.cluster_id} t={t} side={side} mapName={mapName} teamId={teamId} />
               ))}
             </div>
           );
@@ -258,6 +257,57 @@ function Stat({ label, v, n }: { label: string; v: string; n: string }) {
       <div className="meta">{label}</div>
       <div style={{ fontSize: 22, fontWeight: 700, color: '#b6e2b6' }}>{v}</div>
       <div className="meta">{n}</div>
+    </div>
+  );
+}
+
+// Eğilim çubuğu + inline küme isimlendirme (insan döngüde; ad her yerde görünür)
+function NamableBar({
+  t, side, mapName, teamId,
+}: {
+  t: ReportResp['tendencies'][number];
+  side: 'T' | 'CT';
+  mapName: string;
+  teamId: string;
+}) {
+  const qc = useQueryClient();
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState('');
+  const label = t.label ?? t.top_places.slice(0, 3).map((p) => p.place).join(' → ');
+
+  async function save() {
+    await api.renameCluster(mapName, side, t.cluster_id, draft.trim());
+    setEditing(false);
+    qc.invalidateQueries({ queryKey: ['report', teamId, mapName] });
+  }
+
+  if (editing) {
+    return (
+      <div style={{ display: 'flex', gap: 6, marginTop: 4 }} className="noprint">
+        <input
+          autoFocus
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter') save(); if (e.key === 'Escape') setEditing(false); }}
+          placeholder='e.g. "B rush", "slow A split"'
+          style={{ flex: 1 }}
+        />
+        <button onClick={save}>✓</button>
+        <button className="ghost" onClick={() => setEditing(false)}>✕</button>
+      </div>
+    );
+  }
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+      <div style={{ flex: 1 }}><Bar prob={t.prob} label={label} /></div>
+      <button
+        className="ghost noprint"
+        title="name this strategy"
+        style={{ padding: '0 5px', fontSize: 11 }}
+        onClick={() => { setDraft(t.label ?? ''); setEditing(true); }}
+      >
+        ✏
+      </button>
     </div>
   );
 }
