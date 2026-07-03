@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<title>TacticalMind — Faz 2 test sayfası</title>
+<style>
+  :root { color-scheme: dark; }
+  body { font-family: -apple-system, system-ui, sans-serif; background:#111; color:#ddd; margin:0; padding:20px; }
+  h1 { font-size:18px; } h2 { font-size:15px; margin-top:28px; }
+  .row { display:flex; gap:24px; flex-wrap:wrap; align-items:flex-start; }
+  .panel { background:#1a1a1a; border:1px solid #2c2c2c; border-radius:8px; padding:16px; }
+  label { font-size:12px; color:#999; display:block; margin:8px 0 2px; }
+  select, input[type=range], textarea, button { font:inherit; background:#242424; color:#ddd; border:1px solid #3a3a3a; border-radius:4px; padding:4px 8px; }
+  button { cursor:pointer; background:#2d4a2d; } button:hover { background:#3a5f3a; }
+  canvas { background:#000; border:1px solid #333; image-rendering: pixelated; }
+  textarea { width:480px; height:220px; font-family:ui-monospace,monospace; font-size:12px; }
+  table { border-collapse:collapse; font-size:12px; margin-top:8px; }
+  td, th { border:1px solid #333; padding:3px 8px; text-align:left; }
+  .meta { font-size:12px; color:#888; margin-top:6px; }
+  #timelabel { font-variant-numeric: tabular-nums; }
+</style>
+</head>
+<body>
+<h1>TacticalMind — Faz 2 test sayfası <span class="meta">(geçici; asıl arayüz React+PixiJS ile gelecek)</span></h1>
+
+<div class="row">
+  <div class="panel">
+    <h2 style="margin-top:0">Isı haritası (heatmap_grid agregatından)</h2>
+    <label>Harita</label><select id="map"></select>
+    <label>Taraf</label>
+    <select id="side"><option>T</option><option>CT</option></select>
+    <label>Buy tipi (opsiyonel)</label>
+    <select id="buy"><option value="">hepsi</option><option>pistol</option><option>eco</option><option>semi</option><option>force</option><option>full</option></select>
+    <button id="load" style="margin-top:12px">Yükle</button>
+    <label>Zaman aralığı (freeze sonrası sn): <span id="timelabel">0–40</span></label>
+    <input type="range" id="t0" min="0" max="115" value="0" style="width:220px">
+    <input type="range" id="t1" min="0" max="115" value="40" style="width:220px">
+    <div class="meta" id="hmeta"></div>
+  </div>
+  <div class="panel">
+    <canvas id="cv" width="520" height="520"></canvas>
+    <div class="meta">16 birimlik dünya-koordinat ızgarası; radar görseli kalibrasyon fazında eklenecek.</div>
+  </div>
+</div>
+
+<div class="row">
+  <div class="panel">
+    <h2 style="margin-top:0">DSL sorgusu (POST /api/v1/query)</h2>
+    <label>Hazır örnekler</label>
+    <select id="examples" style="width:480px"></select>
+    <textarea id="dsl"></textarea><br>
+    <button id="run" style="margin-top:8px">Çalıştır</button>
+    <div class="meta" id="qmeta"></div>
+  </div>
+  <div class="panel" style="max-width:640px; overflow:auto">
+    <h2 style="margin-top:0">Sonuç</h2>
+    <div id="result">—</div>
+  </div>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+let heat = null; // {buckets, round_count}
+
+const EXAMPLES = {
+  "Mirage T full-buy rauntları": {intent:"heatmap_filterset", filters:{map:"de_mirage", side:"T", buy_type:["full"]}},
+  "Mirage'da ilk flash'lar (klip)": {intent:"find_moments", filters:{map:"de_mirage", event:{type:"grenade", grenade_type:"flash", order:"first_of_type_in_round"}}, output:{format:"clips"}},
+  "AWP açılış kill'leri": {intent:"find_moments", filters:{event:{type:"kill", weapon:"awp", first_kill:true}}, output:{format:"clips"}},
+  "Trade oranı (tüm arşiv)": {intent:"aggregate", filters:{event:{type:"kill", trade:true}}, output:{metric:"per_round"}},
+  "B'ye erken bomba (ilk 35 sn)": {intent:"find_moments", filters:{event:{type:"bomb", bomb_action:"plant", site:"B", time_window:{from:0,to:35}}}, output:{format:"rounds"}},
+  "Dust2 A bölgesinde ≥3 T (ilk 30 sn)": {intent:"find_moments", filters:{map:"de_dust2", side:"T", event:{type:"presence", area:"BombsiteA", min_players:3, time_window:{from:0,to:30}}}, output:{format:"clips"}}
+};
+
+async function init() {
+  const ms = await (await fetch('/api/v1/matches')).json();
+  const maps = [...new Set(ms.map(m => m.map_name).filter(Boolean))].sort();
+  $('map').innerHTML = maps.map(m => `<option>${m}</option>`).join('');
+  $('examples').innerHTML = Object.keys(EXAMPLES).map(k => `<option>${k}</option>`).join('');
+  const setEx = () => $('dsl').value = JSON.stringify(EXAMPLES[$('examples').value], null, 2);
+  $('examples').onchange = setEx; setEx();
+}
+
+$('load').onclick = async () => {
+  const p = new URLSearchParams({map: $('map').value, side: $('side').value});
+  if ($('buy').value) p.set('buy_type', $('buy').value);
+  const t = performance.now();
+  heat = await (await fetch('/api/v1/heatmap?' + p)).json();
+  $('hmeta').textContent = `${heat.round_count} raunt · ${heat.buckets.length} zaman kovası · sunucu ${heat.duration_ms} ms · toplam ${Math.round(performance.now()-t)} ms`;
+  draw();
+};
+
+function draw() {
+  if (!heat) return;
+  const a = +$('t0').value, b = +$('t1').value;
+  $('timelabel').textContent = `${Math.min(a,b)}–${Math.max(a,b)}`;
+  // seçili kovaları topla (sunucuya gitmeden — §8.2 deseni)
+  const agg = new Map();
+  let min = Infinity, maxv = 0;
+  for (const bk of heat.buckets) {
+    if (bk.t < Math.min(a,b) || bk.t > Math.max(a,b)) continue;
+    for (const [gx, gy, p] of bk.cells) {
+      const k = gx + ':' + gy;
+      agg.set(k, (agg.get(k) || 0) + p);
+    }
+  }
+  let gxMin=1e9, gxMax=-1e9, gyMin=1e9, gyMax=-1e9;
+  for (const k of agg.keys()) {
+    const [gx, gy] = k.split(':').map(Number);
+    gxMin=Math.min(gxMin,gx); gxMax=Math.max(gxMax,gx);
+    gyMin=Math.min(gyMin,gy); gyMax=Math.max(gyMax,gy);
+  }
+  for (const v of agg.values()) maxv = Math.max(maxv, v);
+  const cv = $('cv'), ctx = cv.getContext('2d');
+  ctx.fillStyle = '#000'; ctx.fillRect(0, 0, cv.width, cv.height);
+  if (!agg.size) return;
+  const cell = Math.min(cv.width / (gxMax-gxMin+1), cv.height / (gyMax-gyMin+1));
+  const norm = heat.round_count || 1;
+  for (const [k, v] of agg) {
+    const [gx, gy] = k.split(':').map(Number);
+    const x = (gx - gxMin) * cell;
+    const y = cv.height - (gy - gyMin + 1) * cell; // dünya +y yukarı
+    const i = Math.pow(v / maxv, 0.45); // gamma — düşük yoğunluklar görünür kalsın
+    ctx.fillStyle = `rgba(${Math.round(255*i)}, ${Math.round(90*i)}, ${Math.round(255*(1-i)*0.35)}, ${0.25+0.75*i})`;
+    ctx.fillRect(x, y, Math.ceil(cell), Math.ceil(cell));
+  }
+  $('hmeta').textContent = $('hmeta').textContent.split(' | ')[0] + ` | normalize: raunt başına maks ${(maxv/norm).toFixed(1)} tick`;
+}
+$('t0').oninput = draw; $('t1').oninput = draw;
+
+$('run').onclick = async () => {
+  let q;
+  try { q = JSON.parse($('dsl').value); } catch (e) { $('result').textContent = 'JSON hatası: ' + e.message; return; }
+  const r = await fetch('/api/v1/query', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(q)});
+  const j = await r.json();
+  if (j.error) { $('result').textContent = 'Hata: ' + j.error; return; }
+  $('qmeta').textContent = `süre: ${j.duration_ms} ms · raunt kümesi: ${j.round_count ?? '-'}`;
+  const rows = j.clips || j.rounds;
+  if (rows && rows.length) {
+    const cols = Object.keys(rows[0]);
+    $('result').innerHTML = `<table><tr>${cols.map(c=>`<th>${c}</th>`).join('')}</tr>` +
+      rows.slice(0, 50).map(r => `<tr>${cols.map(c=>`<td>${r[c]}</td>`).join('')}</tr>`).join('') +
+      `</table><div class="meta">${rows.length} sonuç${rows.length>50?' (ilk 50 gösteriliyor)':''}</div>`;
+  } else {
+    $('result').innerHTML = `<pre>${JSON.stringify(j, null, 2)}</pre>`;
+  }
+};
+
+init();
+</script>
+</body>
+</html>

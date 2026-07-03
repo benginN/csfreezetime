@@ -20,3 +20,33 @@ CREATE TABLE IF NOT EXISTS cs2.player_ticks (
 ) ENGINE = MergeTree
 PARTITION BY map_name
 ORDER BY (match_id, round_number, player_id, tick);
+
+-- Isı haritası ön-agregatı (mimari.md §5.3 deseni; anahtara match_id +
+-- round_number eklendi ki takım/buy/tarih filtreleri PG'den gelen raunt
+-- listesiyle uygulanabilsin ve raunt sayısına normalizasyon (§8.2) mümkün olsun).
+CREATE TABLE IF NOT EXISTS cs2.heatmap_grid (
+    map_name     LowCardinality(String),
+    side         Enum8('T' = 1, 'CT' = 2),
+    match_id     UUID,
+    round_number UInt8,
+    time_bucket  UInt16,   -- freeze sonrası 1 sn kovası
+    grid_x       Int16,    -- 16 birimlik dünya koordinat ızgarası
+    grid_y       Int16,
+    presence     UInt64
+) ENGINE = SummingMergeTree
+ORDER BY (map_name, side, match_id, round_number, time_bucket, grid_x, grid_y);
+
+CREATE MATERIALIZED VIEW IF NOT EXISTS cs2.heatmap_grid_mv
+TO cs2.heatmap_grid
+AS SELECT
+    map_name,
+    side,
+    match_id,
+    round_number,
+    toUInt16(floor(round_time))      AS time_bucket,
+    toInt16(intDiv(toInt32(x), 16))  AS grid_x,
+    toInt16(intDiv(toInt32(y), 16))  AS grid_y,
+    count()                          AS presence
+FROM cs2.player_ticks
+WHERE is_alive
+GROUP BY map_name, side, match_id, round_number, time_bucket, grid_x, grid_y;

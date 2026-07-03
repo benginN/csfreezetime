@@ -1,0 +1,82 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "cs2-platform/dsl/v1",
+  "title": "TacticalMind sorgu DSL'i (mimari.md Ek A, Faz 2 kapsamı)",
+  "description": "Doğal dil katmanı (Faz 3) ve form arayüzü bu şemadan üretilir; stats-svc yalnızca bu şemaya uyan sorguları derler. Faz 2 kısıtları: team_scope ve date_range henüz yok (teams/played_at boş), grenade bölge filtresi yok (det_place Faz sonrası).",
+  "type": "object",
+  "required": ["intent", "filters"],
+  "additionalProperties": false,
+  "properties": {
+    "intent": { "enum": ["find_moments", "aggregate", "heatmap_filterset"] },
+    "filters": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "map": { "type": "string", "pattern": "^de_[a-z0-9_]+$" },
+        "side": { "enum": ["T", "CT"] },
+        "buy_type": {
+          "type": "array",
+          "items": { "enum": ["pistol", "eco", "semi", "force", "full"] },
+          "description": "side verilmişse o tarafın buy'ına, verilmemişse iki taraftan birine uyan rauntlar"
+        },
+        "round_number": {
+          "type": "object",
+          "properties": { "min": { "type": "integer", "minimum": 1 }, "max": { "type": "integer" } }
+        },
+        "source": { "enum": ["scrim", "official", "faceit"] },
+        "player": {
+          "type": "object",
+          "description": "Olayın aktörü (kill: attacker, grenade: thrower)",
+          "properties": {
+            "nickname": { "type": "string" },
+            "steam_id64": { "type": "integer" }
+          }
+        },
+        "event": {
+          "type": "object",
+          "required": ["type"],
+          "properties": {
+            "type": { "enum": ["kill", "grenade", "bomb", "presence", "economy"] },
+
+            "weapon": { "type": "string" },
+            "first_kill": { "type": "boolean" },
+            "trade": { "type": "boolean" },
+            "headshot": { "type": "boolean" },
+            "area": { "type": "string", "description": "kill: kurbanın bölgesi (area_of ile değiştirilebilir); presence: aranan bölge" },
+            "area_of": { "enum": ["attacker", "victim"], "default": "victim" },
+
+            "grenade_type": { "enum": ["flash", "smoke", "he", "molotov", "incendiary", "decoy"] },
+            "order": { "enum": ["first_of_type_in_round"] },
+
+            "bomb_action": { "enum": ["plant", "defuse", "explode"] },
+            "site": { "enum": ["A", "B"] },
+
+            "min_players": { "type": "integer", "minimum": 1, "maximum": 5 },
+
+            "equip_min": { "type": "integer" },
+            "equip_max": { "type": "integer" },
+
+            "time_window": {
+              "type": "object",
+              "description": "freeze sonrası saniye aralığı",
+              "properties": { "from": { "type": "number" }, "to": { "type": "number" } }
+            }
+          }
+        }
+      }
+    },
+    "output": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "format": { "enum": ["clips", "rounds", "aggregate"] },
+        "context_seconds": {
+          "type": "array", "items": { "type": "number" }, "minItems": 2, "maxItems": 2,
+          "description": "klip için olay öncesi/sonrası saniye",
+          "default": [5, 8]
+        },
+        "metric": { "enum": ["count", "per_round"], "default": "count" }
+      }
+    }
+  }
+}
