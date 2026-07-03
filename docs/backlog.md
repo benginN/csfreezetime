@@ -3,18 +3,17 @@
 Kural: yeni istekler buraya eklenir, akış bölünmez. Veri toplamayı etkileyen
 maddeler (parser değişikliği gerektirenler) beklemeden yapılır.
 
-## Frontend / UX (kalıcı arayüz fazında)
-- [ ] Genel kullanıcı dostu tasarım (test sayfası user-friendly değil)
-- [ ] Takım seçimi: takım listesi → seçilen takımın maçları
-- [ ] Maç seçicinin detaylanması (takım adları, tarih, skor — "rastgele sayı" değil)
+## Açık
 - [ ] Harita görselleri birebir net (radar PNG'leri; static/radars/README.md'deki
-      manuel yol mevcut, kalıcı çözüm frontend fazında kararlaştırılacak)
-
-## Veri / parser (erken yapılması avantajlı)
-- [ ] Demolardan takım adlarının çıkarılması (team_clan_name) → teams tablosu
-      dolsun, matches.team_a/b bağlansın (takım seçimi özelliğinin ön koşulu)
+      manuel yol mevcut — kullanıcı kendi oyun dosyalarından ekleyebilir)
+- [ ] Kullanıcının final rötuş listesi (plan sonunda topluca)
 
 ## Tamamlananlar
+- [x] Kalıcı frontend (apps/web): maçlar/maç detayı/replay/analiz — gece 2
+- [x] Genel kullanıcı dostu tasarım (React SPA, koyu tema) — gece 2
+- [x] Takım seçimi + seçilen takımın maçları + eğilim paneli — gece 2
+- [x] Maç kartları: takım adları + gerçek skorlar — gece 2
+- [x] Takım adı çıkarımı (team_clan_name → teams/rounds/matches) — gece 2
 - [x] Silahlar görünsün (oyuncu yanında aktif silah) — a3e695f
 - [x] Bombalar görünsün: smoke 20 sn, molotof 7 sn, flash/HE patlama — a3e695f
 - [x] Kim kör oluyor görünsün (flash_remaining'ten beyaz hale) — a3e695f

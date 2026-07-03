@@ -57,7 +57,8 @@ export default function MatchDetail() {
           <thead>
             <tr>
               <th>#</th><th>Kazanan</th><th>Bitiş</th><th>Bomba</th>
-              <th>T buy</th><th>CT buy</th><th>Kill</th>
+              <th>T buy</th><th>CT buy</th><th title="Strateji kümesi (otomatik)">T strat</th>
+              <th title="Strateji kümesi (otomatik)">CT strat</th><th>Kill</th>
             </tr>
           </thead>
           <tbody>
@@ -75,6 +76,8 @@ export default function MatchDetail() {
                   <td>{r.bomb_site ?? '—'}</td>
                   <td>{r.t_buy_type ?? '—'}</td>
                   <td>{r.ct_buy_type ?? '—'}</td>
+                  <td>{r.t_cluster != null ? <span className="badge gray">#{r.t_cluster}</span> : '—'}</td>
+                  <td>{r.ct_cluster != null ? <span className="badge gray">#{r.ct_cluster}</span> : '—'}</td>
                   <td>{kc}</td>
                 </tr>
               );

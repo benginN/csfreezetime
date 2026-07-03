@@ -31,6 +31,19 @@ export interface RoundRow {
   bomb_plant_tick: number | null;
   t_buy_type: string | null;
   ct_buy_type: string | null;
+  t_cluster: number | null;
+  ct_cluster: number | null;
+}
+
+export interface Tendency {
+  map_name: string;
+  side: 'T' | 'CT';
+  cluster_id: number;
+  label: string | null;
+  top_places: { place: string; weight: number }[];
+  observed: number;
+  sample_size: number;
+  prob: number;
 }
 
 export interface KillRow {
@@ -176,6 +189,7 @@ async function post<T>(url: string, body: unknown): Promise<T> {
 
 export const api = {
   teams: () => get<Team[]>('/api/v1/teams'),
+  tendencies: (teamId: string) => get<Tendency[]>(`/api/v1/teams/${teamId}/tendencies`),
   matches: (teamId?: string) =>
     get<MatchSummary[]>('/api/v1/matches' + (teamId ? `?team_id=${teamId}` : '')),
   matchDetail: (id: string) => get<MatchDetail>(`/api/v1/matches/${id}`),

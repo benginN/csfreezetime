@@ -137,6 +137,43 @@ CREATE TABLE IF NOT EXISTS grenades (
 CREATE INDEX IF NOT EXISTS grenades_match_round_idx ON grenades (match_id, round_number);
 CREATE INDEX IF NOT EXISTS grenades_type_place_idx ON grenades (type, det_place);
 
+-- Faz 4: yerel istatistik çıktıları (services/ml, ml-jobs yazar) ─────
+CREATE TABLE IF NOT EXISTS strategy_clusters (
+    map_name    TEXT NOT NULL,
+    side        TEXT NOT NULL CHECK (side IN ('T','CT')),
+    cluster_id  SMALLINT NOT NULL,
+    label       TEXT,                      -- koç isimlendirmesi (insan döngüde)
+    size        INT NOT NULL,
+    top_places  JSONB NOT NULL,
+    representatives JSONB NOT NULL,        -- merkeze en yakın rauntlar
+    computed_at TIMESTAMPTZ DEFAULT now(),
+    PRIMARY KEY (map_name, side, cluster_id)
+);
+
+CREATE TABLE IF NOT EXISTS team_tendencies (
+    team_id     UUID REFERENCES teams(team_id),
+    map_name    TEXT NOT NULL,
+    side        TEXT NOT NULL CHECK (side IN ('T','CT')),
+    cluster_id  SMALLINT NOT NULL,
+    observed    INT NOT NULL,
+    sample_size INT NOT NULL,
+    shrunk_prob REAL NOT NULL,             -- Bayesçi büzülmeli olasılık (§6.2)
+    computed_at TIMESTAMPTZ DEFAULT now(),
+    PRIMARY KEY (team_id, map_name, side, cluster_id)
+);
+
+CREATE TABLE IF NOT EXISTS anomaly_flags (
+    flag_id       BIGSERIAL PRIMARY KEY,
+    player_id     UUID REFERENCES players(player_id),
+    match_id      UUID REFERENCES matches(match_id) ON DELETE CASCADE,
+    metric        TEXT NOT NULL,
+    value         REAL NOT NULL,
+    baseline_mean REAL NOT NULL,
+    baseline_std  REAL NOT NULL,
+    z             REAL NOT NULL,
+    computed_at   TIMESTAMPTZ DEFAULT now()
+);
+
 -- Seed ───────────────────────────────────────────────────────────────
 -- Faz 1 tek-org yerel kurulum; sabit UUID, worker'lar env'den değil buradan bilir.
 INSERT INTO orgs (org_id, name)

@@ -14,7 +14,9 @@ işlenir, koçun tüm sorguları önceden hesaplanmış tablolara düşer
 |---|---|---|
 | `services/parser-worker` | Rust | `demo.ingested` → .dem indir → parse → ClickHouse tick + PostgreSQL meta |
 | `services/enrichment` | Python | `demo.parsed` → trade/first-kill, buy sınıfı, ilk-grenade → `demo.enriched` |
-| `services/stats-svc` | Go | DSL→SQL sorgu motoru, ısı haritası, replay ve stacking API'si (:8090) |
+| `services/stats-svc` | Go | DSL→SQL sorgu motoru, ısı haritası, replay/stacking API'si + SPA sunumu (:8090) |
+| `services/ml` | Python | Yerel istatistik: strateji kümeleme, takım eğilimleri, anomali (`uv run ml-jobs`) |
+| `apps/web` | React+TS | Kalıcı arayüz: maçlar, replay (PixiJS), analiz (`npm run build` → stats-svc servis eder) |
 | `infra/` | — | docker-compose: PostgreSQL 16, ClickHouse, MinIO, NATS JetStream |
 | `scripts/` | — | şema uygulama, toplu ingest, uçtan uca testler |
 
@@ -35,12 +37,17 @@ cargo run --release --manifest-path services/parser-worker/Cargo.toml
 # 3. Demo yükle (test-data/*.dem dosyalarını kuyruğa verir, işlenmişleri atlar)
 scripts/ingest-dir.sh
 
-# 4. Test sayfası
-open http://localhost:8090   # replay, stacking, DSL, ısı haritası
+# 4. İstatistik işleri (demo eklendikçe yeniden çalıştır)
+(cd services/ml && uv run --no-editable ml-jobs)
 
-# 5. Testler
+# 5. Arayüz
+(cd apps/web && npm install && npm run build)
+open http://localhost:8090   # SPA: maçlar, replay, analiz (/debug: test sayfası)
+
+# 6. Testler
 scripts/e2e-test.sh          # boru hattı uçtan uca
 scripts/test-dsl.sh          # 20 golden DSL + replay/stack + p95
+scripts/test-ml.sh           # kümeleme/eğilim/anomali tutarlılığı
 ```
 
 ## stats-svc API (v1)
@@ -60,5 +67,6 @@ scripts/test-dsl.sh          # 20 golden DSL + replay/stack + p95
 - ✅ Faz 1 — PG şeması + enrichment (trade, buy sınıfları)
 - ✅ Faz 2 — heatmap_grid + DSL motoru (20 sorgu kalıbı, p95 ~60 ms)
 - ✅ Faz 3 (revize) — replay endpoint'leri + Multi-View Stacking + radar kalibrasyonu
-- ⬜ Faz 4 — yerel istatistik modülleri (kümeleme, tahmin, anomali)
-- ⬜ Frontend — React + TypeScript + PixiJS SPA
+- ✅ Frontend — React + TypeScript + PixiJS SPA (maçlar/replay/analiz, takım filtresi)
+- ✅ Faz 4 (v1) — strateji kümeleme + Bayesçi eğilimler + z-skor anomali (yerel, LLM'siz)
+- ⬜ Faz 4 devamı — LightGBM'li raunt tahmini, küme isimlendirme arayüzü, koç raporu

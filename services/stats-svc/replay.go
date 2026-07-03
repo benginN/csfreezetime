@@ -66,10 +66,13 @@ func (s *server) matchDetail(w http.ResponseWriter, r *http.Request) {
 		BombPlantTick *int32  `json:"bomb_plant_tick"`
 		TBuy          *string `json:"t_buy_type"`
 		CTBuy         *string `json:"ct_buy_type"`
+		TCluster      *int16  `json:"t_cluster"`
+		CTCluster     *int16  `json:"ct_cluster"`
 	}
 	rows, err := s.pg.Query(ctx, `
 		SELECT round_number, start_tick, freeze_end_tick, end_tick, winner_side,
-		       end_reason, bomb_site, bomb_plant_tick, t_buy_type, ct_buy_type
+		       end_reason, bomb_site, bomb_plant_tick, t_buy_type, ct_buy_type,
+		       t_strategy_cluster, ct_strategy_cluster
 		FROM rounds WHERE match_id = $1 ORDER BY round_number`, matchID)
 	if err != nil {
 		writeErr(w, 500, err)
@@ -79,7 +82,8 @@ func (s *server) matchDetail(w http.ResponseWriter, r *http.Request) {
 	for rows.Next() {
 		var x roundRow
 		if err := rows.Scan(&x.RoundNumber, &x.StartTick, &x.FreezeEndTick, &x.EndTick,
-			&x.WinnerSide, &x.EndReason, &x.BombSite, &x.BombPlantTick, &x.TBuy, &x.CTBuy); err != nil {
+			&x.WinnerSide, &x.EndReason, &x.BombSite, &x.BombPlantTick, &x.TBuy, &x.CTBuy,
+			&x.TCluster, &x.CTCluster); err != nil {
 			rows.Close()
 			writeErr(w, 500, err)
 			return

@@ -78,6 +78,8 @@ func main() {
 		w.Write(schemaJSON)
 	})
 	r.Get("/api/v1/teams", srv.teams)
+	r.Get("/api/v1/teams/{id}/tendencies", srv.teamTendencies)
+	r.Get("/api/v1/players/{id}/flags", srv.playerFlags)
 	r.Get("/api/v1/matches", srv.matches)
 	r.Get("/api/v1/matches/{id}", srv.matchDetail)
 	r.Get("/api/v1/rounds/{match_id}/{n}/ticks", srv.roundTicks)
