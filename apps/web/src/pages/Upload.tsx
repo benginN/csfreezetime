@@ -232,6 +232,9 @@ function FaceitPanel({ onImported }: { onImported: (matchId: string) => void }) 
         <button className="ghost" disabled={!nick.trim()} onClick={listMatches}>
           List recent matches
         </button>
+        {nick.trim() && (
+          <Link to={`/faceit/${encodeURIComponent(nick.trim())}`}>full profile →</Link>
+        )}
       </div>
       {list.length > 0 && (
         <table style={{ maxWidth: 620 }}>

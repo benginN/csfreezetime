@@ -105,6 +105,127 @@ func (s *server) faceitMatches(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 200, map[string]any{"player": player.Nickname, "matches": out})
 }
 
+// GET /api/v1/faceit/player?nickname=X — profil + ömürlük istatistik +
+// harita segmentleri + son maçlar (W/L'li). Tek Data API anahtarıyla çalışır.
+func (s *server) faceitPlayer(w http.ResponseWriter, r *http.Request) {
+	if faceitKey() == "" {
+		writeErr(w, 503, fmt.Errorf("FACEIT_API_KEY is not configured"))
+		return
+	}
+	nick := strings.TrimSpace(r.URL.Query().Get("nickname"))
+	if nick == "" {
+		writeErr(w, 400, fmt.Errorf("nickname is required"))
+		return
+	}
+
+	var player struct {
+		PlayerID string `json:"player_id"`
+		Nickname string `json:"nickname"`
+		Avatar   string `json:"avatar"`
+		Country  string `json:"country"`
+		Games    map[string]struct {
+			Elo        int    `json:"faceit_elo"`
+			SkillLevel int    `json:"skill_level"`
+			Region     string `json:"region"`
+		} `json:"games"`
+	}
+	if err := s.faceitGet("/players?nickname="+url.QueryEscape(nick), &player); err != nil {
+		writeErr(w, 502, fmt.Errorf("player lookup: %w", err))
+		return
+	}
+
+	var stats struct {
+		Lifetime map[string]any `json:"lifetime"`
+		Segments []struct {
+			Label string            `json:"label"`
+			Type  string            `json:"type"`
+			Mode  string            `json:"mode"`
+			Stats map[string]string `json:"stats"`
+		} `json:"segments"`
+	}
+	_ = s.faceitGet("/players/"+player.PlayerID+"/stats/cs2", &stats) // stats yoksa boş geçilir
+
+	var hist struct {
+		Items []struct {
+			MatchID   string `json:"match_id"`
+			StartedAt int64  `json:"started_at"`
+			Comp      string `json:"competition_name"`
+			Teams     map[string]struct {
+				Nickname string `json:"nickname"`
+				Players  []struct {
+					PlayerID string `json:"player_id"`
+				} `json:"players"`
+			} `json:"teams"`
+			Results struct {
+				Winner string         `json:"winner"`
+				Score  map[string]int `json:"score"`
+			} `json:"results"`
+		} `json:"items"`
+	}
+	if err := s.faceitGet(
+		"/players/"+player.PlayerID+"/history?game=cs2&limit=20", &hist); err != nil {
+		writeErr(w, 502, fmt.Errorf("history: %w", err))
+		return
+	}
+
+	type mrow struct {
+		MatchID   string `json:"match_id"`
+		StartedAt string `json:"started_at"`
+		Label     string `json:"label"`
+		Score     string `json:"score"`
+		Won       bool   `json:"won"`
+		Comp      string `json:"competition"`
+	}
+	matches := []mrow{}
+	for _, it := range hist.Items {
+		// oyuncunun fraksiyonu → W/L
+		myFaction := ""
+		for fname, f := range it.Teams {
+			for _, p := range f.Players {
+				if p.PlayerID == player.PlayerID {
+					myFaction = fname
+				}
+			}
+		}
+		matches = append(matches, mrow{
+			MatchID:   it.MatchID,
+			StartedAt: time.Unix(it.StartedAt, 0).UTC().Format("2006-01-02"),
+			Label: fmt.Sprintf("%s vs %s",
+				it.Teams["faction1"].Nickname, it.Teams["faction2"].Nickname),
+			Score: fmt.Sprintf("%d : %d",
+				it.Results.Score["faction1"], it.Results.Score["faction2"]),
+			Won:  myFaction != "" && it.Results.Winner == myFaction,
+			Comp: it.Comp,
+		})
+	}
+
+	// harita segmentleri: yalnız 5v5 map tipi
+	type seg struct {
+		Map   string            `json:"map"`
+		Stats map[string]string `json:"stats"`
+	}
+	segs := []seg{}
+	for _, sg := range stats.Segments {
+		if sg.Type == "Map" && (sg.Mode == "5v5" || sg.Mode == "") {
+			segs = append(segs, seg{Map: sg.Label, Stats: sg.Stats})
+		}
+	}
+
+	cs := player.Games["cs2"]
+	writeJSON(w, 200, map[string]any{
+		"player_id": player.PlayerID,
+		"nickname":  player.Nickname,
+		"avatar":    player.Avatar,
+		"country":   player.Country,
+		"elo":       cs.Elo,
+		"level":     cs.SkillLevel,
+		"region":    cs.Region,
+		"lifetime":  stats.Lifetime,
+		"maps":      segs,
+		"matches":   matches,
+	})
+}
+
 var faceitRoomRe = regexp.MustCompile(`(1-[0-9a-f-]{36})`)
 
 // POST /api/v1/faceit/import {"match": "<match id veya oda URL'si>"}
