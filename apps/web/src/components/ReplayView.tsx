@@ -56,8 +56,22 @@ export default function ReplayView({
   const fIdxRef = useRef(0);
   const playingRef = useRef(false);
   const speedRef = useRef(2);
+  const labelsRef = useRef(true);        // sahne yeniden kurulmadan okunur
+  const baseSpriteRef = useRef<Sprite | null>(null);
   playingRef.current = playing;
   speedRef.current = speed;
+  labelsRef.current = labels;
+
+  // Etiket düğmesi yalnızca arka plan dokusunu tazeler — oynatma sıfırlanmaz
+  useEffect(() => {
+    const sp = baseSpriteRef.current;
+    if (sp && base) {
+      const old = sp.texture;
+      sp.texture = Texture.from(renderMapBaseCanvas(base, W * DPR, labels, 'upper'));
+      sp.setSize(W, W);
+      old.destroy(true);
+    }
+  }, [labels, base]);
 
   const d = ticksQ.data;
   const startIdx = useMemo(() => {
@@ -87,8 +101,11 @@ export default function ReplayView({
       const worldPx = (u: number) => px(u / d.radar.scale);
 
       // arka plan tuvali fiziksel çözünürlükte üretilir, sprite CSS boyutuna oturur
-      const baseSprite = new Sprite(Texture.from(renderMapBaseCanvas(base, W * DPR, labels, 'upper')));
+      const baseSprite = new Sprite(
+        Texture.from(renderMapBaseCanvas(base, W * DPR, labelsRef.current, 'upper')),
+      );
       baseSprite.setSize(W, W);
+      baseSpriteRef.current = baseSprite;
       // Çok katlı haritada alt kat: sağ üstte sabit mini harita (turnuva stili)
       const hasLower = d.radar.has_lower;
       const INS = Math.round(W * 0.38);         // inset boyutu
@@ -212,7 +229,7 @@ export default function ReplayView({
           const col = SIDE_COLOR[p.side] ?? 0x999999;
           const g = node.g;
           g.clear();
-          node.name.visible = labels && alive;
+          node.name.visible = labelsRef.current && alive;
           node.name.scale.set(Math.max(s, 0.72)); // inset'te küçük ama okunur
 
           if (!alive) {
@@ -305,10 +322,11 @@ export default function ReplayView({
 
     return () => {
       destroyed = true;
+      baseSpriteRef.current = null;
       try { app.destroy(true, { children: true }); } catch { /* init yarıda */ }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [d, base, labels, matchKills]);
+  }, [d, base, matchKills]);
 
   if (ticksQ.isLoading) return <p className="meta">raunt yükleniyor…</p>;
   if (ticksQ.error || !d) return <p className="error">{String(ticksQ.error)}</p>;
@@ -357,30 +375,36 @@ function HudPanel({ rows, cls }: { rows: HudRow[]; cls: string }) {
   return (
     <div className={`hud ${cls}`}>
       <table>
+        <colgroup>
+          <col style={{ width: '24%' }} />
+          <col style={{ width: '19%' }} />
+          <col style={{ width: '10%' }} />
+          <col style={{ width: '23%' }} />
+          <col style={{ width: '13%' }} />
+          <col style={{ width: '11%' }} />
+        </colgroup>
         <tbody>
           {rows.map((r) => (
-            <tr key={r.nick} style={{ opacity: r.alive ? 1 : 0.45 }}>
-              <td style={{ fontWeight: 600 }}>{r.nick}</td>
-              <td>
-                <span className="hpbar">
-                  <i style={{ width: `${r.hp}%`, background: `hsl(${(120 * r.hp) / 100},70%,45%)` }} />
-                </span>{' '}
-                {r.hp}
-              </td>
-              <td>🛡{r.armor}</td>
-              <td>{r.alive ? r.weapon : '—'}</td>
-              <td>${r.money ?? '?'}</td>
-              <td>{r.k}/{r.a}/{r.d}</td>
-            </tr>
+            <>
+              <tr key={r.nick} style={{ opacity: r.alive ? 1 : 0.4 }}>
+                <td className="cut" style={{ fontWeight: 600 }}>{r.nick}</td>
+                <td>
+                  <span className="hpbar">
+                    <i style={{ width: `${r.hp}%`, background: `hsl(${(120 * r.hp) / 100},70%,45%)` }} />
+                  </span>{' '}
+                  {r.hp}
+                </td>
+                <td>🛡{r.armor}</td>
+                <td className="cut">{r.alive ? r.weapon : '—'}</td>
+                <td>${r.money ?? '?'}</td>
+                <td>{r.k}/{r.a}/{r.d}</td>
+              </tr>
+              <tr key={r.nick + '-inv'} style={{ opacity: r.alive ? 1 : 0.4 }}>
+                <td />
+                <td colSpan={5} className="inv cut">{r.alive ? r.inv : ''}</td>
+              </tr>
+            </>
           ))}
-          {rows.length > 0 && (
-            <tr>
-              <td colSpan={6} className="inv">
-                {rows.map((r) => r.alive && r.inv ? `${r.nick}: ${r.inv}` : null)
-                  .filter(Boolean).join('  |  ')}
-              </td>
-            </tr>
-          )}
         </tbody>
       </table>
     </div>
