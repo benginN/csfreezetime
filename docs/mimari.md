@@ -1,9 +1,11 @@
 # CS2 Yapay Zekâ Destekli Analiz ve Taktik Platformu
 ## Sistem Mimarisi ve Teknik Tasarım Dokümanı
 
+> **Revizyon notu (v0.2, 2026-07-03):** Ürün kararıyla **LLM/Claude API entegrasyonu tamamen iptal edilmiştir** (kullanım başına token maliyeti istenmiyor; platform dış AI servisine veri göndermez). Bu kararla: §6.1'deki NLP arama motorunun LLM çeviri katmanı yapılmayacak — DSL sorgu motoru form arayüzüyle kalıcı çözümdür; embedding tabanlı hibrit arama ve raunt anlatıları da kapsam dışıdır. §6.2 ve §6.3'teki **yerel** istatistik modülleri (kümeleme, tahmin, anomali — sunucuda çalışır, kullanım ücreti yoktur) yol haritasında korunmaktadır. §11'deki Faz 3, "replay endpoint'leri + Multi-View Stacking + radar kalibrasyonu" olarak revize edilmiş ve tamamlanmıştır.
+
 | | |
 |---|---|
-| **Doküman sürümü** | v0.1 (Taslak) |
+| **Doküman sürümü** | v0.2 (LLM iptal revizyonu) |
 | **Kapsam** | Uçtan uca sistem mimarisi, veritabanı şeması, AI/ML entegrasyon yol haritası, demo parser mimarisi |
 | **Hedef kitle** | Kurucu ekip, backend/ML mühendisleri, ürün yönetimi |
 | **Kod adı** | *(çalışma adı)* TacticalMind |
