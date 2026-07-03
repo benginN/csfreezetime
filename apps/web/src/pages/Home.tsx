@@ -84,7 +84,10 @@ function TeamPanels({ teamId, name }: { teamId: string; name: string }) {
 
   return (
     <>
-      <h2>{name} — next round prediction</h2>
+      <h2>
+        {name} — next round prediction{' '}
+        <Link to={`/report/${teamId}`} style={{ fontWeight: 400 }}>· Full opponent report →</Link>
+      </h2>
       <div className="panel">
         <div className="toolbar">
           <select value={effMap} onChange={(e) => setMapName(e.target.value)}>

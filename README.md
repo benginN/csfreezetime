@@ -70,6 +70,12 @@ scripts/test-ml.sh           # kümeleme/eğilim/anomali tutarlılığı
 - ✅ Frontend — React + TypeScript + PixiJS SPA (maçlar/replay/analiz, takım filtresi)
 - ✅ Faz 4 (v1) — strateji kümeleme + Bayesçi eğilimler + z-skor anomali (yerel, LLM'siz)
 - ✅ Faz 4 devamı — koşullu raunt tahmini (/predict, zamansal log-loss değerlendirmeli
-  yöntem seçimi), küme isimlendirme (/stratejiler sayfası, insan döngüde)
+  yöntem seçimi), küme isimlendirme (insan döngüde)
+- ✅ Faz 5 — Rakip Hazırlık Raporu (/report/:teamId): utility istihbaratı
+  (utility_spots — açgözlü yarıçap kümeleme + zamanlama + strat_mix), kurulum
+  tespiti (team_setups — 15/30 sn yerleşim desenleri + hold süresi), oyuncu
+  rolleri (player_roles — entry/lurker/anchor/AWP, kanıt eşiği 30 raunt),
+  ekonomi davranışı + taraf/pistol istatistikleri; takım arşiv ısı haritası
+  (GET /teams/{id}/heatmap); yazdırılabilir rapor sayfası
 - ⬜ Sonrası — LightGBM adayı (lig ≥50k raunt eşiğinde değerlendirme düzeneğine girer),
-  koç raporu, yayına hazırlık (ingest-svc, auth)
+  rotasyon analizi (setups v2), takım karşılaştırma, yayına hazırlık (ingest-svc, auth)

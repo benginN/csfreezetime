@@ -1,5 +1,5 @@
 import { Fragment } from 'react';
-import { useParams, useSearchParams } from 'react-router-dom';
+import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../api';
 import { chipTitle, isSideSwap, winnerTeamClass } from '../lib/rounds';
@@ -53,9 +53,13 @@ export default function MatchPage() {
   return (
     <>
       <h1 style={{ marginBottom: 0 }}>
-        {d.team_a ?? 'Team A'}{' '}
+        {d.team_a_id
+          ? <Link to={`/report/${d.team_a_id}?map=${d.map_name ?? ''}`} title="Opponent report">{d.team_a}</Link>
+          : (d.team_a ?? 'Team A')}{' '}
         <span style={{ color: '#b6e2b6' }}>{scoreA} : {scoreB}</span>{' '}
-        {d.team_b ?? 'Team B'}{' '}
+        {d.team_b_id
+          ? <Link to={`/report/${d.team_b_id}?map=${d.map_name ?? ''}`} title="Opponent report">{d.team_b}</Link>
+          : (d.team_b ?? 'Team B')}{' '}
         <span className="meta">{d.map_name}{summary.data?.played_at ? ` · ${summary.data.played_at}` : ''}</span>
       </h1>
 

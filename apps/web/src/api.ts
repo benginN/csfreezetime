@@ -195,6 +195,82 @@ export interface MatchHeatmap {
   radar: RadarCal;
 }
 
+export interface ReportSetup {
+  side: 'T' | 'CT';
+  t_offset: number;
+  pattern_id: number;
+  pattern: { place: string; n: number }[];
+  observed: number;
+  sample_size: number;
+  share: number;
+  avg_hold_sec: number | null;
+  representatives: { match_id: string; round_number: number }[];
+}
+
+export interface ReportUtility {
+  side: 'T' | 'CT';
+  type: string;
+  cluster_id: number;
+  label: string | null;
+  det_rx: number;
+  det_ry: number;
+  throw_rx: number | null;
+  throw_ry: number | null;
+  count: number;
+  share: number;
+  t_avg: number | null;
+  t_std: number | null;
+  strat_mix: Record<string, number> | null;
+  representatives: { match_id: string; round_number: number }[];
+}
+
+export interface ReportPlayer {
+  nickname: string;
+  player_id: string;
+  side: 'T' | 'CT';
+  rounds: number;
+  entry_attempt_share: number | null;
+  entry_success: number | null;
+  opening_kills: number;
+  opening_deaths: number;
+  lurk_dist_avg: number | null;
+  anchor_place: string | null;
+  anchor_share: number | null;
+  awp_round_share: number | null;
+  util_per_round: number | null;
+  flash_assists_pr: number | null;
+  adr: number | null;
+  tags: string[];
+}
+
+export interface ReportResp {
+  team_id: string;
+  team: string;
+  map: string;
+  insufficient?: boolean;
+  overview: {
+    matches: number; wins: number;
+    t_rounds: number; t_wins: number;
+    ct_rounds: number; ct_wins: number;
+    pistol_rounds: number; pistol_wins: number;
+    conv_after_pistol_win_n: number; conv_after_pistol_win: number;
+  };
+  economy: {
+    buy_T: Record<string, number>;
+    buy_CT: Record<string, number>;
+    after_pistol_loss: Record<string, number>;
+  };
+  tendencies: (Tendency & { side: 'T' | 'CT' })[];
+  conditional: {
+    side: 'T' | 'CT'; buy_type: string; cluster_id: number;
+    label: string | null; top_places: { place: string; weight: number }[];
+    prob: number; sample_size: number;
+  }[];
+  setups: ReportSetup[];
+  utility: ReportUtility[];
+  players: ReportPlayer[];
+}
+
 export interface StackLayer {
   match_id: string;
   round_number: number;
@@ -260,6 +336,10 @@ export const api = {
     get<{ player_id: string; nickname: string }[]>(`/api/v1/matches/${id}/players`),
   matchHeatmap: (id: string, p: URLSearchParams) =>
     get<MatchHeatmap>(`/api/v1/matches/${id}/heatmap?` + p),
+  teamHeatmap: (id: string, p: URLSearchParams) =>
+    get<MatchHeatmap>(`/api/v1/teams/${id}/heatmap?` + p),
+  report: (teamId: string, map: string) =>
+    get<ReportResp>(`/api/v1/report?team_id=${teamId}&map=${encodeURIComponent(map)}`),
   roundTicks: (id: string, n: number) => get<RoundTicks>(`/api/v1/rounds/${id}/${n}/ticks`),
   mapLayout: (map: string) => get<MapLayout>(`/api/v1/maplayout?map=${map}`),
   query: (dsl: unknown) => post<QueryResult>('/api/v1/query', dsl),

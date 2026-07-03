@@ -3,6 +3,7 @@ import { Navigate, Route, Routes, useNavigate, useParams, useSearchParams } from
 import Home from './pages/Home';
 import MatchPage from './pages/MatchPage';
 import Upload from './pages/Upload';
+import Report from './pages/Report';
 
 export default function App() {
   return (
@@ -21,6 +22,7 @@ export default function App() {
           <Route path="/match/:id/round/:n" element={<OldRoundRedirect />} />
           <Route path="/upload" element={<Upload />} />
           <Route path="/yukle" element={<Upload />} />
+          <Route path="/report/:teamId" element={<Report />} />
         </Routes>
       </main>
     </>

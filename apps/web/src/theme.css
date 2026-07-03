@@ -175,3 +175,29 @@ canvas.flat { border: 1px solid #232a26; border-radius: 6px; display:block; }
 .hud .hpbar { display: inline-block; width: 26px; height: 5px; background: #232a26; border-radius: 2px; overflow: hidden; vertical-align: middle; }
 .hud .hpbar i { display: block; height: 100%; }
 .hud .inv { color: #6f7a72; font-size: 9px; padding-bottom: 3px; }
+
+/* Rakip raporu */
+.report h2 { margin-top: 26px; border-bottom: 1px solid #232a26; padding-bottom: 4px; }
+.report h3 { font-size: 13.5px; color: #9fc79f; margin: 14px 0 8px; }
+.statgrid { grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); }
+.heatgrid { grid-template-columns: repeat(auto-fill, minmax(440px, 1fr)); }
+.utilgrid { grid-template-columns: minmax(440px, auto) 1fr; }
+@media (max-width: 1000px) { .utilgrid { grid-template-columns: 1fr; } }
+table.cond { max-width: 760px; }
+
+/* Yazdırma: koç raporu kağıda temiz çıksın */
+@media print {
+  nav, .noprint, .toolbar { display: none !important; }
+  body { background: #fff; color: #111; font-size: 11.5px; }
+  main { padding: 0; max-width: none; }
+  .card, .panel { background: #fff; border-color: #bbb; break-inside: avoid; }
+  .meta { color: #555; }
+  h1, h2, h3 { color: #111; }
+  .report h2 { border-color: #999; page-break-after: avoid; }
+  th, td { border-color: #ccc; }
+  a { color: #111; text-decoration: none; }
+  .badge.T { background: #eee; color: #333; border: 1px solid #999; }
+  .badge.CT { background: #eee; color: #333; border: 1px solid #999; }
+  .badge.gray { background: #eee; color: #333; }
+  canvas { border-color: #999; }
+}
