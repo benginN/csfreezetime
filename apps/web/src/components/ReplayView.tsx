@@ -47,7 +47,8 @@ export default function ReplayView({
 
   const [playing, setPlaying] = useState(false);
   const [speed, setSpeed] = useState(2);
-  const [labels, setLabels] = useState(true);
+  const [showNames, setShowNames] = useState(true);   // oyuncu adları
+  const [showPlaces, setShowPlaces] = useState(true); // harita bölge adları
   const [clock, setClock] = useState('0:00');
   const [hudRows, setHudRows] = useState<HudRow[]>([]);
 
@@ -56,22 +57,22 @@ export default function ReplayView({
   const fIdxRef = useRef(0);
   const playingRef = useRef(false);
   const speedRef = useRef(2);
-  const labelsRef = useRef(true);        // sahne yeniden kurulmadan okunur
+  const namesRef = useRef(true);         // sahne yeniden kurulmadan okunur
   const baseSpriteRef = useRef<Sprite | null>(null);
   playingRef.current = playing;
   speedRef.current = speed;
-  labelsRef.current = labels;
+  namesRef.current = showNames;
 
-  // Etiket düğmesi yalnızca arka plan dokusunu tazeler — oynatma sıfırlanmaz
+  // Bölge adı düğmesi yalnızca arka plan dokusunu tazeler — oynatma sıfırlanmaz
   useEffect(() => {
     const sp = baseSpriteRef.current;
     if (sp && base) {
       const old = sp.texture;
-      sp.texture = Texture.from(renderMapBaseCanvas(base, W * DPR, labels, 'upper'));
+      sp.texture = Texture.from(renderMapBaseCanvas(base, W * DPR, showPlaces, 'upper'));
       sp.setSize(W, W);
       old.destroy(true);
     }
-  }, [labels, base]);
+  }, [showPlaces, base]);
 
   const d = ticksQ.data;
   const startIdx = useMemo(() => {
@@ -102,7 +103,7 @@ export default function ReplayView({
 
       // arka plan tuvali fiziksel çözünürlükte üretilir, sprite CSS boyutuna oturur
       const baseSprite = new Sprite(
-        Texture.from(renderMapBaseCanvas(base, W * DPR, labelsRef.current, 'upper')),
+        Texture.from(renderMapBaseCanvas(base, W * DPR, showPlaces, 'upper')),
       );
       baseSprite.setSize(W, W);
       baseSpriteRef.current = baseSprite;
@@ -138,6 +139,27 @@ export default function ReplayView({
           return { x: IX + (rx * INS) / RADAR, y: IY + (ry * INS) / RADAR, s: INS / W };
         }
         return { x: (rx * W) / RADAR, y: (ry * W) / RADAR, s: 1 };
+      };
+
+      // Bomba tip etiketleri: yeniden kullanılan Text havuzu (Graphics yazı çizemez)
+      const nadeLabelPool: Text[] = [];
+      for (let i = 0; i < 24; i++) {
+        const t = new Text({
+          text: '',
+          style: { fontSize: 9, fill: 0xdde4de, fontFamily: 'system-ui', fontWeight: '600' },
+        });
+        t.anchor.set(0.5, 1);
+        t.visible = false;
+        feedLayer.addChild(t); // en üst katman: etiket okunur kalsın
+        nadeLabelPool.push(t);
+      }
+      const NADE_LABEL: Record<string, string> = {
+        smoke: 'SMOKE', molotov: 'FIRE', incendiary: 'FIRE',
+        flash: 'FLASH', he: 'HE', decoy: 'DECOY',
+      };
+      const NADE_COLOR: Record<string, number> = {
+        smoke: 0xb4b9be, molotov: 0xeb781e, incendiary: 0xeb781e,
+        flash: 0xffffff, he: 0xff8c3c, decoy: 0xc8c878,
       };
 
       const feedTexts: Text[] = [];
@@ -180,27 +202,79 @@ export default function ReplayView({
         const tick = d.ticks[i0] + (d.ticks[i1] - d.ticks[i0]) * frac;
 
         gNades.clear();
+        let labelIdx = 0;
+        const nadeLabel = (x: number, y: number, offY: number, g: { type: string }, alpha: number, s: number) => {
+          if (labelIdx >= nadeLabelPool.length) return;
+          const t = nadeLabelPool[labelIdx++];
+          t.text = NADE_LABEL[g.type] ?? g.type.toUpperCase();
+          t.visible = true;
+          t.alpha = alpha;
+          t.scale.set(Math.max(s, 0.75));
+          t.position.set(x, y - offY);
+        };
+        const phase = (tick / d.tick_rate) % 1; // hafif titreşim için zaman fazı
+
         for (const g of d.grenades ?? []) {
           if (g.rx == null || g.ry == null) continue;
           const dt = (tick - g.tick) / d.tick_rate;
           const life = NADE_LIFE[g.type] ?? 1;
+
+          // Uçuş animasyonu: atıştan patlamaya küçük nokta + kesikli iz
+          // (baskın olmasın: 2 px nokta, %35 iz)
+          if (g.throw_tick != null && g.throw_rx != null && g.throw_ry != null &&
+              tick >= g.throw_tick && tick < g.tick && g.tick > g.throw_tick) {
+            const p = (tick - g.throw_tick) / (g.tick - g.throw_tick);
+            const from = place(g.throw_rx, g.throw_ry, g.throw_lower);
+            const to = place(g.rx, g.ry, g.lower);
+            if ((g.throw_lower ?? false) === (g.lower ?? false)) { // aynı kat görünümünde
+              const fx = from.x + (to.x - from.x) * p;
+              const fy = from.y + (to.y - from.y) * p - Math.sin(Math.PI * p) * 9 * to.s;
+              gNades.moveTo(from.x, from.y).lineTo(fx, fy)
+                .stroke({ width: 1, color: NADE_COLOR[g.type] ?? 0xffffff, alpha: 0.22 });
+              gNades.circle(fx, fy, 2.2 * to.s)
+                .fill({ color: NADE_COLOR[g.type] ?? 0xffffff, alpha: 0.85 });
+            }
+            continue;
+          }
+
           if (dt < 0 || dt > life) continue;
           const { x, y, s } = place(g.rx, g.ry, g.lower);
           const fade = Math.min(1, (life - dt) / 2);
           if (g.type === 'smoke') {
-            gNades.circle(x, y, worldPx(144) * s).fill({ color: 0xb4b9be, alpha: 0.45 * fade });
+            const r = worldPx(144) * s;
+            gNades.circle(x, y, r).fill({ color: 0xb4b9be, alpha: 0.4 * fade });
+            gNades.circle(x, y, r).stroke({ width: 1, color: 0xd8dde0, alpha: 0.5 * fade });
+            nadeLabel(x, y, r + 3, g, 0.65 * fade, s);
           } else if (g.type === 'molotov' || g.type === 'incendiary') {
-            gNades.circle(x, y, worldPx(120) * s).fill({ color: 0xeb781e, alpha: 0.4 * fade });
+            const r = worldPx(120) * s;
+            const flick = 1 + 0.08 * Math.sin(phase * Math.PI * 4); // hafif alev titremesi
+            gNades.circle(x, y, r).fill({ color: 0xeb781e, alpha: 0.35 * fade });
+            gNades.circle(x, y, r * 0.55 * flick).fill({ color: 0xf5a83c, alpha: 0.4 * fade });
+            nadeLabel(x, y, r + 3, g, 0.65 * fade, s);
           } else if (g.type === 'flash') {
             const k = dt / life;
-            gNades.circle(x, y, (4 + 14 * k) * s).fill({ color: 0xffffff, alpha: 0.9 * (1 - k) });
+            const r = (4 + 14 * k) * s;
+            gNades.circle(x, y, r).fill({ color: 0xffffff, alpha: 0.9 * (1 - k) });
+            // 4 kısa ışın: flash'ı HE'den ayırır
+            for (let a = 0; a < 4; a++) {
+              const ang = (Math.PI / 2) * a + Math.PI / 4;
+              gNades.moveTo(x + r * Math.cos(ang), y + r * Math.sin(ang))
+                .lineTo(x + (r + 6 * s) * Math.cos(ang), y + (r + 6 * s) * Math.sin(ang))
+                .stroke({ width: 1.5, color: 0xffffff, alpha: 0.8 * (1 - k) });
+            }
+            nadeLabel(x, y, r + 8, g, 0.9 * (1 - k), s);
           } else if (g.type === 'he') {
             const k = dt / life;
-            gNades.circle(x, y, (4 + 12 * k) * s).fill({ color: 0xff8c3c, alpha: 0.8 * (1 - k) });
+            const r = (4 + 12 * k) * s;
+            gNades.circle(x, y, r).fill({ color: 0xff8c3c, alpha: 0.8 * (1 - k) });
+            gNades.circle(x, y, r + 3 * s).stroke({ width: 1.5, color: 0xd94f2a, alpha: 0.7 * (1 - k) });
+            nadeLabel(x, y, r + 8, g, 0.9 * (1 - k), s);
           } else if (g.type === 'decoy') {
             gNades.circle(x, y, 5 * s).stroke({ width: 1, color: 0xc8c878, alpha: 0.5 * fade });
+            nadeLabel(x, y, 9, g, 0.5 * fade, s);
           }
         }
+        for (let i = labelIdx; i < nadeLabelPool.length; i++) nadeLabelPool[i].visible = false;
 
         gKills.clear();
         for (const k of d.kills) {
@@ -229,7 +303,7 @@ export default function ReplayView({
           const col = SIDE_COLOR[p.side] ?? 0x999999;
           const g = node.g;
           g.clear();
-          node.name.visible = labelsRef.current && alive;
+          node.name.visible = namesRef.current && alive;
           node.name.scale.set(Math.max(s, 0.72)); // inset'te küçük ama okunur
 
           if (!alive) {
@@ -343,7 +417,10 @@ export default function ReplayView({
         </select>
         <span className="meta" style={{ fontVariantNumeric: 'tabular-nums' }}>{clock}</span>
         <label>
-          <input type="checkbox" checked={labels} onChange={(e) => setLabels(e.target.checked)} /> labels
+          <input type="checkbox" checked={showNames} onChange={(e) => setShowNames(e.target.checked)} /> player names
+        </label>
+        <label>
+          <input type="checkbox" checked={showPlaces} onChange={(e) => setShowPlaces(e.target.checked)} /> map callouts
         </label>
       </div>
 

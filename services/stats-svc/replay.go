@@ -375,23 +375,36 @@ func (s *server) roundTicks(w http.ResponseWriter, r *http.Request) {
 		RX      *float64 `json:"rx"`
 		RY      *float64 `json:"ry"`
 		Lower   *bool    `json:"lower,omitempty"`
+		// atış animasyonu için: fırlatma anı + radar konumu
+		ThrowTick  *int32   `json:"throw_tick"`
+		ThrowRX    *float64 `json:"throw_rx"`
+		ThrowRY    *float64 `json:"throw_ry"`
+		ThrowLower *bool    `json:"throw_lower,omitempty"`
 	}
 	var grenades []grenadeMark
 	grows, err := s.pg.Query(ctx, `
-		SELECT g.type, g.detonate_tick, g.side, p.nickname, g.det_x, g.det_y, g.det_z
+		SELECT g.type, g.detonate_tick, g.side, p.nickname, g.det_x, g.det_y, g.det_z,
+		       g.throw_tick, g.throw_x, g.throw_y, g.throw_z
 		FROM grenades g LEFT JOIN players p ON p.player_id = g.thrower_id
 		WHERE g.match_id = $1 AND g.round_number = $2 AND g.detonate_tick IS NOT NULL
 		ORDER BY g.detonate_tick`, matchID, roundNo)
 	if err == nil {
 		for grows.Next() {
 			var gm grenadeMark
-			var dx, dy, dz *float64
-			if grows.Scan(&gm.Type, &gm.Tick, &gm.Side, &gm.Thrower, &dx, &dy, &dz) == nil {
+			var dx, dy, dz, tx, ty, tz *float64
+			if grows.Scan(&gm.Type, &gm.Tick, &gm.Side, &gm.Thrower, &dx, &dy, &dz,
+				&gm.ThrowTick, &tx, &ty, &tz) == nil {
 				if dx != nil && dy != nil {
 					rx := (*dx - cal.PosX) / cal.Scale
 					ry := (cal.PosY - *dy) / cal.Scale
 					gm.RX, gm.RY = &rx, &ry
 					gm.Lower = lowerFlag(dz)
+				}
+				if tx != nil && ty != nil {
+					trx := (*tx - cal.PosX) / cal.Scale
+					try := (cal.PosY - *ty) / cal.Scale
+					gm.ThrowRX, gm.ThrowRY = &trx, &try
+					gm.ThrowLower = lowerFlag(tz)
 				}
 				grenades = append(grenades, gm)
 			}

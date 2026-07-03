@@ -130,6 +130,10 @@ export interface GrenadeMark {
   rx: number | null;
   ry: number | null;
   lower?: boolean | null;
+  throw_tick: number | null;
+  throw_rx: number | null;
+  throw_ry: number | null;
+  throw_lower?: boolean | null;
 }
 
 export interface RoundTicks {

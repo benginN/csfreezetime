@@ -98,6 +98,8 @@ pub struct GrenadeMeta {
     pub grenade_type: &'static str,
     pub detonate_tick: i32,
     pub det_pos: [Option<f32>; 3],
+    pub throw_tick: Option<i32>,
+    pub throw_pos: [Option<f32>; 3],
 }
 
 #[derive(Debug)]
@@ -157,6 +159,7 @@ const WANTED_EVENTS: &[&str] = &[
     "hegrenade_detonate",
     "inferno_startburn",
     "decoy_started",
+    "weapon_fire", // bomba atış anı + atanın konumu (uçuş animasyonu)
 ];
 
 /// Ekonomi mini-pass'inde istenen prop'lar (round_start + freeze_end tick'lerinde).
@@ -502,6 +505,29 @@ pub fn parse_demo_bytes(bytes: &[u8], match_id: Uuid) -> Result<ParseResult> {
         }
     }
 
+    // Bomba atışları: weapon_fire olayından (oyuncu, tip) → [(tick, konum)]
+    // Patlama, kendinden önceki en yakın atışla eşleştirilir (≤ 15 sn pencere).
+    let mut throws: AHashMap<(u64, &'static str), Vec<(i32, [Option<f32>; 3])>> =
+        AHashMap::default();
+    for ev in &output.game_events {
+        if ev.name != "weapon_fire" {
+            continue;
+        }
+        let nade = match ev_str(ev, "weapon").as_deref() {
+            Some("weapon_smokegrenade") => "smoke",
+            Some("weapon_flashbang") => "flash",
+            Some("weapon_hegrenade") => "he",
+            Some("weapon_molotov") | Some("weapon_incgrenade") => "molotov",
+            Some("weapon_decoy") => "decoy",
+            _ => continue,
+        };
+        let Some(sid) = ev_u64(ev, "user_steamid") else { continue };
+        throws.entry((sid, nade)).or_default().push((
+            ev.tick,
+            [ev_f32(ev, "user_X"), ev_f32(ev, "user_Y"), ev_f32(ev, "user_Z")],
+        ));
+    }
+
     // Grenade'ler
     let mut grenades_meta = Vec::new();
     for ev in &output.game_events {
@@ -514,9 +540,19 @@ pub fn parse_demo_bytes(bytes: &[u8], match_id: Uuid) -> Result<ParseResult> {
             _ => continue,
         };
         let Some(idx) = assign_round(ev.tick) else { continue };
+        let thrower = ev_u64(ev, "user_steamid");
+        let (throw_tick, throw_pos) = thrower
+            .and_then(|sid| throws.get(&(sid, grenade_type)))
+            .and_then(|list| {
+                list.iter()
+                    .filter(|(t, _)| *t <= ev.tick && ev.tick - *t <= 15 * 64)
+                    .max_by_key(|(t, _)| *t)
+            })
+            .map(|(t, p)| (Some(*t), *p))
+            .unwrap_or((None, [None, None, None]));
         grenades_meta.push(GrenadeMeta {
             round_number: idx as i16,
-            thrower_steamid: ev_u64(ev, "user_steamid"),
+            thrower_steamid: thrower,
             side: ev_i64(ev, "user_team_num").and_then(|t| match t {
                 2 => Some("T".to_string()),
                 3 => Some("CT".to_string()),
@@ -525,6 +561,8 @@ pub fn parse_demo_bytes(bytes: &[u8], match_id: Uuid) -> Result<ParseResult> {
             grenade_type,
             detonate_tick: ev.tick,
             det_pos: [ev_f32(ev, "x"), ev_f32(ev, "y"), ev_f32(ev, "z")],
+            throw_tick,
+            throw_pos,
         });
     }
 
