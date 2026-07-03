@@ -187,7 +187,12 @@ func (s *server) backfillRar(path, playedAt string) ([]map[string]any, error) {
 		if hdr.IsDir || !strings.HasSuffix(strings.ToLower(hdr.Name), ".dem") {
 			continue
 		}
-		r, err := s.ingestStream(rr, demBase(hdr.Name), playedAt)
+		// rar girdileri orijinal dosya tarihini korur ≈ maç günü
+		entryPlayed := playedAt
+		if !hdr.ModificationTime.IsZero() {
+			entryPlayed = hdr.ModificationTime.UTC().Format(time.RFC3339)
+		}
+		r, err := s.ingestStream(rr, demBase(hdr.Name), entryPlayed)
 		res, _ := wrapResult(r, err)
 		out = append(out, res...)
 	}
@@ -209,7 +214,11 @@ func (s *server) backfillZip(path, playedAt string) ([]map[string]any, error) {
 		if err != nil {
 			return out, err
 		}
-		r, err := s.ingestStream(f, demBase(zf.Name), playedAt)
+		entryPlayed := playedAt
+		if !zf.Modified.IsZero() {
+			entryPlayed = zf.Modified.UTC().Format(time.RFC3339)
+		}
+		r, err := s.ingestStream(f, demBase(zf.Name), entryPlayed)
 		f.Close()
 		res, _ := wrapResult(r, err)
 		out = append(out, res...)
