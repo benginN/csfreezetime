@@ -79,9 +79,10 @@ export default function ReplayView({
   const [hudRows, setHudRows] = useState<HudRow[]>([]);
 
   // --- Katmanlar: ısı ve hayalet izler aynı harita üzerinde ---
+  const [showReplay, setShowReplay] = useState(true);
   const [heatSide, setHeatSide] = useState<'off' | 'T' | 'CT' | 'both'>('off');
   const [heatPlayer, setHeatPlayer] = useState('');
-  const [ghostsOpen, setGhostsOpen] = useState(false);
+  const [ghostsOn, setGhostsOn] = useState(false);
   const [ghostRounds, setGhostRounds] = useState<Set<number>>(new Set());
   const [ghostSide, setGhostSide] = useState<'T' | 'CT' | 'both'>('T');
 
@@ -148,10 +149,14 @@ export default function ReplayView({
   const playingRef = useRef(false);
   const speedRef = useRef(2);
   const namesRef = useRef(true);         // sahne yeniden kurulmadan okunur
+  const replayOnRef = useRef(true);
+  const ghostsOnRef = useRef(false);
   const baseSpriteRef = useRef<Sprite | null>(null);
   playingRef.current = playing;
   speedRef.current = speed;
   namesRef.current = showNames;
+  replayOnRef.current = showReplay;
+  ghostsOnRef.current = ghostsOn;
 
   // Bölge adı düğmesi yalnızca arka plan dokusunu tazeler — oynatma sıfırlanmaz
   useEffect(() => {
@@ -323,7 +328,7 @@ export default function ReplayView({
         // --- hayalet izler: diğer rauntların oyuncuları aynı saatte ---
         gGhosts.clear();
         let ghostLabelIdx = 0;
-        const gd = ghostDataRef.current;
+        const gd = ghostsOnRef.current ? ghostDataRef.current : null;
         if (gd) {
           const fe0 = d.freeze_end_tick ?? d.ticks[0];
           const tSec = (tick - fe0) / d.tick_rate; // hayalet ekseni = raunt saati
@@ -365,6 +370,9 @@ export default function ReplayView({
         }
         for (let i = ghostLabelIdx; i < ghostLabels.length; i++) ghostLabels[i].visible = false;
 
+        const replayOn = replayOnRef.current;
+        playersLayer.visible = replayOn;
+
         gNades.clear();
         let labelIdx = 0;
         const nadeLabel = (x: number, y: number, offY: number, g: { type: string }, alpha: number, s: number) => {
@@ -378,7 +386,7 @@ export default function ReplayView({
         };
         const phase = (tick / d.tick_rate) % 1; // hafif titreşim için zaman fazı
 
-        for (const g of d.grenades ?? []) {
+        for (const g of replayOn ? (d.grenades ?? []) : []) {
           if (g.rx == null || g.ry == null) continue;
           const dt = (tick - g.tick) / d.tick_rate;
           const life = NADE_LIFE[g.type] ?? 1;
@@ -441,7 +449,7 @@ export default function ReplayView({
         for (let i = labelIdx; i < nadeLabelPool.length; i++) nadeLabelPool[i].visible = false;
 
         gKills.clear();
-        for (const k of d.kills) {
+        for (const k of replayOn ? d.kills : []) {
           if (k.victim_rx == null || k.victim_ry == null) continue;
           if (tick >= k.tick && tick - k.tick < 3 * d.tick_rate) {
             const { x, y, s } = place(k.victim_rx, k.victim_ry, k.lower);
@@ -507,10 +515,10 @@ export default function ReplayView({
           const s = Math.max(0, (d.ticks[i0] - fe) / d.tick_rate);
           setClock(`${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`);
 
-          // canvas içi killfeed (son 6 sn)
-          const recent = d.kills
-            .filter((k) => tick >= k.tick && tick - k.tick < 6 * d.tick_rate)
-            .slice(-6);
+          // canvas içi killfeed (son 6 sn; replay katmanı kapalıysa boş)
+          const recent = replayOn
+            ? d.kills.filter((k) => tick >= k.tick && tick - k.tick < 6 * d.tick_rate).slice(-6)
+            : [];
           feedTexts.forEach((t, i) => {
             const k = recent[i];
             t.text = k ? `${k.attacker ?? '?'} ⟶ ${k.victim ?? '?'} (${k.weapon ?? ''})` : '';
@@ -572,96 +580,135 @@ export default function ReplayView({
   const tRows = hudRows.filter((r) => r.side === 'T');
   const ctRows = hudRows.filter((r) => r.side === 'CT');
 
+  const heatOn = heatSide !== 'off';
+
   return (
-    <>
-      <div className="toolbar">
-        <button onClick={() => setPlaying(!playing)}>{playing ? '⏸' : '▶'}</button>
-        <select value={speed} onChange={(e) => setSpeed(Number(e.target.value))}>
-          {[1, 2, 4, 8].map((s) => <option key={s} value={s}>{s}×</option>)}
-        </select>
-        <span className="meta" style={{ fontVariantNumeric: 'tabular-nums' }}>{clock}</span>
-        <label>
-          <input type="checkbox" checked={showNames} onChange={(e) => setShowNames(e.target.checked)} /> player names
-        </label>
-        <label>
-          <input type="checkbox" checked={showPlaces} onChange={(e) => setShowPlaces(e.target.checked)} /> map callouts
-        </label>
-        <span style={{ borderLeft: '1px solid #2c332e', paddingLeft: 10, display: 'inline-flex', gap: 8, alignItems: 'center' }}>
-          <label>heat</label>
-          <select value={heatSide} onChange={(e) => setHeatSide(e.target.value as typeof heatSide)}>
-            <option value="off">off</option><option value="T">T</option>
-            <option value="CT">CT</option><option value="both">both</option>
+    <div className="replaylayout">
+      {/* Sol: harita + oynatma */}
+      <div>
+        <div className="toolbar">
+          <button onClick={() => setPlaying(!playing)}>{playing ? '⏸' : '▶'}</button>
+          <select value={speed} onChange={(e) => setSpeed(Number(e.target.value))}>
+            {[1, 2, 4, 8].map((s) => <option key={s} value={s}>{s}×</option>)}
           </select>
-          {heatSide !== 'off' && (
-            <select value={heatPlayer} onChange={(e) => setHeatPlayer(e.target.value)}>
-              <option value="">all players</option>
-              {(players.data ?? []).map((p) => (
-                <option key={p.player_id} value={p.player_id}>{p.nickname}</option>
-              ))}
-            </select>
-          )}
-          <button className={ghostRounds.size ? '' : 'ghost'} onClick={() => setGhostsOpen(!ghostsOpen)}>
-            ghost rounds{ghostRounds.size ? ` (${ghostRounds.size})` : ''}
-          </button>
-          {ghostRounds.size > 0 && (
-            <select value={ghostSide} onChange={(e) => setGhostSide(e.target.value as typeof ghostSide)}>
-              <option value="T">T</option><option value="CT">CT</option><option value="both">both</option>
-            </select>
-          )}
-          {(heatQ.isFetching || ghostQ.isFetching) && <span className="meta">…</span>}
-        </span>
-      </div>
-
-      {ghostsOpen && (
-        <div className="roundchips" style={{ marginTop: -4 }}>
-          {rounds.map((r, i) => (
-            <Fragment key={r.round_number}>
-              {isSideSwap(rounds[i - 1], r) && <span className="halfdiv" title="side swap" />}
-              <button
-                className={`${winnerTeamClass(r, teams.aId)} win${r.winner_side ?? ''} ${ghostRounds.has(r.round_number) ? 'sel' : ''}`}
-                title={chipTitle(r, teams)}
-                onClick={() => {
-                  const s = new Set(ghostRounds);
-                  if (s.has(r.round_number)) s.delete(r.round_number);
-                  else if (s.size < 10) s.add(r.round_number);
-                  setGhostRounds(s);
-                }}
-              >
-                {r.round_number}
-              </button>
-            </Fragment>
-          ))}
-          <button className="ghost" style={{ width: 'auto', padding: '0 8px' }}
-            onClick={() => setGhostRounds(new Set())}>
-            clear
-          </button>
-          <span className="meta" style={{ alignSelf: 'center' }}>
-            ghost trails follow the replay clock (max 10 rounds); heat uses these rounds too
-          </span>
+          <span className="meta" style={{ fontVariantNumeric: 'tabular-nums' }}>{clock}</span>
+          {(heatQ.isFetching || ghostQ.isFetching) && <span className="meta">loading layers…</span>}
         </div>
-      )}
+        <div className="stagebox">
+          <div ref={stageRef} />
+          {showReplay && <HudPanel rows={tRows} cls="left" />}
+          {showReplay && <HudPanel rows={ctRows} cls="right" />}
+        </div>
+        <div className="timeline" style={{ width: W }}>
+          <input
+            ref={sliderRef}
+            type="range"
+            min={startIdx}
+            max={d.ticks.length - 1}
+            defaultValue={startIdx}
+            onInput={(e) => { fIdxRef.current = Number((e.target as HTMLInputElement).value); }}
+          />
+          {d.kills.map((k, i) => {
+            const idx = d.ticks.findIndex((t) => t >= k.tick);
+            const pct = (100 * (idx - startIdx)) / Math.max(1, d.ticks.length - 1 - startIdx);
+            return <div key={i} className="killmark" style={{ left: `${Math.max(0, pct)}%` }} />;
+          })}
+        </div>
+      </div>
 
-      <div className="stagebox">
-        <div ref={stageRef} />
-        <HudPanel rows={tRows} cls="left" />
-        <HudPanel rows={ctRows} cls="right" />
+      {/* Sağ: üç katmanın ayarları — başlıktaki tik katmanı gösterir/gizler */}
+      <div className="settingspanel">
+        <div className="layerpanel">
+          <label className="layerhead">
+            <input type="checkbox" checked={showReplay} onChange={(e) => setShowReplay(e.target.checked)} />
+            Replay
+          </label>
+          {showReplay && (
+            <div className="layerbody">
+              <label>
+                <input type="checkbox" checked={showNames} onChange={(e) => setShowNames(e.target.checked)} /> player names
+              </label>
+              <label>
+                <input type="checkbox" checked={showPlaces} onChange={(e) => setShowPlaces(e.target.checked)} /> map callouts
+              </label>
+            </div>
+          )}
+        </div>
+
+        <div className="layerpanel">
+          <label className="layerhead">
+            <input
+              type="checkbox"
+              checked={heatOn}
+              onChange={(e) => setHeatSide(e.target.checked ? 'T' : 'off')}
+            />
+            Heatmap
+          </label>
+          {heatOn && (
+            <div className="layerbody">
+              <div className="row">
+                <label>side</label>
+                <select value={heatSide} onChange={(e) => setHeatSide(e.target.value as typeof heatSide)}>
+                  <option value="T">T</option><option value="CT">CT</option><option value="both">both</option>
+                </select>
+              </div>
+              <div className="row">
+                <label>player</label>
+                <select value={heatPlayer} onChange={(e) => setHeatPlayer(e.target.value)}>
+                  <option value="">all players</option>
+                  {(players.data ?? []).map((p) => (
+                    <option key={p.player_id} value={p.player_id}>{p.nickname}</option>
+                  ))}
+                </select>
+              </div>
+              <p className="meta">
+                {ghostRounds.size
+                  ? `using the ${ghostRounds.size} rounds selected below`
+                  : 'using all rounds of this match'}
+              </p>
+            </div>
+          )}
+        </div>
+
+        <div className="layerpanel">
+          <label className="layerhead">
+            <input type="checkbox" checked={ghostsOn} onChange={(e) => setGhostsOn(e.target.checked)} />
+            Ghost rounds
+          </label>
+          {ghostsOn && (
+            <div className="layerbody">
+              <div className="row">
+                <label>side</label>
+                <select value={ghostSide} onChange={(e) => setGhostSide(e.target.value as typeof ghostSide)}>
+                  <option value="T">T</option><option value="CT">CT</option><option value="both">both</option>
+                </select>
+                <button className="ghost" onClick={() => setGhostRounds(new Set())}>clear</button>
+              </div>
+              <div className="roundchips">
+                {rounds.map((r, i) => (
+                  <Fragment key={r.round_number}>
+                    {isSideSwap(rounds[i - 1], r) && <span className="halfdiv" title="side swap" />}
+                    <button
+                      className={`${winnerTeamClass(r, teams.aId)} win${r.winner_side ?? ''} ${ghostRounds.has(r.round_number) ? 'sel' : ''}`}
+                      title={chipTitle(r, teams)}
+                      onClick={() => {
+                        const s = new Set(ghostRounds);
+                        if (s.has(r.round_number)) s.delete(r.round_number);
+                        else if (s.size < 10) s.add(r.round_number);
+                        setGhostRounds(s);
+                      }}
+                    >
+                      {r.round_number}
+                    </button>
+                  </Fragment>
+                ))}
+              </div>
+              <p className="meta">trails follow the replay clock · max 10 rounds</p>
+            </div>
+          )}
+        </div>
       </div>
-      <div className="timeline" style={{ width: W }}>
-        <input
-          ref={sliderRef}
-          type="range"
-          min={startIdx}
-          max={d.ticks.length - 1}
-          defaultValue={startIdx}
-          onInput={(e) => { fIdxRef.current = Number((e.target as HTMLInputElement).value); }}
-        />
-        {d.kills.map((k, i) => {
-          const idx = d.ticks.findIndex((t) => t >= k.tick);
-          const pct = (100 * (idx - startIdx)) / Math.max(1, d.ticks.length - 1 - startIdx);
-          return <div key={i} className="killmark" style={{ left: `${Math.max(0, pct)}%` }} />;
-        })}
-      </div>
-    </>
+    </div>
   );
 }
 
