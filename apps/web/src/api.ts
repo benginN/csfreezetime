@@ -182,7 +182,7 @@ export interface StackLayer {
   round_number: number;
   align_tick: number;
   skipped?: string;
-  players?: { side: string; t: number[]; rx: number[]; ry: number[] }[];
+  players?: { side: string; nick: string; t: number[]; rx: number[]; ry: number[] }[];
 }
 
 export interface StackResp {

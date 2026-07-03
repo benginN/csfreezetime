@@ -411,8 +411,8 @@ func (s *server) stack(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, 400, fmt.Errorf("JSON çözülemedi: %w", err))
 		return
 	}
-	if len(req.Rounds) == 0 || len(req.Rounds) > 10 {
-		writeErr(w, 400, fmt.Errorf("1-10 arası raunt gerekli"))
+	if len(req.Rounds) == 0 || len(req.Rounds) > 30 {
+		writeErr(w, 400, fmt.Errorf("1-30 arası raunt gerekli"))
 		return
 	}
 	switch req.Align {
@@ -436,6 +436,7 @@ func (s *server) stack(w http.ResponseWriter, r *http.Request) {
 		Skipped     string    `json:"skipped,omitempty"` // hizalama olayı yoksa neden
 		Players     []struct {
 			Side string    `json:"side"`
+			Nick string    `json:"nick"`
 			T    []float64 `json:"t"` // hizalama anına göre saniye
 			RX   []float64 `json:"rx"`
 			RY   []float64 `json:"ry"`
@@ -496,6 +497,33 @@ func (s *server) stack(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Oyuncu kimlikleri (oyuncu filtresi için nick)
+	nicks := map[uuid.UUID]string{}
+	{
+		ids := make([]uuid.UUID, 0, len(req.Rounds))
+		seen := map[uuid.UUID]bool{}
+		for _, rr := range req.Rounds {
+			if !seen[rr.MatchID] {
+				seen[rr.MatchID] = true
+				ids = append(ids, rr.MatchID)
+			}
+		}
+		nrows, err := s.pg.Query(ctx, `
+			SELECT DISTINCT p.player_id, p.nickname
+			FROM player_round_states s JOIN players p ON p.player_id = s.player_id
+			WHERE s.match_id = ANY($1)`, ids)
+		if err == nil {
+			for nrows.Next() {
+				var id uuid.UUID
+				var n string
+				if nrows.Scan(&id, &n) == nil {
+					nicks[id] = n
+				}
+			}
+			nrows.Close()
+		}
+	}
+
 	for i := range layers {
 		ly := &layers[i]
 		if ly.Skipped != "" {
@@ -515,8 +543,8 @@ func (s *server) stack(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		type track struct {
-			side      string
-			t, rx, ry []float64
+			side, nick string
+			t, rx, ry  []float64
 		}
 		tracks := map[uuid.UUID]*track{}
 		for rows.Next() {
@@ -531,7 +559,7 @@ func (s *server) stack(w http.ResponseWriter, r *http.Request) {
 			}
 			tr := tracks[pid]
 			if tr == nil {
-				tr = &track{side: side}
+				tr = &track{side: side, nick: nicks[pid]}
 				tracks[pid] = tr
 			}
 			tr.t = append(tr.t, float64(int32(tick)-ly.AlignTick)/tickRate)
@@ -542,10 +570,11 @@ func (s *server) stack(w http.ResponseWriter, r *http.Request) {
 		for _, tr := range tracks {
 			ly.Players = append(ly.Players, struct {
 				Side string    `json:"side"`
+				Nick string    `json:"nick"`
 				T    []float64 `json:"t"`
 				RX   []float64 `json:"rx"`
 				RY   []float64 `json:"ry"`
-			}{tr.side, tr.t, tr.rx, tr.ry})
+			}{tr.side, tr.nick, tr.t, tr.rx, tr.ry})
 		}
 	}
 
