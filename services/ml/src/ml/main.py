@@ -10,7 +10,7 @@ from __future__ import annotations
 import time
 
 from . import (
-    anomaly, clustering, clutch, db, evaluate, features,
+    anomaly, clustering, clutch, db, evaluate, features, flashstats,
     roles, setups, tendencies, utility, winprob,
 )
 
@@ -65,6 +65,10 @@ def cli() -> None:
     print("— oyuncu rolleri —")
     nr = roles.run(pgconn, chc)
     print(f"  {nr} oyuncu-taraf profili (etiket eşiği {roles.MIN_ROUNDS} raunt)")
+
+    print("— flash etkinliği (flash_remaining sıçramalarından) —")
+    nf, nm = flashstats.run(pgconn, chc)
+    print(f"  {nf} flash'a {nm} körlük atandı")
 
     print("— kazanma olasılığı tablosu + raunt zirveleri —")
     nc_, np_ = winprob.run(pgconn, chc)

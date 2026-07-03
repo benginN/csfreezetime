@@ -197,8 +197,9 @@ pub async fn write_metadata(pool: &PgPool, match_id: Uuid, result: &ParseResult)
             r#"
             INSERT INTO grenades (match_id, round_number, thrower_id, side, type,
                                   detonate_tick, det_x, det_y, det_z,
-                                  throw_tick, throw_x, throw_y, throw_z)
-            VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
+                                  throw_tick, throw_x, throw_y, throw_z,
+                                  enemies_flashed, teammates_flashed, total_enemy_blind_time)
+            VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
             "#,
         )
         .bind(match_id)
@@ -214,6 +215,9 @@ pub async fn write_metadata(pool: &PgPool, match_id: Uuid, result: &ParseResult)
         .bind(g.throw_pos[0])
         .bind(g.throw_pos[1])
         .bind(g.throw_pos[2])
+        .bind(g.enemies_flashed)
+        .bind(g.teammates_flashed)
+        .bind(g.enemy_blind_time)
         .execute(&mut *tx)
         .await?;
     }

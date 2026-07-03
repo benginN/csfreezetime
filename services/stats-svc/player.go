@@ -70,6 +70,19 @@ func (s *server) playerProfile(w http.ResponseWriter, r *http.Request) {
 		    GROUP BY m.map_name
 		) x`, playerID)
 
+	// flash etkinliği (taraf başına; flash_remaining sıçramalarından türetilmiş)
+	out["flash"] = s.jsonQuery(ctx, `
+		SELECT COALESCE(json_agg(x), '[]'::json) FROM (
+		    SELECT g.side, count(*) AS thrown,
+		           COALESCE(sum(g.enemies_flashed), 0) AS enemies,
+		           COALESCE(sum(g.teammates_flashed), 0) AS teammates,
+		           round((sum(g.total_enemy_blind_time)
+		                  / NULLIF(sum(g.enemies_flashed), 0))::numeric, 1) AS avg_blind
+		    FROM grenades g JOIN matches m ON m.match_id = g.match_id AND m.status='ready'
+		    WHERE g.thrower_id = $1 AND g.type = 'flash'
+		    GROUP BY g.side ORDER BY g.side DESC
+		) x`, playerID)
+
 	// clutch istatistikleri (1vX): X başına deneme/kazanım + anlar
 	out["clutches"] = s.jsonQuery(ctx, `
 		SELECT COALESCE(json_agg(x ORDER BY x.versus), '[]'::json) FROM (

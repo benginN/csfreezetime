@@ -60,3 +60,6 @@ CREATE TABLE IF NOT EXISTS cs2.shots (
     player_id    UUID
 ) ENGINE = MergeTree
 ORDER BY (match_id, round_number, tick);
+
+-- tick bazlı para (HUD canlı para göstergesi)
+ALTER TABLE cs2.player_ticks ADD COLUMN IF NOT EXISTS money Int32 DEFAULT 0;

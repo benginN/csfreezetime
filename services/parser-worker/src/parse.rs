@@ -38,6 +38,7 @@ pub struct PlayerTickRow {
     pub flash_remaining: f32,
     pub place: String,
     pub inventory: Vec<String>,
+    pub money: i32,
 }
 
 pub struct ParseResult {
@@ -112,6 +113,10 @@ pub struct GrenadeMeta {
     pub det_pos: [Option<f32>; 3],
     pub throw_tick: Option<i32>,
     pub throw_pos: [Option<f32>; 3],
+    // flash etkinliği (player_blind olaylarından; yalnız flash'ta dolu)
+    pub enemies_flashed: i16,
+    pub teammates_flashed: i16,
+    pub enemy_blind_time: f32,
 }
 
 #[derive(Debug)]
@@ -154,6 +159,7 @@ const PLAYER_PROPS: &[&str] = &[
     "last_place_name",
     "team_num",
     "inventory",
+    "balance", // tick bazlı canlı para (HUD)
 ];
 
 const WANTED_EVENTS: &[&str] = &[
@@ -171,7 +177,8 @@ const WANTED_EVENTS: &[&str] = &[
     "hegrenade_detonate",
     "inferno_startburn",
     "decoy_started",
-    "weapon_fire", // bomba atış anı + atanın konumu (uçuş animasyonu)
+    "weapon_fire",  // bomba atış anı + atanın konumu (uçuş animasyonu)
+    "player_blind", // flash etkinliği: kim kimi ne kadar kör etti
 ];
 
 /// Ekonomi mini-pass'inde istenen prop'lar (round_start + freeze_end tick'lerinde).
@@ -310,6 +317,7 @@ pub fn parse_demo_bytes(bytes: &[u8], match_id: Uuid) -> Result<ParseResult> {
     let c_place = col("last_place_name")?;
     let c_team = col("team_num")?;
     let c_inv = col("inventory").ok(); // eski demolar/prop eksikliği tolere edilir
+    let c_money = col("balance").ok();
 
     let mut rows = Vec::with_capacity(n / TICK_SAMPLE_DIVISOR as usize + 1);
     for i in 0..n {
@@ -370,6 +378,7 @@ pub fn parse_demo_bytes(bytes: &[u8], match_id: Uuid) -> Result<ParseResult> {
             flash_remaining: as_f32(c_flash, i).unwrap_or(0.0),
             place: as_string(c_place, i).unwrap_or_default(),
             inventory: as_string_vec(c_inv, i),
+            money: c_money.and_then(|v| as_i64(v, i)).unwrap_or(0) as i32,
         });
     }
 
@@ -557,6 +566,31 @@ pub fn parse_demo_bytes(bytes: &[u8], match_id: Uuid) -> Result<ParseResult> {
         ));
     }
 
+    // Körlük olayları: (attacker_sid, patlama tick'i yakını) → flash'a eşlenir
+    struct Blind {
+        tick: i32,
+        attacker: u64,
+        same_team: bool,
+        duration: f32,
+    }
+    let mut blinds: Vec<Blind> = Vec::new();
+    for ev in &output.game_events {
+        if ev.name != "player_blind" {
+            continue;
+        }
+        let (Some(att), Some(att_t), Some(vic_t)) = (
+            ev_u64(ev, "attacker_steamid"),
+            ev_i64(ev, "attacker_team_num"),
+            ev_i64(ev, "user_team_num"),
+        ) else { continue };
+        blinds.push(Blind {
+            tick: ev.tick,
+            attacker: att,
+            same_team: att_t == vic_t,
+            duration: ev_f32(ev, "blind_duration").unwrap_or(0.0),
+        });
+    }
+
     // Grenade'ler
     let mut grenades_meta = Vec::new();
     for ev in &output.game_events {
@@ -579,6 +613,22 @@ pub fn parse_demo_bytes(bytes: &[u8], match_id: Uuid) -> Result<ParseResult> {
             })
             .map(|(t, p)| (Some(*t), *p))
             .unwrap_or((None, [None, None, None]));
+        // flash etkinliği: aynı atıcının patlama anına (±2 tick) düşen körlükleri
+        let (mut ef, mut tf, mut ebt) = (0i16, 0i16, 0f32);
+        if grenade_type == "flash" {
+            if let Some(sid) = thrower {
+                for b in &blinds {
+                    if b.attacker == sid && (b.tick - ev.tick).abs() <= 2 {
+                        if b.same_team {
+                            tf += 1;
+                        } else {
+                            ef += 1;
+                            ebt += b.duration;
+                        }
+                    }
+                }
+            }
+        }
         grenades_meta.push(GrenadeMeta {
             round_number: idx as i16,
             thrower_steamid: thrower,
@@ -592,6 +642,9 @@ pub fn parse_demo_bytes(bytes: &[u8], match_id: Uuid) -> Result<ParseResult> {
             det_pos: [ev_f32(ev, "x"), ev_f32(ev, "y"), ev_f32(ev, "z")],
             throw_tick,
             throw_pos,
+            enemies_flashed: ef,
+            teammates_flashed: tf,
+            enemy_blind_time: ebt,
         });
     }
 

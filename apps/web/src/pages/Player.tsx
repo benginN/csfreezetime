@@ -52,6 +52,21 @@ export default function Player() {
                     <td className="meta">entry share</td><td>{r.entry_attempt_share != null ? `${Math.round(100 * r.entry_attempt_share)}%` : '—'}</td></tr>
                 <tr><td className="meta">util / round</td><td>{r.util_per_round?.toFixed(1) ?? '—'}</td>
                     <td className="meta">flash assists/r</td><td>{r.flash_assists_pr?.toFixed(2) ?? '—'}</td></tr>
+                {(() => {
+                  const fl = d.flash.find((f) => f.side === r.side);
+                  if (!fl || !fl.thrown) return null;
+                  return (
+                    <tr>
+                      <td className="meta">flashes</td>
+                      <td>{fl.thrown} thrown</td>
+                      <td className="meta">blinded</td>
+                      <td>
+                        {(fl.enemies / fl.thrown).toFixed(2)}/flash
+                        {fl.avg_blind != null && <span className="meta"> · {fl.avg_blind}s avg</span>}
+                      </td>
+                    </tr>
+                  );
+                })()}
                 {r.side === 'CT' && r.anchor_place && (
                   <tr><td className="meta">anchor</td><td colSpan={3}>{r.anchor_place} ({Math.round(100 * (r.anchor_share ?? 0))}% occupancy)</td></tr>
                 )}

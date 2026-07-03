@@ -871,7 +871,7 @@ export default function ReplayView({
               nick: p.nickname, side: p.side,
               hp: p.hp[i0] ?? 0, armor: p.armor[i0] ?? 0,
               weapon: p.weapon[i0] ?? '',
-              money: p.money_start,
+              money: p.money[i0] ?? p.money_start, // canlı para; yoksa raunt başı
               inv: shortInv(p.inv[i0]),
               k, a, d: dd,
               alive: p.alive[i0] ?? false,

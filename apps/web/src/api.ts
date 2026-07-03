@@ -109,6 +109,7 @@ export interface PlayerTrack {
   flash: (number | null)[];
   lower?: (boolean | null)[];
   shots: number[];
+  money: (number | null)[];
   money_start: number | null;
   equip_value: number | null;
 }
@@ -310,6 +311,10 @@ export interface PlayerProfile {
     kills: number; deaths: number; assists: number; survival_pct: number;
   }[];
   openings: { map_name: string; won: number; lost: number }[];
+  flash: {
+    side: 'T' | 'CT'; thrown: number; enemies: number;
+    teammates: number; avg_blind: number | null;
+  }[];
   clutches: { versus: number; attempts: number; wins: number }[];
   clutch_moments: {
     match_id: string; round_number: number; versus: number;
