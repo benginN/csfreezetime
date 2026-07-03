@@ -77,8 +77,11 @@ func main() {
 		w.Write(schemaJSON)
 	})
 	r.Get("/api/v1/matches", srv.matches)
+	r.Get("/api/v1/matches/{id}", srv.matchDetail)
+	r.Get("/api/v1/rounds/{match_id}/{n}/ticks", srv.roundTicks)
 	r.Get("/api/v1/heatmap", srv.heatmap)
 	r.Post("/api/v1/query", srv.query)
+	r.Post("/api/v1/stack", srv.stack)
 
 	addr := envOr("STATS_ADDR", ":8090")
 	log.Printf("stats-svc hazır: http://localhost%s", addr)
