@@ -160,15 +160,6 @@ export default function Help() {
         </li>
       </ul>
 
-      <h2>Map images</h2>
-      <p>
-        Map backgrounds prefer, in order: <code>de_&lt;map&gt;.svg</code> (crisp at
-        any zoom), <code>de_&lt;map&gt;.png</code>, then a silhouette derived from
-        position data. Files go into <code>services/stats-svc/static/radars/</code>;
-        two-level maps take an extra <code>de_&lt;map&gt;_lower.*</code>. Images must
-        be radar-aligned overviews (game files or radar packs) — arbitrary map
-        art will not line up with player positions.
-      </p>
     </div>
   );
 }
