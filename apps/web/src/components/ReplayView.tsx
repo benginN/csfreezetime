@@ -868,7 +868,52 @@ export default function ReplayView({
           <div className="zoombtns noprint">
             <button title="zoom in" onClick={() => zoomApiRef.current?.zoomIn()}>+</button>
             <button title="zoom out" onClick={() => zoomApiRef.current?.zoomOut()}>−</button>
-            <button title="reset view" onClick={() => zoomApiRef.current?.reset()}>⟲</button>
+            <button title="reset view (double-click also works)" onClick={() => zoomApiRef.current?.reset()}>⟲</button>
+          </div>
+          <div className="drawbtns noprint">
+            <button
+              className={drawTool === 'pen' ? '' : 'ghost'}
+              title="draw: pen"
+              onClick={() => setDrawTool(drawTool === 'pen' ? 'off' : 'pen')}
+            >
+              ✏
+            </button>
+            <button
+              className={drawTool === 'arrow' ? '' : 'ghost'}
+              title="draw: arrow"
+              onClick={() => setDrawTool(drawTool === 'arrow' ? 'off' : 'arrow')}
+            >
+              →
+            </button>
+            {drawTool !== 'off' && (
+              <>
+                {DRAW_COLORS.map((c) => (
+                  <button
+                    key={c}
+                    className="ghost swatch"
+                    style={{
+                      background: `#${c.toString(16).padStart(6, '0')}`,
+                      outline: drawColor === c ? '2px solid #d8ded9' : 'none',
+                    }}
+                    onClick={() => setDrawColor(c)}
+                  />
+                ))}
+                <button
+                  className="ghost" title="undo" key={`u${strokeVer}`}
+                  disabled={!strokesRef.current.length}
+                  onClick={() => { strokesRef.current = strokesRef.current.slice(0, -1); saveStrokes(); }}
+                >
+                  ↩
+                </button>
+                <button
+                  className="ghost" title="clear all"
+                  disabled={!strokesRef.current.length}
+                  onClick={() => { strokesRef.current = []; saveStrokes(); }}
+                >
+                  🗑
+                </button>
+              </>
+            )}
           </div>
           {showReplay && <HudPanel rows={tRows} cls="left" sel={selPlayer} onSel={setSelPlayer} />}
           {showReplay && <HudPanel rows={ctRows} cls="right" sel={selPlayer} onSel={setSelPlayer} />}
@@ -878,21 +923,15 @@ export default function ReplayView({
       {/* Sağ: başlık + ortak görünüm ayarları + üç katman + zaman çubuğu.
           Tik kaldırılınca bölüm collapse olmaz, grileşir. */}
       <div className="settingspanel">
-        {header}
-        <div className="layerpanel">
-          <div className="layerbody" style={{ marginTop: 0 }}>
-            <div className="row">
-              <label style={{ minWidth: 0 }}>display</label>
-              <label>
-                <input type="checkbox" checked={showNames} onChange={(e) => setShowNames(e.target.checked)} /> player names
-              </label>
-              <label>
-                <input type="checkbox" checked={showPlaces} onChange={(e) => setShowPlaces(e.target.checked)} /> map callouts
-              </label>
-            </div>
-            <p className="meta" style={{ margin: 0 }}>
-              scroll on the map to zoom · drag to pan · double-click to reset
-            </p>
+        <div className="headwrap">
+          {header}
+          <div className="headctl">
+            <label>
+              <input type="checkbox" checked={showNames} onChange={(e) => setShowNames(e.target.checked)} /> names
+            </label>
+            <label>
+              <input type="checkbox" checked={showPlaces} onChange={(e) => setShowPlaces(e.target.checked)} /> callouts
+            </label>
           </div>
         </div>
 
@@ -1049,52 +1088,6 @@ export default function ReplayView({
                 ))}
               </div>
               <p className="meta">own clock — plays independently of the replay · max 10 rounds</p>
-          </div>
-        </div>
-
-        {/* Çizim: koç taktiği — kalem/ok, harita üstünde, zoom'la yapışık */}
-        <div className="layerpanel">
-          <label className="layerhead">
-            <input
-              type="checkbox"
-              checked={drawTool !== 'off'}
-              onChange={(e) => setDrawTool(e.target.checked ? 'pen' : 'off')}
-            />
-            Draw on map
-          </label>
-          <div className={`layerbody ${drawTool !== 'off' ? '' : 'dim'}`}>
-            <div className="row">
-              <button className={drawTool === 'pen' ? '' : 'ghost'} onClick={() => setDrawTool('pen')}>✏ pen</button>
-              <button className={drawTool === 'arrow' ? '' : 'ghost'} onClick={() => setDrawTool('arrow')}>→ arrow</button>
-              {DRAW_COLORS.map((c) => (
-                <button
-                  key={c}
-                  className="ghost swatch"
-                  style={{
-                    background: `#${c.toString(16).padStart(6, '0')}`,
-                    outline: drawColor === c ? '2px solid #d8ded9' : 'none',
-                  }}
-                  onClick={() => setDrawColor(c)}
-                />
-              ))}
-            </div>
-            <div className="row">
-              <button
-                className="ghost"
-                disabled={!strokesRef.current.length}
-                onClick={() => { strokesRef.current = strokesRef.current.slice(0, -1); saveStrokes(); }}
-              >
-                undo
-              </button>
-              <button
-                className="ghost"
-                disabled={!strokesRef.current.length}
-                onClick={() => { strokesRef.current = []; saveStrokes(); }}
-              >
-                clear
-              </button>
-              <span className="meta" key={strokeVer}>{strokesRef.current.length} strokes · saved per round</span>
-            </div>
           </div>
         </div>
 

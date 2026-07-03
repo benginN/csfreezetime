@@ -207,12 +207,24 @@ canvas.flat { border: 1px solid #232a26; border-radius: 6px; display:block; }
 /* Çizim renk kutuları */
 button.swatch { width: 22px; height: 22px; padding: 0; border-radius: 5px; }
 
-/* Harita köşesi zoom düğmeleri (trackpad/mouse bağımsız garanti yol) */
+/* Harita köşesi düğmeleri: zoom (üst) + çizim araçları (altında) */
 .zoombtns { position: absolute; top: 8px; left: 8px; display: flex; flex-direction: column; gap: 4px; }
-.zoombtns button {
+.drawbtns { position: absolute; top: 112px; left: 8px; display: flex; flex-direction: column; gap: 4px; }
+.zoombtns button, .drawbtns button {
   width: 28px; height: 28px; padding: 0; font-size: 15px; line-height: 1;
   background: rgba(21, 26, 23, 0.85);
 }
+.drawbtns button.swatch { height: 20px; border-radius: 5px; }
+
+/* Başlık kutusu sağına gömülü görünüm tikleri */
+.headwrap { position: relative; }
+.headwrap .matchhead { padding-right: 96px; }
+.headctl {
+  position: absolute; right: 10px; top: 8px;
+  display: flex; flex-direction: column; gap: 2px;
+  font-size: 11px; color: #8a938c;
+}
+.headctl input { vertical-align: -2px; }
 
 /* Maç görünümü: harita solda, katman ayarları sağda */
 .replaylayout { display: flex; gap: 16px; align-items: flex-start; flex-wrap: wrap; }
