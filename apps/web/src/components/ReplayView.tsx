@@ -7,6 +7,9 @@ import { renderHeatLayer } from '../lib/heatpaint';
 import { chipTitle, isSideSwap, winnerTeamClass } from '../lib/rounds';
 
 const W = 860;
+// Zemin dokusu için aşırı örnekleme: zoom'da bloklaşmayı azaltır
+// (kaynak PNG 1024 olduğundan ~4x üstü yine yumuşar ama pikselleşmez)
+const BASE_OVERSAMPLE = 2;
 const NADE_LIFE: Record<string, number> = { smoke: 20, molotov: 7, incendiary: 7, flash: 0.7, he: 0.7, decoy: 15 };
 const GHOST_TRAIL = 8;   // sn — hayalet iz uzunluğu
 const ghostHue = (i: number) => Math.round((i * 137.508) % 360);
@@ -185,7 +188,7 @@ export default function ReplayView({
     const sp = baseSpriteRef.current;
     if (sp && base) {
       const old = sp.texture;
-      sp.texture = Texture.from(renderMapBaseCanvas(base, W * DPR, showPlaces, 'upper'));
+      sp.texture = Texture.from(renderMapBaseCanvas(base, W * DPR * BASE_OVERSAMPLE, showPlaces, 'upper'));
       sp.setSize(W, W);
       old.destroy(true);
     }
@@ -220,7 +223,7 @@ export default function ReplayView({
 
       // arka plan tuvali fiziksel çözünürlükte üretilir, sprite CSS boyutuna oturur
       const baseSprite = new Sprite(
-        Texture.from(renderMapBaseCanvas(base, W * DPR, showPlaces, 'upper')),
+        Texture.from(renderMapBaseCanvas(base, W * DPR * BASE_OVERSAMPLE, showPlaces, 'upper')),
       );
       baseSprite.setSize(W, W);
       baseSpriteRef.current = baseSprite;
@@ -241,7 +244,7 @@ export default function ReplayView({
       const feedLayer = new Container();   // canvas içi killfeed (gri, sabit)
       world.addChild(baseSprite);
       if (hasLower) {
-        const insetSprite = new Sprite(Texture.from(renderMapBaseCanvas(base, INS * DPR, false, 'lower')));
+        const insetSprite = new Sprite(Texture.from(renderMapBaseCanvas(base, INS * DPR * BASE_OVERSAMPLE, false, 'lower')));
         insetSprite.setSize(INS, INS);
         insetSprite.position.set(IX, IY);
         const tag = new Text({
@@ -592,16 +595,33 @@ export default function ReplayView({
           const yaw = ((p.yaw[i0] ?? 0) * Math.PI) / 180;
           g.moveTo(x, y).lineTo(x + 15 * s * Math.cos(yaw), y - 15 * s * Math.sin(yaw))
            .stroke({ width: 1.5, color: col });
-          // ateş animasyonu: son ~0.12 sn'de atış varsa namlu ucunda kısa parıltı
+          // ateş animasyonu: namlu parıltısı + kırmızı mermi izi (tracer).
+          // Atış bir kill'e denk geliyorsa iz kurbana kadar, değilse bakış
+          // yönünde tipik menzil kadar çizilir; ~0.12 sn'de söner.
           if (p.shots.length) {
             const si = lowerBound(p.shots, tick - 8);
             if (si < p.shots.length && p.shots[si] <= tick) {
-              const age = (tick - p.shots[si]) / 8; // 0..1
+              const shotTick = p.shots[si];
+              const age = (tick - shotTick) / 8; // 0..1
+              const fade = 1 - age;
               const mx0 = x + 15 * s * Math.cos(yaw), my0 = y - 15 * s * Math.sin(yaw);
+              // kill eşleşmesi: aynı anda (±4 tick) bu oyuncunun kill'i var mı
+              let ex = mx0 + worldPx(750) * s * Math.cos(yaw);
+              let ey = my0 - worldPx(750) * s * Math.sin(yaw);
+              for (const k of d.kills) {
+                if (k.attacker === p.nickname && Math.abs(k.tick - shotTick) <= 4
+                    && k.victim_rx != null && k.victim_ry != null) {
+                  const vp = place(k.victim_rx, k.victim_ry, k.lower);
+                  ex = vp.x; ey = vp.y;
+                  break;
+                }
+              }
+              g.moveTo(mx0, my0).lineTo(ex, ey)
+               .stroke({ width: 1, color: 0xe05545, alpha: 0.55 * fade });
               g.moveTo(mx0, my0)
                .lineTo(mx0 + 6 * s * Math.cos(yaw), my0 - 6 * s * Math.sin(yaw))
-               .stroke({ width: 2, color: 0xffe9a8, alpha: 0.85 * (1 - age) });
-              g.circle(mx0, my0, 1.8 * s).fill({ color: 0xfff6d8, alpha: 0.9 * (1 - age) });
+               .stroke({ width: 2, color: 0xffe9a8, alpha: 0.85 * fade });
+              g.circle(mx0, my0, 1.8 * s).fill({ color: 0xfff6d8, alpha: 0.9 * fade });
             }
           }
           g.circle(x, y, 5.5 * Math.max(s, 0.7)).fill({ color: col })
