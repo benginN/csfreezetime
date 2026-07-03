@@ -204,6 +204,17 @@ canvas.flat { border: 1px solid #232a26; border-radius: 6px; display:block; }
 .vsrow .bar div { height: 100%; background: #4c8f52; border-radius: 3px; }
 .vsrow .bar.left { transform: scaleX(-1); }  /* sol bar ortadan dışa doğru büyür */
 
+/* Yardım sayfası */
+.help { max-width: 880px; line-height: 1.55; }
+.help h2 { margin-top: 26px; border-bottom: 1px solid #232a26; padding-bottom: 4px; }
+.help p, .help li { color: #b9c2bb; font-size: 13.5px; }
+.help li { margin: 6px 0; }
+.help b { color: #d8ded9; }
+.help code {
+  background: #1c211e; border: 1px solid #2c332e; border-radius: 4px;
+  padding: 0 5px; font-size: 12px;
+}
+
 /* Kazanma olasılığı eğrisi */
 .wpcurve { position: relative; }
 .wpcurve canvas { display: block; background: #10140f; border: 1px solid #232a26; border-radius: 5px; }
