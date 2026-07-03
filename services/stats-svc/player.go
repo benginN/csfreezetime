@@ -139,6 +139,84 @@ func (s *server) playerProfile(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 200, out)
 }
 
+// GET /api/v1/leaderboards — arşiv geneli oyuncu sıralamaları.
+// Her metrik n taşır; MIN_ROUNDS altı listelenmez (§10).
+func (s *server) leaderboards(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	const minRounds = 50
+	out := map[string]any{"min_rounds": minRounds}
+	out["adr"] = s.jsonQuery(ctx, `
+		SELECT COALESCE(json_agg(x ORDER BY x.adr DESC), '[]'::json) FROM (
+		    SELECT p.nickname, p.player_id, t.name AS team,
+		           round(sum(s.damage_dealt)::numeric / count(*), 1) AS adr,
+		           count(*) AS rounds
+		    FROM player_round_states s
+		    JOIN matches m ON m.match_id = s.match_id AND m.status = 'ready'
+		    JOIN players p ON p.player_id = s.player_id
+		    LEFT JOIN teams t ON t.team_id = p.current_team_id
+		    GROUP BY p.nickname, p.player_id, t.name
+		    HAVING count(*) >= `+fmt.Sprint(minRounds)+`
+		    LIMIT 20
+		) x`)
+	out["openings"] = s.jsonQuery(ctx, `
+		SELECT COALESCE(json_agg(x ORDER BY x.diff DESC), '[]'::json) FROM (
+		    SELECT p.nickname, p.player_id, t.name AS team,
+		           count(*) FILTER (WHERE k.attacker_id = p.player_id) AS won,
+		           count(*) FILTER (WHERE k.victim_id = p.player_id) AS lost,
+		           count(*) FILTER (WHERE k.attacker_id = p.player_id)
+		             - count(*) FILTER (WHERE k.victim_id = p.player_id) AS diff
+		    FROM kills k
+		    JOIN matches m ON m.match_id = k.match_id AND m.status = 'ready'
+		    JOIN players p ON p.player_id IN (k.attacker_id, k.victim_id)
+		    LEFT JOIN teams t ON t.team_id = p.current_team_id
+		    WHERE k.is_first_kill
+		    GROUP BY p.nickname, p.player_id, t.name
+		    HAVING count(*) >= 15
+		    LIMIT 20
+		) x`)
+	out["clutch"] = s.jsonQuery(ctx, `
+		SELECT COALESCE(json_agg(x ORDER BY x.wins DESC, x.rate DESC), '[]'::json) FROM (
+		    SELECT p.nickname, p.player_id, t.name AS team,
+		           count(*) FILTER (WHERE c.won) AS wins,
+		           count(*) AS attempts,
+		           round(100.0 * count(*) FILTER (WHERE c.won) / count(*)) AS rate
+		    FROM clutches c
+		    JOIN players p ON p.player_id = c.player_id
+		    LEFT JOIN teams t ON t.team_id = p.current_team_id
+		    GROUP BY p.nickname, p.player_id, t.name
+		    HAVING count(*) >= 8
+		    LIMIT 20
+		) x`)
+	out["flash"] = s.jsonQuery(ctx, `
+		SELECT COALESCE(json_agg(x ORDER BY x.per_flash DESC), '[]'::json) FROM (
+		    SELECT p.nickname, p.player_id, t.name AS team,
+		           count(*) AS thrown,
+		           round(sum(g.enemies_flashed)::numeric / count(*), 2) AS per_flash
+		    FROM grenades g
+		    JOIN matches m ON m.match_id = g.match_id AND m.status = 'ready'
+		    JOIN players p ON p.player_id = g.thrower_id
+		    LEFT JOIN teams t ON t.team_id = p.current_team_id
+		    WHERE g.type = 'flash'
+		    GROUP BY p.nickname, p.player_id, t.name
+		    HAVING count(*) >= 30
+		    LIMIT 20
+		) x`)
+	out["trades"] = s.jsonQuery(ctx, `
+		SELECT COALESCE(json_agg(x ORDER BY x.trades DESC), '[]'::json) FROM (
+		    SELECT p.nickname, p.player_id, t.name AS team,
+		           count(*) AS trades
+		    FROM kills k
+		    JOIN matches m ON m.match_id = k.match_id AND m.status = 'ready'
+		    JOIN players p ON p.player_id = k.attacker_id
+		    LEFT JOIN teams t ON t.team_id = p.current_team_id
+		    WHERE k.is_trade
+		    GROUP BY p.nickname, p.player_id, t.name
+		    HAVING count(*) >= 10
+		    LIMIT 20
+		) x`)
+	writeJSON(w, 200, out)
+}
+
 // GET /api/v1/winprob — durum→olasılık tablosu (istemci canlı eğri çizer).
 func (s *server) winprobTable(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 200, map[string]any{

@@ -158,6 +158,8 @@ type playerTrack struct {
 	Lower  []*bool    `json:"lower,omitempty"` // çok katlı haritada alt kat mı
 	Shots  []int32    `json:"shots"`           // atış tick'leri (ateş animasyonu)
 	Money  []*int32   `json:"money"`           // tick bazlı canlı para
+	WZ     []*float64 `json:"wz"`              // dünya z (setpos için)
+	Pitch  []*float64 `json:"pitch"`           // bakış dikeyi (setang için)
 	// raunt başı ekonomi (PRS'ten; canlı para takibi tick verisinde yok)
 	MoneyStart *int32 `json:"money_start"`
 	EquipValue *int32 `json:"equip_value"`
@@ -211,7 +213,7 @@ func (s *server) roundTicks(w http.ResponseWriter, r *http.Request) {
 	}
 
 	chRows, err := s.ch.Query(ctx, `
-		SELECT tick, player_id, side, x, y, z, yaw, health, armor, is_alive,
+		SELECT tick, player_id, side, x, y, z, yaw, pitch, health, armor, is_alive,
 		       active_weapon, flash_remaining, inventory, money
 		FROM player_ticks
 		WHERE match_id = ? AND round_number = ?
@@ -225,6 +227,7 @@ func (s *server) roundTicks(w http.ResponseWriter, r *http.Request) {
 	tickSet := map[uint32]bool{}
 	type sample struct {
 		rx, ry, yaw float64
+		wz, pitch   float64
 		hp, armor   int32
 		money       int32
 		alive       bool
@@ -239,12 +242,12 @@ func (s *server) roundTicks(w http.ResponseWriter, r *http.Request) {
 		var tick uint32
 		var pid uuid.UUID
 		var side, weapon string
-		var x, y, z, yaw, flash float32
+		var x, y, z, yaw, pitch, flash float32
 		var hp, armor uint8
 		var alive bool
 		var inv []string
 		var money int32
-		if err := chRows.Scan(&tick, &pid, &side, &x, &y, &z, &yaw, &hp, &armor, &alive, &weapon, &flash, &inv, &money); err != nil {
+		if err := chRows.Scan(&tick, &pid, &side, &x, &y, &z, &yaw, &pitch, &hp, &armor, &alive, &weapon, &flash, &inv, &money); err != nil {
 			writeErr(w, 500, err)
 			return
 		}
@@ -256,7 +259,8 @@ func (s *server) roundTicks(w http.ResponseWriter, r *http.Request) {
 		lower := cal.HasLower && cal.SplitZ != nil && float64(z) < *cal.SplitZ
 		perPlayer[pid][tick] = sample{
 			rx: (float64(x) - cal.PosX) / cal.Scale, ry: (cal.PosY - float64(y)) / cal.Scale,
-			yaw: float64(yaw), hp: int32(hp), armor: int32(armor), money: money,
+			yaw: float64(yaw), wz: float64(z), pitch: float64(pitch),
+			hp: int32(hp), armor: int32(armor), money: money,
 			alive: alive, lower: lower,
 			weapon: weapon, flash: float64(flash), inv: inv,
 		}
@@ -279,6 +283,7 @@ func (s *server) roundTicks(w http.ResponseWriter, r *http.Request) {
 			RX: make([]*float64, len(ticks)), RY: make([]*float64, len(ticks)),
 			Yaw: make([]*float64, len(ticks)), HP: make([]*int32, len(ticks)),
 			Armor: make([]*int32, len(ticks)), Money: make([]*int32, len(ticks)),
+			WZ: make([]*float64, len(ticks)), Pitch: make([]*float64, len(ticks)),
 			Alive:  make([]*bool, len(ticks)),
 			Weapon: make([]*string, len(ticks)), Inv: make([][]string, len(ticks)),
 			Flash: make([]*float64, len(ticks)),
@@ -292,8 +297,10 @@ func (s *server) roundTicks(w http.ResponseWriter, r *http.Request) {
 				weapon, flash := sm.weapon, sm.flash
 				tr.RX[i], tr.RY[i], tr.Yaw[i] = &rx, &ry, &yaw
 				money := sm.money
+				wz, pitch := sm.wz, sm.pitch
 				tr.HP[i], tr.Armor[i], tr.Alive[i] = &hp, &armor, &alive
 				tr.Money[i] = &money
+				tr.WZ[i], tr.Pitch[i] = &wz, &pitch
 				tr.Weapon[i], tr.Flash[i] = &weapon, &flash
 				tr.Inv[i] = sm.inv
 				if cal.HasLower {

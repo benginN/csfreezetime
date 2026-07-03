@@ -110,6 +110,8 @@ export interface PlayerTrack {
   lower?: (boolean | null)[];
   shots: number[];
   money: (number | null)[];
+  wz: (number | null)[];
+  pitch: (number | null)[];
   money_start: number | null;
   equip_value: number | null;
 }

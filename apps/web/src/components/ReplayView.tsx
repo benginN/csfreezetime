@@ -1271,6 +1271,23 @@ export default function ReplayView({
               <p className="meta" style={{ marginTop: 2 }}>
                 <b>{selPlayer}</b> — <span style={{ color: '#7fd88f' }}>kills</span> ·{' '}
                 <span style={{ color: '#e05545' }}>deaths</span> · nade throws · click to jump{' '}
+                <button
+                  className="ghost"
+                  style={{ padding: '0 6px' }}
+                  title="copy the player's current position as a setpos command for a practice server"
+                  onClick={() => {
+                    const p = d.players.find((x) => x.nickname === selPlayer);
+                    const i = Math.min(Math.floor(fIdxRef.current), d.ticks.length - 1);
+                    if (!p || p.rx[i] == null || p.ry[i] == null) return;
+                    const wx = (p.rx[i]! * d.radar.scale) + d.radar.pos_x;
+                    const wy = d.radar.pos_y - (p.ry[i]! * d.radar.scale);
+                    const cmd = `setpos ${wx.toFixed(1)} ${wy.toFixed(1)} ${((p.wz[i] ?? 0) + 4).toFixed(1)}; setang ${(p.pitch[i] ?? 0).toFixed(1)} ${(p.yaw[i] ?? 0).toFixed(1)} 0`;
+                    navigator.clipboard.writeText(cmd);
+                    setSelPlayer(selPlayer); // no-op; buton geri bildirimi title'da
+                  }}
+                >
+                  📋 setpos
+                </button>{' '}
                 <button className="ghost" style={{ padding: '0 6px' }} onClick={() => setSelPlayer('')}>✕</button>
               </p>
             ) : (
