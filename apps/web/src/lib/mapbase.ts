@@ -108,6 +108,45 @@ export function hidpiCtx(cv: HTMLCanvasElement, cssSize: number): CanvasRenderin
   return ctx;
 }
 
+/* --- Çok katlı haritalarda alt kat inset'i (sağ üst mini harita) ---
+   Replay'deki turnuva düzeninin 2D canvas eşleniği; Overlay ve Heatmap
+   görünümleri de aynı geometriyi kullanır. */
+
+export interface InsetGeom { x: number; y: number; size: number }
+
+export function insetGeom(w: number): InsetGeom {
+  const size = Math.round(w * 0.38);
+  return { x: w - size - 8, y: 8, size };
+}
+
+/** Alt kat zeminini + çerçeve + etiketi çizer (ana içerikten SONRA çağır). */
+export function drawLowerInset(ctx: CanvasRenderingContext2D, w: number, base: MapBase): InsetGeom {
+  const g = insetGeom(w);
+  const tmp = document.createElement('canvas');
+  tmp.width = g.size * DPR;
+  tmp.height = g.size * DPR;
+  drawMapBase(tmp.getContext('2d')!, g.size * DPR, base, false, 'lower');
+  ctx.drawImage(tmp, g.x, g.y, g.size, g.size);
+  ctx.strokeStyle = '#3a5f3e';
+  ctx.lineWidth = 1.5;
+  ctx.strokeRect(g.x - 1, g.y - 1, g.size + 2, g.size + 2);
+  ctx.fillStyle = '#9fc79f';
+  ctx.font = '10px system-ui';
+  ctx.fillText('LOWER LEVEL', g.x + 5, g.y + g.size - 7);
+  return g;
+}
+
+/** Radar koordinatını doğru görünüme yerleştirir (s = boyut ölçeği). */
+export function makePlace(w: number, hasLower: boolean) {
+  const g = insetGeom(w);
+  return (rx: number, ry: number, lower?: boolean | null) => {
+    if (hasLower && lower) {
+      return { x: g.x + (rx * g.size) / RADAR, y: g.y + (ry * g.size) / RADAR, s: g.size / w };
+    }
+    return { x: (rx * w) / RADAR, y: (ry * w) / RADAR, s: 1 };
+  };
+}
+
 /** PixiJS için: harita arka planını offscreen canvas olarak üretir. */
 export function renderMapBaseCanvas(
   base: MapBase,

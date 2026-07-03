@@ -152,12 +152,18 @@ func (s *server) matchHeatmap(w http.ResponseWriter, r *http.Request) {
 		cond += " AND player_id = ?"
 		args = append(args, pu)
 	}
+	// Çok katlı haritada hücreler kata göre ayrışır (istemci inset'e çizer)
+	lvlExpr := "0"
+	if cal.HasLower && cal.SplitZ != nil {
+		lvlExpr = fmt.Sprintf("toUInt8(z < %f)", *cal.SplitZ)
+	}
 	chq := fmt.Sprintf(`
 		SELECT toInt32(floor(((x - (%f)) / %f) / %f)) AS cx,
 		       toInt32(floor((((%f) - y) / %f) / %f)) AS cy,
+		       %s AS lvl,
 		       toInt32(count()) AS w
-		FROM player_ticks WHERE %s GROUP BY cx, cy`,
-		cal.PosX, cal.Scale, cellRadar, cal.PosY, cal.Scale, cellRadar, cond)
+		FROM player_ticks WHERE %s GROUP BY cx, cy, lvl`,
+		cal.PosX, cal.Scale, cellRadar, cal.PosY, cal.Scale, cellRadar, lvlExpr, cond)
 	rows, err := s.ch.Query(ctx, chq, args...)
 	if err != nil {
 		writeErr(w, 500, err)
@@ -165,14 +171,24 @@ func (s *server) matchHeatmap(w http.ResponseWriter, r *http.Request) {
 	}
 	defer rows.Close()
 	cells := [][3]int32{}
+	cellsLower := [][3]int32{}
 	for rows.Next() {
 		var cx, cy, wt int32
-		if rows.Scan(&cx, &cy, &wt) == nil {
-			cells = append(cells, [3]int32{cx, cy, wt})
+		var lvl uint8
+		if rows.Scan(&cx, &cy, &lvl, &wt) == nil {
+			if lvl == 1 {
+				cellsLower = append(cellsLower, [3]int32{cx, cy, wt})
+			} else {
+				cells = append(cells, [3]int32{cx, cy, wt})
+			}
 		}
 	}
-	writeJSON(w, 200, map[string]any{
+	resp := map[string]any{
 		"cells": cells, "cell_radar": cellRadar,
 		"round_count": nRounds, "radar": cal,
-	})
+	}
+	if cal.HasLower {
+		resp["cells_lower"] = cellsLower
+	}
+	writeJSON(w, 200, resp)
 }

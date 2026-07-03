@@ -1,7 +1,7 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { api, type RoundRow } from '../api';
-import { drawMapBase, hidpiCtx, loadMapBase, RADAR, type MapBase } from '../lib/mapbase';
+import { drawLowerInset, drawMapBase, hidpiCtx, loadMapBase, RADAR, type MapBase } from '../lib/mapbase';
 import { chipTitle, isSideSwap, winnerTeamClass } from '../lib/rounds';
 
 const HW = 720;
@@ -76,42 +76,56 @@ export default function HeatView({
     const ctx = hidpiCtx(cv, HW);
     drawMapBase(ctx, HW, base, true);
     const d = heat.data;
-    if (!d || !d.cells.length) return;
+    if (!d) return;
 
-    // 1) yoğunluk katmanı: hücre başına radyal leke (ekran uzayı, düz çözünürlük)
-    const off = document.createElement('canvas');
-    off.width = HW; off.height = HW;
-    const octx = off.getContext('2d')!;
-    const cellPx = (d.cell_radar * HW) / RADAR;
-    const R = cellPx * 2.2; // leke yarıçapı: komşu hücrelerle kaynaşır
+    // yoğunluk katmanı: hücre başına radyal leke → palet renklendirmesi.
+    // maxW iki kat genelinde ortaktır: inset'teki kırmızı ile ana haritadaki
+    // kırmızı aynı yoğunluğu anlatır.
     let maxW = 0;
     for (const [, , w] of d.cells) maxW = Math.max(maxW, w);
-    for (const [cx, cy, w] of d.cells) {
-      const x = (cx + 0.5) * cellPx;
-      const y = (cy + 0.5) * cellPx;
-      if (x < -R || y < -R || x > HW + R || y > HW + R) continue;
-      const a = Math.pow(w / maxW, 0.55) * 0.55; // gamma: orta yoğunluklar görünür
-      const g = octx.createRadialGradient(x, y, 0, x, y, R);
-      g.addColorStop(0, `rgba(0,0,0,${a.toFixed(3)})`);
-      g.addColorStop(1, 'rgba(0,0,0,0)');
-      octx.fillStyle = g;
-      octx.fillRect(x - R, y - R, 2 * R, 2 * R);
-    }
+    for (const [, , w] of d.cells_lower ?? []) maxW = Math.max(maxW, w);
+    if (maxW === 0) return;
 
-    // 2) renklendirme: birikmiş alfa → palet (futbol ısı haritası görünümü)
-    const img = octx.getImageData(0, 0, HW, HW);
-    const px = img.data;
-    for (let i = 0; i < px.length; i += 4) {
-      const a = px[i + 3];
-      if (a < 6) { px[i + 3] = 0; continue; }
-      const v = Math.min(255, a);
-      px[i] = LUT[v * 3];
-      px[i + 1] = LUT[v * 3 + 1];
-      px[i + 2] = LUT[v * 3 + 2];
-      px[i + 3] = Math.min(215, 40 + a * 1.1);
+    const renderLayer = (cells: [number, number, number][], size: number) => {
+      const off = document.createElement('canvas');
+      off.width = size; off.height = size;
+      const octx = off.getContext('2d')!;
+      const cellPx = (d.cell_radar * size) / RADAR;
+      const R = cellPx * 2.2; // leke yarıçapı: komşu hücrelerle kaynaşır
+      for (const [cx, cy, w] of cells) {
+        const x = (cx + 0.5) * cellPx;
+        const y = (cy + 0.5) * cellPx;
+        if (x < -R || y < -R || x > size + R || y > size + R) continue;
+        const a = Math.pow(w / maxW, 0.55) * 0.55; // gamma: orta yoğunluklar görünür
+        const g = octx.createRadialGradient(x, y, 0, x, y, R);
+        g.addColorStop(0, `rgba(0,0,0,${a.toFixed(3)})`);
+        g.addColorStop(1, 'rgba(0,0,0,0)');
+        octx.fillStyle = g;
+        octx.fillRect(x - R, y - R, 2 * R, 2 * R);
+      }
+      // renklendirme: birikmiş alfa → palet (futbol ısı haritası görünümü)
+      const img = octx.getImageData(0, 0, size, size);
+      const px = img.data;
+      for (let i = 0; i < px.length; i += 4) {
+        const a = px[i + 3];
+        if (a < 6) { px[i + 3] = 0; continue; }
+        const v = Math.min(255, a);
+        px[i] = LUT[v * 3];
+        px[i + 1] = LUT[v * 3 + 1];
+        px[i + 2] = LUT[v * 3 + 2];
+        px[i + 3] = Math.min(215, 40 + a * 1.1);
+      }
+      octx.putImageData(img, 0, 0);
+      return off;
+    };
+
+    if (d.cells.length) ctx.drawImage(renderLayer(d.cells, HW), 0, 0, HW, HW);
+    if (d.radar.has_lower) {
+      const g = drawLowerInset(ctx, HW, base); // inset zemini üst ısının üstüne
+      if (d.cells_lower?.length) {
+        ctx.drawImage(renderLayer(d.cells_lower, g.size), g.x, g.y, g.size, g.size);
+      }
     }
-    octx.putImageData(img, 0, 0);
-    ctx.drawImage(off, 0, 0, HW, HW);
   }, [heat.data, base]);
 
   const allSelected = selected.size === rounds.length;

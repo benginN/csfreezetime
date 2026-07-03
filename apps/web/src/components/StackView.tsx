@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import { api, type RoundRow, type StackResp } from '../api';
-import { drawMapBase, hidpiCtx, loadMapBase, RADAR, type MapBase } from '../lib/mapbase';
+import { drawLowerInset, drawMapBase, hidpiCtx, loadMapBase, makePlace, type MapBase } from '../lib/mapbase';
 import { chipTitle, isSideSwap, winnerTeamClass } from '../lib/rounds';
 
 const HW = 720;
@@ -113,6 +113,10 @@ export default function StackView({
     if (!cv || !data || !base) return;
     const ctx = hidpiCtx(cv, HW);
     drawMapBase(ctx, HW, base, true);
+    const hasLower = data.radar.has_lower;
+    if (hasLower) drawLowerInset(ctx, HW, base);
+    const place = makePlace(HW, hasLower);
+
     data.layers.forEach((ly, li) => {
       if (ly.skipped || !ly.players || !visible.has(ly.round_number)) return;
       const h = hue(li);
@@ -123,19 +127,25 @@ export default function StackView({
         ctx.lineWidth = 1.5;
         ctx.beginPath();
         let started = false, last = -1;
+        let prevLower: boolean | undefined;
         const from = lowerBound(p.t, tNow - trail);
         for (let i = from; i < p.t.length && p.t[i] <= tNow; i++) {
-          const x = (p.rx[i] * HW) / RADAR, y = (p.ry[i] * HW) / RADAR;
-          if (!started) { ctx.moveTo(x, y); started = true; } else ctx.lineTo(x, y);
+          const lo = p.lower?.[i] ?? false;
+          const { x, y } = place(p.rx[i], p.ry[i], lo);
+          // kat değişiminde çizgi kırılır: görünümler arası hayalet çizgi olmasın
+          if (!started || lo !== prevLower) { ctx.moveTo(x, y); started = true; }
+          else ctx.lineTo(x, y);
+          prevLower = lo;
           last = i;
         }
         ctx.stroke();
         if (last >= 0) {
-          const x = (p.rx[last] * HW) / RADAR, y = (p.ry[last] * HW) / RADAR;
+          const lo = p.lower?.[last] ?? false;
+          const { x, y, s } = place(p.rx[last], p.ry[last], lo);
           ctx.fillStyle = `hsl(${h},70%,60%)`;
-          ctx.beginPath(); ctx.arc(x, y, 5, 0, 7); ctx.fill();
+          ctx.beginPath(); ctx.arc(x, y, 5 * Math.max(s, 0.7), 0, 7); ctx.fill();
           ctx.strokeStyle = '#0b0e0c'; ctx.lineWidth = 1;
-          ctx.beginPath(); ctx.arc(x, y, 5, 0, 7); ctx.stroke();
+          ctx.beginPath(); ctx.arc(x, y, 5 * Math.max(s, 0.7), 0, 7); ctx.stroke();
           if (!labelDrawn) {
             ctx.fillStyle = `hsl(${h},70%,70%)`;
             ctx.font = 'bold 11px system-ui';

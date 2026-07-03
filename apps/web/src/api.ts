@@ -189,6 +189,7 @@ export interface HeatmapResp {
 
 export interface MatchHeatmap {
   cells: [number, number, number][]; // [cx, cy, weight] radar hücreleri
+  cells_lower?: [number, number, number][];
   cell_radar: number;
   round_count: number;
   radar: RadarCal;
@@ -199,7 +200,7 @@ export interface StackLayer {
   round_number: number;
   align_tick: number;
   skipped?: string;
-  players?: { side: string; nick: string; t: number[]; rx: number[]; ry: number[] }[];
+  players?: { side: string; nick: string; t: number[]; rx: number[]; ry: number[]; lower?: boolean[] }[];
 }
 
 export interface StackResp {

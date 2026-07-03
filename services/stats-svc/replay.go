@@ -458,11 +458,12 @@ func (s *server) stack(w http.ResponseWriter, r *http.Request) {
 		AlignTick   int32     `json:"align_tick"`
 		Skipped     string    `json:"skipped,omitempty"` // hizalama olayı yoksa neden
 		Players     []struct {
-			Side string    `json:"side"`
-			Nick string    `json:"nick"`
-			T    []float64 `json:"t"` // hizalama anına göre saniye
-			RX   []float64 `json:"rx"`
-			RY   []float64 `json:"ry"`
+			Side  string    `json:"side"`
+			Nick  string    `json:"nick"`
+			T     []float64 `json:"t"` // hizalama anına göre saniye
+			RX    []float64 `json:"rx"`
+			RY    []float64 `json:"ry"`
+			Lower []bool    `json:"lower,omitempty"` // çok katlı haritada örnek başına kat
 		} `json:"players,omitempty"`
 	}
 
@@ -552,7 +553,7 @@ func (s *server) stack(w http.ResponseWriter, r *http.Request) {
 		if ly.Skipped != "" {
 			continue
 		}
-		q := `SELECT player_id, side, tick, x, y FROM player_ticks
+		q := `SELECT player_id, side, tick, x, y, z FROM player_ticks
 		      WHERE match_id = ? AND round_number = ? AND is_alive`
 		args := []any{ly.MatchID, uint8(ly.RoundNumber)}
 		if req.Side != "" {
@@ -568,14 +569,15 @@ func (s *server) stack(w http.ResponseWriter, r *http.Request) {
 		type track struct {
 			side, nick string
 			t, rx, ry  []float64
+			lower      []bool
 		}
 		tracks := map[uuid.UUID]*track{}
 		for rows.Next() {
 			var pid uuid.UUID
 			var side string
 			var tick uint32
-			var x, y float32
-			if err := rows.Scan(&pid, &side, &tick, &x, &y); err != nil {
+			var x, y, z float32
+			if err := rows.Scan(&pid, &side, &tick, &x, &y, &z); err != nil {
 				rows.Close()
 				writeErr(w, 500, err)
 				return
@@ -588,16 +590,20 @@ func (s *server) stack(w http.ResponseWriter, r *http.Request) {
 			tr.t = append(tr.t, float64(int32(tick)-ly.AlignTick)/tickRate)
 			tr.rx = append(tr.rx, (float64(x)-cal.PosX)/cal.Scale)
 			tr.ry = append(tr.ry, (cal.PosY-float64(y))/cal.Scale)
+			if cal.HasLower && cal.SplitZ != nil {
+				tr.lower = append(tr.lower, float64(z) < *cal.SplitZ)
+			}
 		}
 		rows.Close()
 		for _, tr := range tracks {
 			ly.Players = append(ly.Players, struct {
-				Side string    `json:"side"`
-				Nick string    `json:"nick"`
-				T    []float64 `json:"t"`
-				RX   []float64 `json:"rx"`
-				RY   []float64 `json:"ry"`
-			}{tr.side, tr.nick, tr.t, tr.rx, tr.ry})
+				Side  string    `json:"side"`
+				Nick  string    `json:"nick"`
+				T     []float64 `json:"t"`
+				RX    []float64 `json:"rx"`
+				RY    []float64 `json:"ry"`
+				Lower []bool    `json:"lower,omitempty"`
+			}{tr.side, tr.nick, tr.t, tr.rx, tr.ry, tr.lower})
 		}
 	}
 
