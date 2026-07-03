@@ -10,6 +10,7 @@ import Compare from './pages/Compare';
 import Player from './pages/Player';
 import Help from './pages/Help';
 import Leaderboards from './pages/Leaderboards';
+import Playlists from './pages/Playlists';
 
 export default function App() {
   return (
@@ -22,6 +23,7 @@ export default function App() {
         <a href="/moments" style={{ whiteSpace: 'nowrap' }}>🔎 Moments</a>
         <a href="/compare" style={{ whiteSpace: 'nowrap' }}>⚔ Compare</a>
         <a href="/leaderboards" style={{ whiteSpace: 'nowrap' }}>🏆 Boards</a>
+        <a href="/playlists" style={{ whiteSpace: 'nowrap' }}>🎬 Playlists</a>
         <a href="/upload" style={{ whiteSpace: 'nowrap' }}>⬆ Upload demo</a>
         <a href="/help" style={{ whiteSpace: 'nowrap' }}>? Help</a>
       </nav>
@@ -39,6 +41,7 @@ export default function App() {
           <Route path="/player/:playerId" element={<Player />} />
           <Route path="/help" element={<Help />} />
           <Route path="/leaderboards" element={<Leaderboards />} />
+          <Route path="/playlists" element={<Playlists />} />
         </Routes>
       </main>
     </>

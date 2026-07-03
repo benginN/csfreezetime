@@ -392,7 +392,45 @@ export interface Prediction {
   evidence: { sample_size: number; note: string };
 }
 
+export interface PlaylistItem {
+  item_id: number;
+  match_id: string;
+  round_number: number;
+  t_sec: number | null;
+  note: string | null;
+  position: number;
+  map_name: string | null;
+  team_a: string | null;
+  team_b: string | null;
+}
+
+export interface Note {
+  note_id: number;
+  round_number: number;
+  t_sec: number;
+  author: string;
+  body: string;
+  has_audio: boolean;
+  created_at: string;
+}
+
 export const api = {
+  playlists: () =>
+    get<{ playlists: { playlist_id: number; name: string; items: number }[] }>('/api/v1/playlists'),
+  playlistCreate: (name: string) => post<{ playlist_id: number }>('/api/v1/playlists', { name }),
+  playlist: (id: number | string) =>
+    get<{ name: string; items: PlaylistItem[] }>(`/api/v1/playlists/${id}`),
+  playlistAdd: (id: number, item: { match_id: string; round_number: number; t_sec?: number; note?: string }) =>
+    post<{ item_id: number }>(`/api/v1/playlists/${id}/items`, item),
+  playlistDeleteItem: (id: number | string, item: number) =>
+    fetch(`/api/v1/playlists/${id}/items/${item}`, { method: 'DELETE' }).then((r) => r.json()),
+  playlistDelete: (id: number) =>
+    fetch(`/api/v1/playlists/${id}`, { method: 'DELETE' }).then((r) => r.json()),
+  notes: (matchId: string) => get<{ notes: Note[] }>(`/api/v1/matches/${matchId}/notes`),
+  noteCreate: (matchId: string, form: FormData) =>
+    fetch(`/api/v1/matches/${matchId}/notes`, { method: 'POST', body: form }).then((r) => r.json()),
+  noteDelete: (id: number) =>
+    fetch(`/api/v1/notes/${id}`, { method: 'DELETE' }).then((r) => r.json()),
   search: (q: string) => get<SearchResult>('/api/v1/search?q=' + encodeURIComponent(q)),
   teams: () => get<Team[]>('/api/v1/teams'),
   tendencies: (teamId: string) => get<Tendency[]>(`/api/v1/teams/${teamId}/tendencies`),

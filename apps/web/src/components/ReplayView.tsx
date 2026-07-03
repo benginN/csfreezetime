@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Application, Container, Graphics, Sprite, Text, Texture } from 'pixi.js';
 import { api, type KillRow, type RoundRow, type StackResp } from '../api';
 import { DPR, insetGeom, isVectorBase, loadMapBase, renderMapBaseCanvas, RADAR, SIDE_COLOR, type MapBase } from '../lib/mapbase';
@@ -75,16 +75,18 @@ function shortInv(inv: string[] | null): string {
 }
 
 export default function ReplayView({
-  matchId, round, onRound, seekTick, matchKills, rounds, teams, header,
+  matchId, round, onRound, seekTick, seekSec, matchKills, rounds, teams, header, onEnded,
 }: {
   matchId: string;
   round: number;
   onRound: (n: number) => void;
   seekTick: number | null;
+  seekSec?: number | null;
   matchKills: KillRow[];
   rounds: RoundRow[];
   teams: { aId: string | null; a: string | null; b: string | null };
   header?: React.ReactNode;
+  onEnded?: () => void;
 }) {
   const ticksQ = useQuery({
     queryKey: ['ticks', matchId, round],
@@ -163,6 +165,88 @@ export default function ReplayView({
     queryKey: ['matchPlayers', matchId],
     queryFn: () => api.matchPlayers(matchId),
   });
+
+  // --- playlist'e an ekleme + notlar ---
+  const qc = useQueryClient();
+  const playlistsQ = useQuery({ queryKey: ['playlists'], queryFn: () => api.playlists() });
+  const [plSel, setPlSel] = useState('');
+  const [plNew, setPlNew] = useState('');
+  const notesQ = useQuery({ queryKey: ['notes', matchId], queryFn: () => api.notes(matchId) });
+  const [noteText, setNoteText] = useState('');
+  const [recState, setRecState] = useState<'idle' | 'recording' | 'done'>('idle');
+  const recRef = useRef<MediaRecorder | null>(null);
+  const audioBlobRef = useRef<Blob | null>(null);
+
+  const currentSec = (): number => {
+    const dd = ticksQ.data;
+    if (!dd) return 0;
+    const i = Math.min(Math.floor(fIdxRef.current), dd.ticks.length - 1);
+    return Math.max(0, (dd.ticks[i] - (dd.freeze_end_tick ?? dd.ticks[0])) / 64);
+  };
+
+  async function addToPlaylist() {
+    let pid = plSel ? Number(plSel) : 0;
+    if (!pid && plNew.trim()) {
+      const created = await api.playlistCreate(plNew.trim());
+      pid = created.playlist_id;
+      setPlNew('');
+      setPlSel(String(pid));
+    }
+    if (!pid) return;
+    await api.playlistAdd(pid, {
+      match_id: matchId, round_number: round, t_sec: currentSec(),
+    });
+    qc.invalidateQueries({ queryKey: ['playlists'] });
+    qc.invalidateQueries({ queryKey: ['playlist', String(pid)] });
+    qc.invalidateQueries({ queryKey: ['playlist', pid] });
+  }
+
+  async function toggleRecord() {
+    if (recState === 'recording') {
+      recRef.current?.stop();
+      return;
+    }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mr = new MediaRecorder(stream);
+      const chunks: Blob[] = [];
+      mr.ondataavailable = (e) => chunks.push(e.data);
+      mr.onstop = () => {
+        audioBlobRef.current = new Blob(chunks, { type: 'audio/webm' });
+        stream.getTracks().forEach((t) => t.stop());
+        setRecState('done');
+      };
+      mr.start();
+      recRef.current = mr;
+      setRecState('recording');
+    } catch {
+      setRecState('idle');
+    }
+  }
+
+  async function saveNote() {
+    if (!noteText.trim() && !audioBlobRef.current) return;
+    const form = new FormData();
+    form.set('round_number', String(round));
+    form.set('t_sec', currentSec().toFixed(1));
+    form.set('body', noteText.trim());
+    form.set('author', localStorage.getItem('tm_author') ?? '');
+    if (audioBlobRef.current) form.set('audio', audioBlobRef.current, 'note.webm');
+    await api.noteCreate(matchId, form);
+    setNoteText('');
+    audioBlobRef.current = null;
+    setRecState('idle');
+    qc.invalidateQueries({ queryKey: ['notes', matchId] });
+  }
+
+  const seekToSec = (sec: number) => {
+    const dd = ticksQ.data;
+    if (!dd) return;
+    const target = (dd.freeze_end_tick ?? dd.ticks[0]) + sec * 64;
+    const i = dd.ticks.findIndex((t) => t >= target);
+    if (i >= 0) fIdxRef.current = i;
+  };
+  const roundNotes = (notesQ.data?.notes ?? []).filter((n) => n.round_number === round);
   const ghostKey = useMemo(() => [...ghostRounds].sort((a, b) => a - b).join(','), [ghostRounds]);
   const heatKey = useMemo(() => [...heatRounds].sort((a, b) => a - b).join(','), [heatRounds]);
   const heatQ = useQuery({
@@ -301,6 +385,8 @@ export default function ReplayView({
   const playingRef = useRef(false);
   const speedRef = useRef(2);
   const namesRef = useRef(true);         // sahne yeniden kurulmadan okunur
+  const onEndedRef = useRef<(() => void) | undefined>(undefined);
+  onEndedRef.current = onEnded;
   const replayOnRef = useRef(true);
   const ghostsOnRef = useRef(false);
   const baseSpriteRef = useRef<Sprite | null>(null);
@@ -571,6 +657,11 @@ export default function ReplayView({
       let init = startIdx;
       if (seekTick != null) {
         const i = d.ticks.findIndex((t) => t >= seekTick);
+        if (i >= 0) init = i;
+      } else if (seekSec != null) {
+        // saniye bazlı derin link (playlist öğeleri)
+        const target = (d.freeze_end_tick ?? d.ticks[0]) + seekSec * 64;
+        const i = d.ticks.findIndex((t) => t >= target);
         if (i >= 0) init = i;
       }
       fIdxRef.current = init;
@@ -905,7 +996,10 @@ export default function ReplayView({
             fIdxRef.current + (t.deltaMS / 1000) * 16 * speedRef.current,
             d.ticks.length - 1,
           );
-          if (fIdxRef.current >= d.ticks.length - 1) setPlaying(false);
+          if (fIdxRef.current >= d.ticks.length - 1) {
+            setPlaying(false);
+            onEndedRef.current?.(); // playlist modu: sıradaki öğeye geç
+          }
         }
         // hayalet saati: kendi oynatması, kendi hız çarpanı (0..115 sn)
         if (ghostPlayingRef.current) {
@@ -997,6 +1091,12 @@ export default function ReplayView({
             title: `${g.type} thrown`,
           })),
       ];
+  // notlar zaman çubuğunda her zaman görünür (amber)
+  const noteMarks = !d ? [] : roundNotes.map((n) => ({
+    tick: (d.freeze_end_tick ?? d.ticks[0]) + n.t_sec * 64,
+    color: '#c9a86a',
+    title: `📝 ${n.body || '(voice note)'}`,
+  }));
 
   return (
     <div className="replaylayout">
@@ -1107,6 +1207,22 @@ export default function ReplayView({
                   </button>
                 </Fragment>
               ))}
+            </div>
+            <div className="row">
+              <label style={{ minWidth: 0 }}>🎬</label>
+              <select value={plSel} onChange={(e) => setPlSel(e.target.value)}>
+                <option value="">playlist…</option>
+                {(playlistsQ.data?.playlists ?? []).map((p) => (
+                  <option key={p.playlist_id} value={p.playlist_id}>{p.name}</option>
+                ))}
+              </select>
+              {!plSel && (
+                <input style={{ width: 100 }} placeholder="or new…" value={plNew}
+                  onChange={(e) => setPlNew(e.target.value)} />
+              )}
+              <button className="ghost" disabled={!plSel && !plNew.trim()} onClick={addToPlaylist}>
+                + save moment
+              </button>
             </div>
           </div>
         </div>
@@ -1231,6 +1347,52 @@ export default function ReplayView({
           </div>
         </div>
 
+        {/* Notlar: raunt+saniyeye bağlı metin/sesli koç notları */}
+        <div className="layerpanel">
+          <label className="layerhead">📝 Notes {roundNotes.length > 0 && <span className="meta">({roundNotes.length} this round)</span>}</label>
+          <div className="layerbody">
+            {roundNotes.map((n) => (
+              <div key={n.note_id} className="noterow">
+                <button className="ghost" style={{ padding: '0 6px' }}
+                  title="jump to this moment" onClick={() => seekToSec(n.t_sec)}>
+                  {Math.floor(n.t_sec / 60)}:{String(Math.floor(n.t_sec % 60)).padStart(2, '0')}
+                </button>
+                <span className="cut" style={{ flex: 1 }}>
+                  {n.body || <span className="meta">(voice note)</span>}
+                  {n.author && <span className="meta"> — {n.author}</span>}
+                </span>
+                {n.has_audio && (
+                  <audio controls preload="none" src={`/api/v1/notes/${n.note_id}/audio`}
+                    style={{ height: 24, width: 130 }} />
+                )}
+                <button className="ghost" style={{ padding: '0 6px' }}
+                  onClick={async () => { await api.noteDelete(n.note_id); qc.invalidateQueries({ queryKey: ['notes', matchId] }); }}>
+                  ✕
+                </button>
+              </div>
+            ))}
+            <div className="row">
+              <input
+                style={{ flex: 1, minWidth: 120 }}
+                placeholder="note at current time…"
+                value={noteText}
+                onChange={(e) => setNoteText(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && saveNote()}
+              />
+              <button
+                className={recState === 'recording' ? '' : 'ghost'}
+                title={recState === 'recording' ? 'stop recording' : 'record a voice note'}
+                onClick={toggleRecord}
+              >
+                {recState === 'recording' ? '⏹' : recState === 'done' ? '🎙✓' : '🎙'}
+              </button>
+              <button className="ghost" disabled={!noteText.trim() && recState !== 'done'} onClick={saveNote}>
+                save
+              </button>
+            </div>
+          </div>
+        </div>
+
         {/* Zaman çubuğu: sağ alt (kill/olay işaretli, tıklayınca atlar) */}
         <div className="layerpanel">
           <div className="layerbody" style={{ marginTop: 0 }}>
@@ -1253,7 +1415,7 @@ export default function ReplayView({
                 defaultValue={startIdx}
                 onInput={(e) => { fIdxRef.current = Number((e.target as HTMLInputElement).value); }}
               />
-              {timelineMarks.map((m, i) => {
+              {[...timelineMarks, ...noteMarks].map((m, i) => {
                 const idx = d.ticks.findIndex((t) => t >= m.tick);
                 const pct = (100 * (idx - startIdx)) / Math.max(1, d.ticks.length - 1 - startIdx);
                 return (

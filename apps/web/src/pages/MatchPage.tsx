@@ -1,6 +1,7 @@
-import { Link, useParams, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../api';
+import { playUrl } from './Playlists';
 import { winnerTeamClass } from '../lib/rounds';
 import ReplayView from '../components/ReplayView';
 
@@ -9,8 +10,19 @@ import ReplayView from '../components/ReplayView';
 export default function MatchPage() {
   const { id = '' } = useParams();
   const [params, setParams] = useSearchParams();
+  const nav = useNavigate();
   const round = Number(params.get('round') ?? '1');
   const seekTick = params.get('t') ? Number(params.get('t')) : null;
+  const seekSec = params.get('ts') ? Number(params.get('ts')) : null;
+
+  // playlist modu: ?playlist=ID&idx=N — raunt bitince otomatik sıradaki
+  const plId = params.get('playlist');
+  const plIdx = Number(params.get('idx') ?? '0');
+  const pl = useQuery({
+    queryKey: ['playlist', plId],
+    queryFn: () => api.playlist(plId!),
+    enabled: !!plId,
+  });
 
   const detail = useQuery({ queryKey: ['match', id], queryFn: () => api.matchDetail(id) });
   const summary = useQuery({
@@ -52,8 +64,24 @@ export default function MatchPage() {
     </div>
   );
 
+  const plItems = pl.data?.items ?? [];
+  const goPl = (idx: number) => {
+    if (!plId || idx < 0 || idx >= plItems.length) return;
+    nav(playUrl(plItems, idx, plId));
+  };
+
   return (
     <>
+      {plId && pl.data && (
+        <div className="toolbar" style={{ background: '#151a17', border: '1px solid #232a26', borderRadius: 8, padding: '6px 10px' }}>
+          <span>🎬 <b>{pl.data.name}</b></span>
+          <span className="meta">{plIdx + 1} / {plItems.length}</span>
+          <button className="ghost" disabled={plIdx <= 0} onClick={() => goPl(plIdx - 1)}>← prev</button>
+          <button className="ghost" disabled={plIdx >= plItems.length - 1} onClick={() => goPl(plIdx + 1)}>next →</button>
+          {plItems[plIdx]?.note && <span className="meta">“{plItems[plIdx].note}”</span>}
+          <Link to="/playlists" className="meta">exit</Link>
+        </div>
+      )}
       <ReplayView
         header={header}
         key={id}
@@ -61,9 +89,11 @@ export default function MatchPage() {
         round={round}
         onRound={setRound}
         seekTick={seekTick}
+        seekSec={seekSec}
         matchKills={d.kills}
         rounds={d.rounds}
         teams={teams}
+        onEnded={plId ? () => goPl(plIdx + 1) : undefined}
       />
     </>
   );
