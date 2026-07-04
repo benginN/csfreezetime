@@ -100,7 +100,7 @@ func (s *server) search(w http.ResponseWriter, r *http.Request) {
 	sql += `
 	GROUP BY m.match_id, m.map_name, m.event_name, m.tournament, ta.name, tb.name, m.played_at
 	ORDER BY m.played_at DESC NULLS LAST, m.event_name
-	LIMIT 300`
+	LIMIT 100`
 
 	rows, err := s.pg.Query(ctx, sql, args...)
 	if err != nil {

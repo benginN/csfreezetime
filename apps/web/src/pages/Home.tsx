@@ -33,8 +33,9 @@ export default function Home() {
         </div>
       )}
       <div className="meta" style={{ margin: '4px 0 12px' }}>
-        {res.isLoading ? 'searching…' : `${matches.length} matches`}
-        {q && <> · “{q}”</>}
+        {res.isLoading ? 'searching…'
+          : q ? `${matches.length} matches · “${q}”`
+          : `most recent ${matches.length} matches — search to reach the rest`}
       </div>
 
       {matches.map((m) => (
@@ -66,10 +67,21 @@ export default function Home() {
 // Ana sayfa takım şeridi: monogram "logo" + ad; tıklayınca takım anasayfası.
 function TeamStrip() {
   const teams = useQuery({ queryKey: ['teams'], queryFn: () => api.teams() });
-  const list = (teams.data ?? []).filter((t) => t.matches > 0);
+  const [open, setOpen] = useState(false);
+  const list = (teams.data ?? [])
+    .filter((t) => t.matches > 0)
+    .sort((a, b) => a.name.localeCompare(b.name));
   if (!list.length) return null;
   return (
-    <div className="teamstrip">
+    <div style={{ position: 'relative' }}>
+      <button
+        className="ghost stripToggle"
+        title={open ? 'collapse' : 'show all teams'}
+        onClick={() => setOpen(!open)}
+      >
+        {open ? '▴' : `▾ ${list.length}`}
+      </button>
+    <div className={`teamstrip ${open ? '' : 'onerow'}`}>
       {list.map((t) => (
         <Link key={t.team_id} to={`/team/${t.team_id}`} className="teamcard">
           <span className="monogram" style={{ background: `hsl(${teamHue(t.name)},45%,32%)` }}>
@@ -81,6 +93,7 @@ function TeamStrip() {
           </span>
         </Link>
       ))}
+    </div>
     </div>
   );
 }
