@@ -359,7 +359,7 @@ func (s *server) faceitImport(w http.ResponseWriter, r *http.Request) {
 	}
 	playedAt := time.Unix(det.StartedAt, 0).UTC().Format(time.RFC3339)
 
-	resp, code, err := s.ingestLocalDemo(tmpPath, sha, size, name, playedAt)
+	resp, code, err := s.ingestLocalDemo(tmpPath, sha, size, name, playedAt, "faceit")
 	if err != nil {
 		writeErr(w, code, err)
 		return

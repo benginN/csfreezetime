@@ -117,7 +117,7 @@ func (s *server) upload(w http.ResponseWriter, r *http.Request) {
 	defer os.Remove(tmpPath)
 
 	resp, code, err := s.ingestLocalDemo(tmpPath, sha, size,
-		strings.TrimSuffix(fileName, ".dem"), playedAt)
+		strings.TrimSuffix(fileName, ".dem"), playedAt, "")
 	if err != nil {
 		writeErr(w, code, err)
 		return
@@ -128,7 +128,7 @@ func (s *server) upload(w http.ResponseWriter, r *http.Request) {
 // ingestLocalDemo: geçici .dem dosyasını boru hattına verir (dedup → MinIO →
 // demo.ingested). Manuel upload ve FACEIT import bu tek yolu paylaşır.
 func (s *server) ingestLocalDemo(
-	tmpPath, sha string, size int64, sourceFile, playedAt string,
+	tmpPath, sha string, size int64, sourceFile, playedAt, tournament string,
 ) (map[string]any, int, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
@@ -169,6 +169,7 @@ func (s *server) ingestLocalDemo(
 		"object_key":  objectKey,
 		"source_file": sourceFile,
 		"played_at":   playedAt,
+		"tournament":  tournament,
 	})
 	if err := s.up.nc.Publish("demo.ingested", payload); err != nil {
 		return nil, 500, fmt.Errorf("failed to enqueue: %w", err)

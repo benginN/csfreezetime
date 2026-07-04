@@ -11,7 +11,7 @@ import time
 
 from . import (
     anomaly, clustering, clutch, db, evaluate, features, flashstats,
-    roles, rotations, setups, tendencies, utility, winprob,
+    roles, rotations, setups, tendencies, tournaments, utility, winprob,
 )
 
 
@@ -26,6 +26,9 @@ def cli() -> None:
             "SELECT DISTINCT map_name FROM matches WHERE status = 'ready' AND map_name IS NOT NULL"
         )
         maps = [r[0] for r in cur.fetchall()]
+
+    n_t = tournaments.run(pgconn)
+    print(f"— turnuva etiketleri: {n_t} maç rafine edildi —")
 
     print("— strateji kümeleme —")
     for m in sorted(maps):

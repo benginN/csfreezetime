@@ -11,14 +11,15 @@ import (
 )
 
 type searchMatch struct {
-	MatchID  uuid.UUID `json:"match_id"`
-	MapName  *string   `json:"map_name"`
-	Name     *string   `json:"name"`
-	TeamA    *string   `json:"team_a"`
-	TeamB    *string   `json:"team_b"`
-	ScoreA   int       `json:"score_a"`
-	ScoreB   int       `json:"score_b"`
-	PlayedAt *string   `json:"played_at"`
+	MatchID    uuid.UUID `json:"match_id"`
+	MapName    *string   `json:"map_name"`
+	Name       *string   `json:"name"`
+	Tournament *string   `json:"tournament"`
+	TeamA      *string   `json:"team_a"`
+	TeamB      *string   `json:"team_b"`
+	ScoreA     int       `json:"score_a"`
+	ScoreB     int       `json:"score_b"`
+	PlayedAt   *string   `json:"played_at"`
 }
 
 // GET /api/v1/search?q=... → {teams, players, matches}
@@ -70,7 +71,7 @@ func (s *server) search(w http.ResponseWriter, r *http.Request) {
 	// Maçlar: her token en az bir alanda geçmeli (takım adları, oyuncular,
 	// harita, dosya adı). Oyuncu eşleşmesi PRS üzerinden maça bağlanır.
 	sql := `
-	SELECT m.match_id, m.map_name, m.event_name, ta.name, tb.name,
+	SELECT m.match_id, m.map_name, m.event_name, m.tournament, ta.name, tb.name,
 	       count(*) FILTER (WHERE (r.winner_side='T'  AND r.t_team_id  = m.team_a_id)
 	                            OR (r.winner_side='CT' AND r.ct_team_id = m.team_a_id)) AS score_a,
 	       count(*) FILTER (WHERE (r.winner_side='T'  AND r.t_team_id  = m.team_b_id)
@@ -90,13 +91,14 @@ func (s *server) search(w http.ResponseWriter, r *http.Request) {
 		 OR lower(coalesce(tb.name,'')) LIKE '%'||$` + itoa(n) + `||'%'
 		 OR lower(coalesce(m.map_name,'')) LIKE '%'||$` + itoa(n) + `||'%'
 		 OR lower(coalesce(m.event_name,'')) LIKE '%'||$` + itoa(n) + `||'%'
+	 OR lower(coalesce(m.tournament,'')) LIKE '%'||$` + itoa(n) + `||'%'
 		 OR EXISTS (SELECT 1 FROM player_round_states s
 		            JOIN players p ON p.player_id = s.player_id
 		            WHERE s.match_id = m.match_id
 		              AND lower(p.nickname) LIKE '%'||$` + itoa(n) + `||'%'))`
 	}
 	sql += `
-	GROUP BY m.match_id, m.map_name, m.event_name, ta.name, tb.name, m.played_at
+	GROUP BY m.match_id, m.map_name, m.event_name, m.tournament, ta.name, tb.name, m.played_at
 	ORDER BY m.played_at DESC NULLS LAST, m.event_name
 	LIMIT 60`
 
@@ -109,7 +111,7 @@ func (s *server) search(w http.ResponseWriter, r *http.Request) {
 	matches := []searchMatch{}
 	for rows.Next() {
 		var m searchMatch
-		if err := rows.Scan(&m.MatchID, &m.MapName, &m.Name, &m.TeamA, &m.TeamB,
+		if err := rows.Scan(&m.MatchID, &m.MapName, &m.Name, &m.Tournament, &m.TeamA, &m.TeamB,
 			&m.ScoreA, &m.ScoreB, &m.PlayedAt); err != nil {
 			writeErr(w, 500, err)
 			return

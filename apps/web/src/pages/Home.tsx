@@ -45,6 +45,7 @@ export default function Home() {
             <span>{m.team_b ?? 'Team B'}</span>
           </span>
           <span className="badge gray">{m.map_name}</span>
+          {m.tournament && <span className="meta cut" style={{ maxWidth: 220 }}>🏆 {m.tournament.replace(/-/g, ' ')}</span>}
           <span className="meta">{m.played_at ?? ''}</span>
         </Link>
       ))}

@@ -238,6 +238,7 @@ CREATE TABLE matches (
     score_a         SMALLINT, score_b SMALLINT,
     tick_rate       SMALLINT DEFAULT 64,
     played_at       TIMESTAMPTZ,
+    tournament      TEXT,  -- backfill arşiv adından türetilir; ml-jobs takım adlarını ayıklar
     parser_version  TEXT NOT NULL,
     status          TEXT NOT NULL DEFAULT 'queued'
                     CHECK (status IN ('queued','parsing','enriching','ready','failed'))

@@ -228,6 +228,7 @@ function CoveragePanel() {
     totals: { matches: number; rounds: number; teams: number; oldest: string; newest: string } | null;
     maps: { map_name: string; matches: number }[];
     teams: { name: string; matches: number; latest: string }[];
+    tournaments: { tournament: string; matches: number; latest: string }[];
   } | null>(null);
   useEffect(() => {
     fetch('/api/v1/coverage').then((r) => r.json()).then(setD).catch(() => {});
@@ -243,6 +244,20 @@ function CoveragePanel() {
         </span>
       </h2>
       <div className="grid cards two">
+        <div className="card">
+          <div className="meta" style={{ marginBottom: 6 }}>by tournament</div>
+          <table>
+            <tbody>
+              {(d.tournaments ?? []).map((t) => (
+                <tr key={t.tournament}>
+                  <td className="cut">{t.tournament.replace(/-/g, ' ')}</td>
+                  <td>{t.matches}</td>
+                  <td className="meta">{t.latest}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
         <div className="card">
           <div className="meta" style={{ marginBottom: 6 }}>by map</div>
           <table>

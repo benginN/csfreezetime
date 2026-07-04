@@ -12,6 +12,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -81,6 +82,72 @@ func (s *server) backfillScan(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 200, map[string]any{"queued_files": len(files)})
 }
 
+// backfillWatch: klasör izleyici — kullanıcı dosya atınca kimse düğmeye
+// basmadan işlenir ("her akşam klasöre at" sürdürülebilirliği). Dosyanın
+// hâlâ kopyalanıyor olma ihtimaline karşı boyut iki tarama arasında
+// sabitlenene dek beklenir.
+func (s *server) backfillWatch() {
+	if s.up == nil {
+		return
+	}
+	dir := backfillDir()
+	os.MkdirAll(filepath.Join(dir, "done"), 0o755)
+	lastSize := map[string]int64{}
+	for {
+		time.Sleep(20 * time.Second)
+		bfState.mu.Lock()
+		busy := bfState.Running
+		bfState.mu.Unlock()
+		if busy {
+			continue
+		}
+		entries, err := os.ReadDir(dir)
+		if err != nil {
+			continue
+		}
+		var ready []string
+		stable := map[string]int64{}
+		for _, e := range entries {
+			if e.IsDir() || !eligibleBackfillName(e.Name()) {
+				continue
+			}
+			p := filepath.Join(dir, e.Name())
+			st, err := os.Stat(p)
+			if err != nil {
+				continue
+			}
+			stable[p] = st.Size()
+			if lastSize[p] == st.Size() { // iki taramadır aynı boyut → kopya bitti
+				ready = append(ready, p)
+			}
+		}
+		lastSize = stable
+		if len(ready) == 0 {
+			continue
+		}
+		bfState.mu.Lock()
+		if bfState.Running {
+			bfState.mu.Unlock()
+			continue
+		}
+		bfState.Running = true
+		bfState.Total = len(ready)
+		bfState.Done = 0
+		bfState.Results = nil
+		bfState.Errors = nil
+		bfState.mu.Unlock()
+		log.Printf("backfill izleyici: %d dosya bulundu, işleniyor", len(ready))
+		s.backfillRun(ready, dir)
+	}
+}
+
+func eligibleBackfillName(name string) bool {
+	n := strings.ToLower(name)
+	return strings.HasSuffix(n, ".rar") || strings.HasSuffix(n, ".zip") ||
+		strings.HasSuffix(n, ".dem") || strings.HasSuffix(n, ".dem.gz") ||
+		strings.HasSuffix(n, ".dem.zst")
+}
+
 // GET /api/v1/backfill/status
 func (s *server) backfillStatus(w http.ResponseWriter, r *http.Request) {
 	bfState.mu.Lock()
@@ -119,6 +186,24 @@ func (s *server) backfillRun(files []string, dir string) {
 	}
 }
 
+// tournamentSlug: arşiv adından turnuva ham etiketi — uzantı, HLTV kuyruk
+// kimliği (uzun karışık token) ve "boN" atılır; takım adları ml-jobs'ta
+// (takımlar parse edilince) ayıklanır.
+func tournamentSlug(path string) string {
+	base := filepath.Base(path)
+	base = strings.TrimSuffix(strings.TrimSuffix(base, filepath.Ext(base)), ".dem")
+	parts := strings.Split(base, "-")
+	for len(parts) > 0 {
+		last := parts[len(parts)-1]
+		if len(last) >= 16 || last == "bo1" || last == "bo3" || last == "bo5" {
+			parts = parts[:len(parts)-1]
+			continue
+		}
+		break
+	}
+	return strings.Join(parts, "-")
+}
+
 // backfillFile: tek arşiv/demoyu açar, içindeki her .dem'i ingest eder.
 func (s *server) backfillFile(path string) ([]map[string]any, error) {
 	lower := strings.ToLower(path)
@@ -143,7 +228,7 @@ func (s *server) backfillFile(path string) ([]map[string]any, error) {
 			return nil, err
 		}
 		defer gz.Close()
-		r, err := s.ingestStream(gz, demBase(path), playedAt)
+		r, err := s.ingestStream(gz, demBase(path), playedAt, "")
 		return wrapResult(r, err)
 	case strings.HasSuffix(lower, ".dem.zst"):
 		f, err := os.Open(path)
@@ -156,7 +241,7 @@ func (s *server) backfillFile(path string) ([]map[string]any, error) {
 			return nil, err
 		}
 		defer zr.Close()
-		r, err := s.ingestStream(zr, demBase(path), playedAt)
+		r, err := s.ingestStream(zr, demBase(path), playedAt, "")
 		return wrapResult(r, err)
 	default: // .dem
 		f, err := os.Open(path)
@@ -164,7 +249,7 @@ func (s *server) backfillFile(path string) ([]map[string]any, error) {
 			return nil, err
 		}
 		defer f.Close()
-		r, err := s.ingestStream(f, demBase(path), playedAt)
+		r, err := s.ingestStream(f, demBase(path), playedAt, "")
 		return wrapResult(r, err)
 	}
 }
@@ -192,7 +277,7 @@ func (s *server) backfillRar(path, playedAt string) ([]map[string]any, error) {
 		if !hdr.ModificationTime.IsZero() {
 			entryPlayed = hdr.ModificationTime.UTC().Format(time.RFC3339)
 		}
-		r, err := s.ingestStream(rr, demBase(hdr.Name), entryPlayed)
+		r, err := s.ingestStream(rr, demBase(hdr.Name), entryPlayed, tournamentSlug(path))
 		res, _ := wrapResult(r, err)
 		out = append(out, res...)
 	}
@@ -218,7 +303,7 @@ func (s *server) backfillZip(path, playedAt string) ([]map[string]any, error) {
 		if !zf.Modified.IsZero() {
 			entryPlayed = zf.Modified.UTC().Format(time.RFC3339)
 		}
-		r, err := s.ingestStream(f, demBase(zf.Name), entryPlayed)
+		r, err := s.ingestStream(f, demBase(zf.Name), entryPlayed, tournamentSlug(path))
 		f.Close()
 		res, _ := wrapResult(r, err)
 		out = append(out, res...)
@@ -227,7 +312,7 @@ func (s *server) backfillZip(path, playedAt string) ([]map[string]any, error) {
 }
 
 // ingestStream: akışı geçici dosyaya alır (sha ile birlikte) ve hatta verir.
-func (s *server) ingestStream(r io.Reader, sourceFile, playedAt string) (map[string]any, error) {
+func (s *server) ingestStream(r io.Reader, sourceFile, playedAt, tournament string) (map[string]any, error) {
 	tmp, err := os.CreateTemp("", "backfill-*.dem")
 	if err != nil {
 		return nil, err
@@ -241,7 +326,7 @@ func (s *server) ingestStream(r io.Reader, sourceFile, playedAt string) (map[str
 		return nil, err
 	}
 	sha := hex.EncodeToString(h.Sum(nil))
-	resp, _, err := s.ingestLocalDemo(tmpPath, sha, size, sourceFile, playedAt)
+	resp, _, err := s.ingestLocalDemo(tmpPath, sha, size, sourceFile, playedAt, tournament)
 	if err != nil {
 		return nil, err
 	}
@@ -281,6 +366,14 @@ func (s *server) coverage(w http.ResponseWriter, r *http.Request) {
 		SELECT COALESCE(json_agg(x ORDER BY x.matches DESC), '[]'::json) FROM (
 		    SELECT map_name, count(*) AS matches FROM matches
 		    WHERE status = 'ready' GROUP BY map_name
+		) x`)
+	out["tournaments"] = s.jsonQuery(ctx, `
+		SELECT COALESCE(json_agg(x ORDER BY x.latest DESC NULLS LAST), '[]'::json) FROM (
+		    SELECT COALESCE(tournament, '(untagged)') AS tournament,
+		           count(*) AS matches,
+		           to_char(max(played_at), 'YYYY-MM-DD') AS latest
+		    FROM matches WHERE status = 'ready'
+		    GROUP BY COALESCE(tournament, '(untagged)')
 		) x`)
 	out["teams"] = s.jsonQuery(ctx, `
 		SELECT COALESCE(json_agg(x ORDER BY x.matches DESC), '[]'::json) FROM (

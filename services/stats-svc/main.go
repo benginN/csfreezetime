@@ -145,6 +145,8 @@ func main() {
 		log.Printf("SPA dist yok (%s); kökte test sayfası", webDist)
 	}
 
+	go srv.backfillWatch() // backfill klasörünü otomatik işle
+
 	addr := envOr("STATS_ADDR", ":8090")
 	log.Printf("stats-svc hazır: http://localhost%s", addr)
 	log.Fatal(http.ListenAndServe(addr, r))

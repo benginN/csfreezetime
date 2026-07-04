@@ -71,6 +71,7 @@ export interface SearchResult {
     score_a: number;
     score_b: number;
     played_at: string | null;
+    tournament: string | null;
   }[];
 }
 
@@ -82,6 +83,7 @@ export interface MatchDetail {
   team_a: string | null;
   team_b_id: string | null;
   team_b: string | null;
+  tournament: string | null;
   rounds: RoundRow[];
   kills: KillRow[];
 }

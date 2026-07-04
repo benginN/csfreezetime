@@ -49,14 +49,14 @@ func (s *server) matchDetail(w http.ResponseWriter, r *http.Request) {
 	var mapName *string
 	var status string
 	var teamAID, teamBID *uuid.UUID
-	var teamA, teamB *string
+	var teamA, teamB, tournament *string
 	if err := s.pg.QueryRow(ctx, `
-		SELECT m.map_name, m.status, m.team_a_id, ta.name, m.team_b_id, tb.name
+		SELECT m.map_name, m.status, m.team_a_id, ta.name, m.team_b_id, tb.name, m.tournament
 		FROM matches m
 		LEFT JOIN teams ta ON ta.team_id = m.team_a_id
 		LEFT JOIN teams tb ON tb.team_id = m.team_b_id
 		WHERE m.match_id = $1`, matchID).
-		Scan(&mapName, &status, &teamAID, &teamA, &teamBID, &teamB); err != nil {
+		Scan(&mapName, &status, &teamAID, &teamA, &teamBID, &teamB, &tournament); err != nil {
 		writeErr(w, 404, fmt.Errorf("match not found"))
 		return
 	}
@@ -136,7 +136,7 @@ func (s *server) matchDetail(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 200, map[string]any{
 		"match_id": matchID, "map_name": mapName, "status": status,
 		"team_a_id": teamAID, "team_a": teamA,
-		"team_b_id": teamBID, "team_b": teamB,
+		"team_b_id": teamBID, "team_b": teamB, "tournament": tournament,
 		"rounds": rounds, "kills": kills,
 	})
 }

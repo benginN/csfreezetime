@@ -28,6 +28,9 @@ struct DemoIngested {
     /// Maç tarihi (ISO 8601; ingest dosya tarihinden türetir)
     #[serde(default)]
     played_at: Option<String>,
+    /// Turnuva etiketi (backfill arşiv adından; ml-jobs takım adlarını ayıklar)
+    #[serde(default)]
+    tournament: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -196,6 +199,7 @@ async fn handle_message(
     let match_id = pg::upsert_match(
         pg, job.match_id, &job.demo_sha256, &job.object_key,
         PARSER_VERSION, job.source_file.as_deref(), job.played_at.as_deref(),
+        job.tournament.as_deref(),
     ).await?;
     if match_id != job.match_id {
         info!(canonical = %match_id, "demo daha önce işlenmiş; mevcut match_id kullanılıyor");

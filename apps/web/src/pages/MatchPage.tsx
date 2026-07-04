@@ -60,7 +60,11 @@ export default function MatchPage() {
       {d.team_b_id
         ? <Link to={`/report/${d.team_b_id}?map=${d.map_name ?? ''}`} title="Opponent report">{d.team_b}</Link>
         : (d.team_b ?? 'Team B')}
-      <div className="meta">{d.map_name}{summary.data?.played_at ? ` · ${summary.data.played_at}` : ''}</div>
+      <div className="meta">
+        {d.map_name}
+        {d.tournament ? ` · ${d.tournament.replace(/-/g, ' ')}` : ''}
+        {summary.data?.played_at ? ` · ${summary.data.played_at}` : ''}
+      </div>
     </div>
   );
 
