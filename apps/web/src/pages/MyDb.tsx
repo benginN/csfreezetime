@@ -254,7 +254,12 @@ export default function MyDb() {
       {!queue && phase && <p className="meta">{phase}…</p>}
       {err && <p className="error">{err}</p>}
 
-      <h2>Matches <span className="meta">({items.length} · {totalMB.toFixed(0)} MB in this browser)</span></h2>
+      <h2>
+        Matches <span className="meta">({items.length} · {totalMB.toFixed(0)} MB in this browser)</span>
+        {items.length > 0 && (
+          <Link to="/mydb/report" style={{ marginLeft: 12, fontSize: 13 }}>📊 your team report →</Link>
+        )}
+      </h2>
       {items.map((m) => (
         <div key={m.match_id} className="matchrow" style={{ display: 'flex', alignItems: 'center' }}>
           <Link to={`/match/${m.match_id}`} style={{ flex: 1 }}>

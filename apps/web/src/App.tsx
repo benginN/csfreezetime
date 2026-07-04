@@ -12,6 +12,7 @@ import Help from './pages/Help';
 import Leaderboards from './pages/Leaderboards';
 import Playlists from './pages/Playlists';
 import MyDb from './pages/MyDb';
+import LocalReportPage from './pages/LocalReport';
 
 export default function App() {
   return (
@@ -45,6 +46,7 @@ export default function App() {
           <Route path="/leaderboards" element={<Leaderboards />} />
           <Route path="/playlists" element={<Playlists />} />
           <Route path="/mydb" element={<MyDb />} />
+          <Route path="/mydb/report" element={<LocalReportPage />} />
         </Routes>
       </main>
     </>
