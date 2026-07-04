@@ -16,6 +16,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -189,17 +190,19 @@ func (s *server) backfillRun(files []string, dir string) {
 // tournamentSlug: arşiv adından turnuva ham etiketi — uzantı, HLTV kuyruk
 // kimliği (uzun karışık token) ve "boN" atılır; takım adları ml-jobs'ta
 // (takımlar parse edilince) ayıklanır.
+var boCutRe = regexp.MustCompile(`-bo[135](-.*)?$`)
+
 func tournamentSlug(path string) string {
 	base := filepath.Base(path)
 	base = strings.TrimSuffix(strings.TrimSuffix(base, filepath.Ext(base)), ".dem")
+	// HLTV deseni: {event}-{a}-vs-{b}-boN-{id}; id tire içerebildiğinden
+	// güvenli kesim "-boN" çapasından yapılır
+	if m := boCutRe.FindStringIndex(base); m != nil {
+		return base[:m[0]]
+	}
 	parts := strings.Split(base, "-")
-	for len(parts) > 0 {
-		last := parts[len(parts)-1]
-		if len(last) >= 16 || last == "bo1" || last == "bo3" || last == "bo5" {
-			parts = parts[:len(parts)-1]
-			continue
-		}
-		break
+	for len(parts) > 0 && len(parts[len(parts)-1]) >= 16 {
+		parts = parts[:len(parts)-1]
 	}
 	return strings.Join(parts, "-")
 }

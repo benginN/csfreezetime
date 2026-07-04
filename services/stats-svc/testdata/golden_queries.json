@@ -1,5 +1,5 @@
 {
-  "_comment": "Faz 2 çıkış kriteri: DSL 20 sorgu kalıbını karşılıyor (mimari.md §11). Beklenen değerler 14 maçlık test arşivinden bir kez türetilip sabitlendi; expect.value=null olanlar yalnızca şema/çalışabilirlik doğrular (op ge 0).",
+  "_comment": "Faz 2 çıkış kriteri: DSL 20 sorgu kalıbını karşılıyor (mimari.md §11). Beklenen değerler 14 maçlık test arşivinden bir kez türetilip sabitlendi; expect.value=null olanlar yalnızca şema/çalışabilirlik doğrular (op ge 0). | 2026-07-04: IEM Cologne Major arşivine (112 maç) yeniden sabitlendi",
   "queries": [
     {
       "name": "01 kill: silah filtresi (ak47, klip)",
@@ -39,7 +39,7 @@
       "expect": {
         "field": "clips",
         "op": "eq",
-        "value": 132
+        "value": 444
       }
     },
     {
@@ -143,7 +143,7 @@
       "expect": {
         "field": "count",
         "op": "eq",
-        "value": 179
+        "value": 295
       }
     },
     {
@@ -165,7 +165,7 @@
       "expect": {
         "field": "clips",
         "op": "eq",
-        "value": 128
+        "value": 434
       }
     },
     {
@@ -398,7 +398,7 @@
       "expect": {
         "field": "round_count",
         "op": "eq",
-        "value": 92
+        "value": 269
       }
     },
     {
@@ -415,7 +415,7 @@
       "expect": {
         "field": "count",
         "op": "eq",
-        "value": 405
+        "value": 1294
       }
     }
   ]

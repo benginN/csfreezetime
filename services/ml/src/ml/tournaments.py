@@ -31,19 +31,38 @@ def run(pgconn) -> int:
         )
         rows = cur.fetchall()
 
+    # 1. geçiş — takım adlarıyla kuyruk kesme. Kulüp adı HLTV slug'ından
+    # uzun olabilir ("BetBoom Team" ↔ "betboom"); tam slug tutmazsa ilk
+    # token'ıyla da denenir.
     updates: list[tuple[str, str]] = []
+    refined_events: set[str] = set()
+    pending: list[tuple[str, str]] = []  # (match_id, raw)
     for match_id, raw, name_a, name_b in rows:
-        if not (name_a and name_b):
-            continue
-        a, b = _slug(name_a), _slug(name_b)
         refined = None
-        for tail in (f"-{a}-vs-{b}", f"-{b}-vs-{a}"):
-            idx = raw.find(tail)
-            if idx > 0:
-                refined = raw[:idx]
-                break
+        if name_a and name_b:
+            a, b = _slug(name_a), _slug(name_b)
+            cands_a = [a] if "-" not in a else [a, a.split("-")[0]]
+            cands_b = [b] if "-" not in b else [b, b.split("-")[0]]
+            tails = [f"-{x}-vs-{y}" for x in cands_a for y in cands_b]
+            tails += [f"-{y}-vs-{x}" for x in cands_a for y in cands_b]
+            for tail in tails:
+                idx = raw.find(tail)
+                if idx > 0:
+                    refined = raw[:idx]
+                    break
         if refined and refined != raw:
             updates.append((refined, match_id))
+            refined_events.add(refined)
+        elif "-vs-" in raw:
+            pending.append((match_id, raw))
+
+    # 2. geçiş — konsensüs: 1. geçişte doğrulanan etkinlik adlarından
+    # biriyle başlayan kalıntılar aynı etkinliğe bağlanır.
+    for match_id, raw in pending:
+        for ev in sorted(refined_events, key=len, reverse=True):
+            if raw.startswith(ev + "-"):
+                updates.append((ev, match_id))
+                break
 
     if updates:
         with pgconn.cursor() as cur:
