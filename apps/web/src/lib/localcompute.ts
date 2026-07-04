@@ -2,7 +2,7 @@
 // IndexedDB'deki raunt verisinden üretilir — sunucuya istek gitmez.
 // Hücre/hizalama semantiği sunucuyla birebir (cell=8 radar birimi;
 // align: round_start | bomb_plant | first_kill).
-import type { MatchHeatmap, RoundTicks, StackLayer, StackResp } from '../api';
+import type { MatchHeatmap, StackLayer, StackResp } from '../api';
 import { getMatch, getRound } from './localdb';
 
 const CELL = 8;
