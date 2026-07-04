@@ -23,6 +23,20 @@ const PHASE_TEXT: Record<Phase, string> = {
 };
 
 export default function Upload() {
+  // Kamu arşivine ekleme kapısı — YALNIZ yönetici. Kullanıcıların kendi
+  // demoları için doğru yer My DB (sunucuda hiçbir şey tutulmaz).
+  if (!localStorage.getItem('tm_admin')) {
+    return (
+      <>
+        <h1>Upload</h1>
+        <p className="meta" style={{ maxWidth: 560 }}>
+          This page adds matches to the public archive and is curator-only.
+          Looking to analyze your own demos? Use <Link to="/mydb">My database</Link> —
+          your matches stay on your machine and never join the public site.
+        </p>
+      </>
+    );
+  }
   const [st, setSt] = useState<UploadState>({
     phase: 'idle', progress: 0, matchId: null, message: '', duplicate: false,
   });
@@ -159,9 +173,8 @@ export default function Upload() {
       )}
 
       <p className="meta">
-        Note: strategy clusters and tendencies for a new demo are refreshed the
-        next time the stats jobs (ml-jobs) run. Accounts and private demo spaces
-        arrive with the production-readiness phase.
+        Curator note: stats (clusters, tendencies, tournament labels) refresh
+        automatically once the ingest queue settles.
       </p>
     </>
   );

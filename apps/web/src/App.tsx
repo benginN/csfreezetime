@@ -37,7 +37,9 @@ export default function App() {
         <a href="/leaderboards" style={{ whiteSpace: 'nowrap' }}>🏆 Boards</a>
         <a href="/playlists" style={{ whiteSpace: 'nowrap' }}>🎬 Playlists</a>
         <a href="/mydb" style={{ whiteSpace: 'nowrap' }}>💾 My DB</a>
-        <a href="/upload" style={{ whiteSpace: 'nowrap' }}>⬆ Upload demo</a>
+        {localStorage.getItem('tm_admin') && (
+          <a href="/upload" style={{ whiteSpace: 'nowrap' }}>⬆ Upload</a>
+        )}
         <a href="/help" style={{ whiteSpace: 'nowrap' }}>? Help</a>
       </nav>
       <main>
