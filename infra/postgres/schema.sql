@@ -63,7 +63,7 @@ CREATE TABLE IF NOT EXISTS matches (
     is_private      BOOLEAN NOT NULL DEFAULT false,  -- kullanıcı özel DB'si: ready yerine private, ana arşive girmez  -- saklama: ham+tick silindi, meta kaldı  -- backfill arşiv adından; ml-jobs takım adlarını ayıklar
     parser_version  TEXT NOT NULL,
     status          TEXT NOT NULL DEFAULT 'queued'
-                    CHECK (status IN ('queued','parsing','enriching','ready','failed'))
+                    CHECK (status = ANY (ARRAY['queued','parsing','enriching','ready','failed','private']))
 );
 
 CREATE TABLE IF NOT EXISTS rounds (
