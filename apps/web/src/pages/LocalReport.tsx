@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { buildLocalReport, localTeams, type LocalReport } from '../lib/localreport';
+import { localClusters, type LocalClusterResult } from '../lib/localcluster';
 
 // Lokal takım raporu: kullanıcının kendi arşivinden, tamamen tarayıcıda.
 export default function LocalReportPage() {
@@ -11,12 +12,21 @@ export default function LocalReportPage() {
 
   const teams = useQuery({ queryKey: ['localTeams'], queryFn: localTeams });
   const [rep, setRep] = useState<LocalReport | null>(null);
+  const [clusters, setClusters] = useState<LocalClusterResult[]>([]);
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    if (!team || !map) { setRep(null); return; }
+    if (!team || !map) { setRep(null); setClusters([]); return; }
     setBusy(true);
-    buildLocalReport(team, map).then((r) => { setRep(r); setBusy(false); });
+    Promise.all([
+      buildLocalReport(team, map),
+      localClusters(team, map, 'T'),
+      localClusters(team, map, 'CT'),
+    ]).then(([r, ct, cct]) => {
+      setRep(r);
+      setClusters([ct, cct].filter((x): x is LocalClusterResult => !!x));
+      setBusy(false);
+    });
   }, [team, map]);
 
   const set = (k: string, v: string) => {
@@ -46,7 +56,7 @@ export default function LocalReportPage() {
         <Link to="/mydb" className="meta">← my database</Link>
       </div>
       {busy && <p className="meta">crunching your archive…</p>}
-      {rep && !busy && <Body d={rep} />}
+      {rep && !busy && <Body d={rep} clusters={clusters} />}
       {!team && <p className="meta">Pick a team from your local matches.</p>}
     </>
   );
@@ -54,7 +64,7 @@ export default function LocalReportPage() {
 
 const pct = (a: number, b: number) => (b ? `${Math.round((100 * a) / b)}%` : '—');
 
-function Body({ d }: { d: LocalReport }) {
+function Body({ d, clusters }: { d: LocalReport; clusters: LocalClusterResult[] }) {
   const ov = d.overview;
   return (
     <>
@@ -66,6 +76,51 @@ function Body({ d }: { d: LocalReport }) {
         <Stat label="Pistols" v={pct(ov.pistol_w, ov.pistol_n)} n={`${ov.pistol_w}/${ov.pistol_n}`} />
         <Stat label="Convert after pistol" v={pct(ov.conv_w, ov.conv_n)} n={`n=${ov.conv_n}`} />
       </div>
+
+      {clusters.length > 0 ? (
+        <>
+          <h2>Strategy tendencies <span className="meta">(k-means over your archive; same algorithm as the main site)</span></h2>
+          <div className="grid cards two">
+            {clusters.map((cl) => (
+              <div key={cl.side} className="card">
+                <div className="teams">
+                  <span><span className={`badge ${cl.side}`}>{cl.side}</span> most likely approaches</span>
+                  <span className="meta">{cl.rounds} rounds · k={cl.k}</span>
+                </div>
+                {cl.tendencies.slice(0, 4).map((t) => (
+                  <div key={t.cluster_id} style={{ margin: '6px 0' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12.5 }}>
+                      <span>{t.label}</span>
+                      <span className="meta">{Math.round(100 * t.prob)}% (obs {t.observed})</span>
+                    </div>
+                    <div style={{ background: '#1a201c', borderRadius: 4, height: 8 }}>
+                      <div style={{ width: `${100 * t.prob}%`, background: '#4c8f52', height: 8, borderRadius: 4 }} />
+                    </div>
+                  </div>
+                ))}
+                {cl.conditional.length > 0 && (
+                  <table style={{ marginTop: 8, fontSize: 11.5 }}>
+                    <tbody>
+                      {cl.conditional.map((c) => (
+                        <tr key={c.buy}>
+                          <td className="meta">{c.buy}</td>
+                          <td>{c.label}</td>
+                          <td className="meta">{Math.round(100 * c.prob)}% (n={c.n})</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+            ))}
+          </div>
+        </>
+      ) : (
+        <p className="meta">
+          strategy clustering hidden: needs ≥12 rounds per side on this map
+          (same honesty gate as the main site)
+        </p>
+      )}
 
       <h2>Economy <span className="meta">(rounds 2-12 / 14-24)</span></h2>
       <div className="grid cards two">
