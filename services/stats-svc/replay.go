@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"sort"
 	"strconv"
+	"strings"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
@@ -459,6 +460,23 @@ func (s *server) roundTicks(w http.ResponseWriter, r *http.Request) {
 }
 
 // POST /api/v1/stack — Multi-View Stacking (§8.3): N rauntu hizalanmış katmanlar olarak döndür
+// stackPlayer: hayalet iz + hover bilgileri. Envanter, değişim anları
+// olarak kodlanır (inv_t: saniye, inv_v: o andan itibaren geçerli liste) —
+// tam örnekleme payload'ı şişirirdi.
+type stackPlayer struct {
+	Side  string    `json:"side"`
+	Nick  string    `json:"nick"`
+	T     []float64 `json:"t"` // hizalama anına göre saniye
+	RX    []float64 `json:"rx"`
+	RY    []float64 `json:"ry"`
+	Lower []bool    `json:"lower,omitempty"` // çok katlı haritada örnek başına kat
+	HP    []int32   `json:"hp"`
+	Armor []int32   `json:"armor"`
+	Money []int32   `json:"money"`
+	InvT  []float64 `json:"inv_t"`
+	InvV  []string  `json:"inv_v"`
+}
+
 func (s *server) stack(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Rounds []struct {
@@ -491,18 +509,11 @@ func (s *server) stack(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	type layer struct {
-		MatchID     uuid.UUID `json:"match_id"`
-		RoundNumber int16     `json:"round_number"`
-		AlignTick   int32     `json:"align_tick"`
-		Skipped     string    `json:"skipped,omitempty"` // hizalama olayı yoksa neden
-		Players     []struct {
-			Side  string    `json:"side"`
-			Nick  string    `json:"nick"`
-			T     []float64 `json:"t"` // hizalama anına göre saniye
-			RX    []float64 `json:"rx"`
-			RY    []float64 `json:"ry"`
-			Lower []bool    `json:"lower,omitempty"` // çok katlı haritada örnek başına kat
-		} `json:"players,omitempty"`
+		MatchID     uuid.UUID     `json:"match_id"`
+		RoundNumber int16         `json:"round_number"`
+		AlignTick   int32         `json:"align_tick"`
+		Skipped     string        `json:"skipped,omitempty"` // hizalama olayı yoksa neden
+		Players     []stackPlayer `json:"players,omitempty"`
 	}
 
 	var mapName string
@@ -591,7 +602,9 @@ func (s *server) stack(w http.ResponseWriter, r *http.Request) {
 		if ly.Skipped != "" {
 			continue
 		}
-		q := `SELECT player_id, side, tick, x, y, z FROM player_ticks
+		q := `SELECT player_id, side, tick, x, y, z,
+		             health, armor, money, inventory
+		      FROM player_ticks
 		      WHERE match_id = ? AND round_number = ? AND is_alive`
 		args := []any{ly.MatchID, uint8(ly.RoundNumber)}
 		if req.Side != "" {
@@ -608,6 +621,10 @@ func (s *server) stack(w http.ResponseWriter, r *http.Request) {
 			side, nick string
 			t, rx, ry  []float64
 			lower      []bool
+			hp, armor  []int32
+			money      []int32
+			invT       []float64
+			invV       []string
 		}
 		tracks := map[uuid.UUID]*track{}
 		for rows.Next() {
@@ -615,7 +632,10 @@ func (s *server) stack(w http.ResponseWriter, r *http.Request) {
 			var side string
 			var tick uint32
 			var x, y, z float32
-			if err := rows.Scan(&pid, &side, &tick, &x, &y, &z); err != nil {
+			var hp, armor uint8
+			var money int32
+			var inv []string
+			if err := rows.Scan(&pid, &side, &tick, &x, &y, &z, &hp, &armor, &money, &inv); err != nil {
 				rows.Close()
 				writeErr(w, 500, err)
 				return
@@ -625,7 +645,16 @@ func (s *server) stack(w http.ResponseWriter, r *http.Request) {
 				tr = &track{side: side, nick: nicks[pid]}
 				tracks[pid] = tr
 			}
-			tr.t = append(tr.t, float64(int32(tick)-ly.AlignTick)/tickRate)
+			ts := float64(int32(tick)-ly.AlignTick) / tickRate
+			tr.t = append(tr.t, ts)
+			tr.hp = append(tr.hp, int32(hp))
+			tr.armor = append(tr.armor, int32(armor))
+			tr.money = append(tr.money, money)
+			joined := strings.Join(inv, ", ")
+			if len(tr.invV) == 0 || tr.invV[len(tr.invV)-1] != joined {
+				tr.invT = append(tr.invT, ts)
+				tr.invV = append(tr.invV, joined)
+			}
 			tr.rx = append(tr.rx, (float64(x)-cal.PosX)/cal.Scale)
 			tr.ry = append(tr.ry, (cal.PosY-float64(y))/cal.Scale)
 			if cal.HasLower && cal.SplitZ != nil {
@@ -634,14 +663,11 @@ func (s *server) stack(w http.ResponseWriter, r *http.Request) {
 		}
 		rows.Close()
 		for _, tr := range tracks {
-			ly.Players = append(ly.Players, struct {
-				Side  string    `json:"side"`
-				Nick  string    `json:"nick"`
-				T     []float64 `json:"t"`
-				RX    []float64 `json:"rx"`
-				RY    []float64 `json:"ry"`
-				Lower []bool    `json:"lower,omitempty"`
-			}{tr.side, tr.nick, tr.t, tr.rx, tr.ry, tr.lower})
+			ly.Players = append(ly.Players, stackPlayer{
+				Side: tr.side, Nick: tr.nick, T: tr.t, RX: tr.rx, RY: tr.ry,
+				Lower: tr.lower, HP: tr.hp, Armor: tr.armor, Money: tr.money,
+				InvT: tr.invT, InvV: tr.invV,
+			})
 		}
 	}
 

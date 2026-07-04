@@ -350,7 +350,11 @@ export interface StackLayer {
   round_number: number;
   align_tick: number;
   skipped?: string;
-  players?: { side: string; nick: string; t: number[]; rx: number[]; ry: number[]; lower?: boolean[] }[];
+  players?: {
+    side: string; nick: string; t: number[]; rx: number[]; ry: number[];
+    lower?: boolean[]; hp: number[]; armor: number[]; money: number[];
+    inv_t: number[]; inv_v: string[];
+  }[];
 }
 
 export interface StackResp {

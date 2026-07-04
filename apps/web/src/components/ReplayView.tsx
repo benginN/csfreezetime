@@ -155,6 +155,11 @@ export default function ReplayView({
   const [ghostSpeed, setGhostSpeed] = useState(2);
   const [ghostClock, setGhostClock] = useState('0:00');
   const ghostTimeRef = useRef(0);
+  // hover: her karede güncellenen hayalet nokta konumları + seçili kimlik
+  const ghostDotsRef = useRef<{ x: number; y: number; li: number; nick: string }[]>([]);
+  const ghostHoverRef = useRef<{ li: number; nick: string } | null>(null);
+  const ghostTipRef = useRef<HTMLDivElement>(null);
+  const ghostInfoRef = useRef<HTMLDivElement>(null);
   const ghostPlayingRef = useRef(false);
   const ghostSpeedRef = useRef(2);
   const ghostSliderRef = useRef<HTMLInputElement>(null);
@@ -565,7 +570,29 @@ export default function ReplayView({
           else { st.pts[2] = p.x; st.pts[3] = p.y; } // ok: yalnız uç güncellenir
           return;
         }
-        if (!panning) return;
+        if (!panning) {
+          // hayalet hover: en yakın nokta (ekranda ~12px)
+          const p = toWorld(e);
+          const thr = 12 / view.s;
+          let best: { li: number; nick: string } | null = null;
+          let bd = thr * thr;
+          for (const d of ghostDotsRef.current) {
+            const dx = d.x - p.x, dy = d.y - p.y;
+            const dist = dx * dx + dy * dy;
+            if (dist < bd) { bd = dist; best = { li: d.li, nick: d.nick }; }
+          }
+          ghostHoverRef.current = best;
+          const tip = ghostTipRef.current;
+          if (tip) {
+            if (best) {
+              tip.style.display = 'block';
+              tip.style.left = `${e.offsetX + 12}px`;
+              tip.style.top = `${e.offsetY - 8}px`;
+              tip.textContent = best.nick;
+            } else tip.style.display = 'none';
+          }
+          return;
+        }
         view.x = panStart.vx + (e.clientX - panStart.x);
         view.y = panStart.vy + (e.clientY - panStart.y);
         clampView();
@@ -705,6 +732,7 @@ export default function ReplayView({
 
         // --- hayalet izler: KENDİ saatiyle oynar (replay'den bağımsız) ---
         gGhosts.clear();
+        ghostDotsRef.current = [];
         let ghostLabelIdx = 0;
         const gd = ghostsOnRef.current ? ghostDataRef.current : null;
         if (gd) {
@@ -731,9 +759,12 @@ export default function ReplayView({
               }
               if (started) gGhosts.stroke({ width: 1.5, color: col, alpha: 0.4 });
               if (seen) {
-                gGhosts.circle(lastX, lastY, 4 * Math.max(lastS, 0.7))
-                  .fill({ color: col, alpha: 0.8 })
-                  .stroke({ width: 1, color: 0x0b0e0c, alpha: 0.8 });
+                ghostDotsRef.current.push({ x: lastX, y: lastY, li, nick: p.nick });
+                const hov = ghostHoverRef.current;
+                const isHov = hov && hov.li === li && hov.nick === p.nick;
+                gGhosts.circle(lastX, lastY, (isHov ? 6 : 4) * Math.max(lastS, 0.7))
+                  .fill({ color: col, alpha: isHov ? 1 : 0.8 })
+                  .stroke({ width: isHov ? 2 : 1, color: isHov ? 0xffffff : 0x0b0e0c, alpha: 0.8 });
                 if (!labeled && ghostLabelIdx < ghostLabels.length) {
                   const lt = ghostLabels[ghostLabelIdx++];
                   lt.text = `r${ly.round_number}`;
@@ -747,6 +778,35 @@ export default function ReplayView({
           });
         }
         for (let i = ghostLabelIdx; i < ghostLabels.length; i++) ghostLabels[i].visible = false;
+
+        // hover bilgi paneli: seçili hayaletin o ANKİ değerleri (DOM'a direkt)
+        {
+          const info = ghostInfoRef.current;
+          const hov = ghostHoverRef.current;
+          if (info) {
+            if (gd && hov) {
+              const ly = gd.layers[hov.li];
+              const p = ly?.players?.find((x) => x.nick === hov.nick);
+              if (p) {
+                const tSec = ghostTimeRef.current;
+                let i = lowerBound(p.t, tSec) - 1;
+                if (i < 0) i = 0;
+                if (p.t[i] > tSec || !p.t.length) {
+                  info.style.display = 'none';
+                } else {
+                  let inv = '';
+                  for (let k = 0; k < p.inv_t.length && p.inv_t[k] <= tSec; k++) inv = p.inv_v[k];
+                  info.style.display = 'block';
+                  info.innerHTML =
+                    `<b>${p.nick}</b> <span class="badge ${p.side}">${p.side}</span> ` +
+                    `<span class="meta">r${ly.round_number}</span><br>` +
+                    `❤ ${p.hp[i]} · 🛡 ${p.armor[i]} · $${p.money[i]}` +
+                    (inv ? `<br><span class="meta">${inv}</span>` : '');
+                }
+              } else info.style.display = 'none';
+            } else info.style.display = 'none';
+          }
+        }
 
         const replayOn = replayOnRef.current;
         playersLayer.visible = replayOn;
@@ -1118,6 +1178,8 @@ export default function ReplayView({
       <div>
         <div className="stagebox">
           <div ref={stageRef} />
+          <div ref={ghostTipRef} className="ghosttip" />
+          <div ref={ghostInfoRef} className="ghostinfo" />
           <div className="zoombtns noprint">
             <button title="zoom in" onClick={() => zoomApiRef.current?.zoomIn()}>+</button>
             <button title="zoom out" onClick={() => zoomApiRef.current?.zoomOut()}>−</button>
