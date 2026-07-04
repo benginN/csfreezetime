@@ -263,8 +263,18 @@ button.swatch { width: 22px; height: 22px; padding: 0; border-radius: 5px; }
 
 /* Takım kartları (ana sayfa şeridi) + monogram "logo" */
 .teamstrip { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 10px; margin: 4px 0 18px; }
-.teamstrip.onerow { display: flex; flex-wrap: nowrap; overflow: hidden; }
-.teamstrip.onerow .teamcard { flex: 0 0 185px; }
+.stripwrap { position: relative; margin: 4px 0 18px; }
+.stripwrap::before, .stripwrap::after {
+  content: ''; position: absolute; top: 0; bottom: 6px; width: 26px;
+  z-index: 1; pointer-events: none;
+}
+.stripwrap::before { left: 0; background: linear-gradient(90deg, #0d100e, transparent); }
+.stripwrap::after { right: 0; background: linear-gradient(270deg, #0d100e, transparent); }
+.teamstrip.scrollrow {
+  display: flex; flex-wrap: nowrap; overflow-x: auto; margin: 0;
+  padding-bottom: 6px; scrollbar-width: thin; scrollbar-color: #2a332c transparent;
+}
+.teamstrip.scrollrow .teamcard { flex: 0 0 185px; }
 .teamcard {
   display: flex; align-items: center; gap: 10px;
   background: #151a17; border: 1px solid #232a26; border-radius: 8px;

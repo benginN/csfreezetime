@@ -1,7 +1,7 @@
 import { Link, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { api, type Tendency } from '../api';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { teamHue, teamInitials } from '../lib/rounds';
 
 export default function Home() {
@@ -65,54 +65,42 @@ export default function Home() {
 }
 
 // Ana sayfa takım şeridi: monogram "logo" + ad; tıklayınca takım anasayfası.
+// Ana sayfa takım şeridi: alfabetik, tek satır, yatay kaydırmalı
+// (dikey teker de yatay kaydırır; kenar solmaları devamı ima eder).
 function TeamStrip() {
   const teams = useQuery({ queryKey: ['teams'], queryFn: () => api.teams() });
-  const [open, setOpen] = useState(false);
-  const [fit, setFit] = useState(6);
-  const wrapRef = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    const el = wrapRef.current;
-    if (!el) return;
-    const ro = new ResizeObserver(() => {
-      // kart 185px + 10px boşluk; yarım kart göstermemek için floor
-      setFit(Math.max(1, Math.floor((el.clientWidth + 10) / 195)));
-    });
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, []);
+  const ref = useRef<HTMLDivElement>(null);
   const list = (teams.data ?? [])
     .filter((t) => t.matches > 0)
     .sort((a, b) => a.name.localeCompare(b.name));
   if (!list.length) return null;
-  const shown = open ? list : list.slice(0, fit);
   return (
-    <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start', margin: '4px 0 18px' }}>
-    <div ref={wrapRef} className={`teamstrip ${open ? '' : 'onerow'}`} style={{ flex: 1, margin: 0 }}>
-      {shown.map((t) => (
-        <Link key={t.team_id} to={`/team/${t.team_id}`} className="teamcard">
-          <span className="monogram" style={{ background: `hsl(${teamHue(t.name)},45%,32%)` }}>
-            {teamInitials(t.name)}
-          </span>
-          <span>
-            <span className="tname">{t.name}</span>
-            <span className="meta">{t.matches} matches</span>
-          </span>
-        </Link>
-      ))}
-    </div>
-      <button
-        className="ghost"
-        style={{ flex: '0 0 auto', height: 46, whiteSpace: 'nowrap' }}
-        title={open ? 'collapse' : 'show all teams'}
-        onClick={() => setOpen(!open)}
+    <div className="stripwrap">
+      <div
+        ref={ref}
+        className="teamstrip scrollrow"
+        onWheel={(e) => {
+          if (Math.abs(e.deltaY) > Math.abs(e.deltaX) && ref.current) {
+            ref.current.scrollLeft += e.deltaY;
+          }
+        }}
       >
-        {open ? '▴ less' : `▾ all ${list.length}`}
-      </button>
+        {list.map((t) => (
+          <Link key={t.team_id} to={`/team/${t.team_id}`} className="teamcard">
+            <span className="monogram" style={{ background: `hsl(${teamHue(t.name)},45%,32%)` }}>
+              {teamInitials(t.name)}
+            </span>
+            <span>
+              <span className="tname">{t.name}</span>
+              <span className="meta">{t.matches} matches</span>
+            </span>
+          </Link>
+        ))}
+      </div>
     </div>
   );
 }
 
-// Tek takım aramasında: sonraki raunt tahmini + eğilimler (Faz 4 çıktıları).
 function TeamPanels({ teamId, name }: { teamId: string; name: string }) {
   const tendencies = useQuery({
     queryKey: ['tendencies', teamId],
