@@ -93,6 +93,15 @@ export default function MatchPage() {
     </div>
   );
 
+  // parçalı kayıt: önceki parçaların raunt toplamı = görünen numara ofseti
+  const partNo = partM ? Number(partM[2]) : 1;
+  const roundOffset = (siblings.data ?? [])
+    .filter((sb) => {
+      const n = /-p(\d)$/.exec(sb.name ?? '')?.[1];
+      return n != null && Number(n) < partNo;
+    })
+    .reduce((a, sb) => a + sb.score_a + sb.score_b, 0);
+
   const plItems = pl.data?.items ?? [];
   const goPl = (idx: number) => {
     if (!plId || idx < 0 || idx >= plItems.length) return;
@@ -104,8 +113,8 @@ export default function MatchPage() {
       {partM && (
         <div className="toolbar" style={{ background: '#1a1712', border: '1px solid #33291c', borderRadius: 8, padding: '6px 10px' }}>
           <span className="meta">
-            ⚠ split recording — this is <b>part {partM[2]}</b> of this map (the GOTV demo
-            restarted mid-game; rounds continue in the other part)
+            ⚠ split recording — this is <b>part {partM[2]}</b> of this map
+            {roundOffset > 0 && <> (rounds continue from <b>{roundOffset + 1}</b>)</>}
           </span>
           {(siblings.data ?? []).map((sb) => {
             const n = /-p(\d)$/.exec(sb.name ?? '')?.[1];
@@ -136,6 +145,7 @@ export default function MatchPage() {
         teams={teams}
         onEnded={plId ? () => goPl(plIdx + 1) : undefined}
         localMode={isLocal}
+        roundOffset={roundOffset}
       />
     </>
   );

@@ -86,7 +86,7 @@ const hlClass = (r: RoundRow, v: string, aId: string | null): string => {
 };
 
 export default function ReplayView({
-  matchId, round, onRound, seekTick, seekSec, matchKills, rounds, teams, header, onEnded, localMode,
+  matchId, round, onRound, seekTick, seekSec, matchKills, rounds, teams, header, onEnded, localMode, roundOffset = 0,
 }: {
   matchId: string;
   round: number;
@@ -99,6 +99,7 @@ export default function ReplayView({
   header?: React.ReactNode;
   onEnded?: () => void;
   localMode?: boolean; // kişisel (IndexedDB) maç: sunucu katmanları kapalı
+  roundOffset?: number; // parçalı kayıtta (p2+) görünen raunt numarası kayması
 }) {
   const ticksQ = useQuery({
     queryKey: ['ticks', matchId, round],
@@ -426,6 +427,8 @@ export default function ReplayView({
   const playingRef = useRef(false);
   const speedRef = useRef(2);
   const namesRef = useRef(true);         // sahne yeniden kurulmadan okunur
+  const roundOffsetRef = useRef(0);
+  roundOffsetRef.current = roundOffset;
   const onEndedRef = useRef<(() => void) | undefined>(undefined);
   onEndedRef.current = onEnded;
   const replayOnRef = useRef(true);
@@ -822,7 +825,7 @@ export default function ReplayView({
                   .stroke({ width: isHov ? 2 : 1, color: isHov ? 0xffffff : 0x0b0e0c, alpha: 0.8 });
                 if (!labeled && ghostLabelIdx < ghostLabels.length) {
                   const lt = ghostLabels[ghostLabelIdx++];
-                  lt.text = `r${ly.round_number}`;
+                  lt.text = `r${ly.round_number + roundOffsetRef.current}`;
                   lt.style.fill = col;
                   lt.visible = true;
                   lt.position.set(lastX + 7, lastY - 12);
@@ -856,7 +859,7 @@ export default function ReplayView({
                   info.style.display = 'block';
                   info.innerHTML =
                     `<b>${p.nick}</b> <span class="badge ${p.side}">${p.side}</span> ` +
-                    `<span class="meta">r${ly.round_number}</span>` +
+                    `<span class="meta">r${ly.round_number + roundOffsetRef.current}</span>` +
                     (pin ? ' <span class="ghostclose" title="unpin">✕</span>' : '') +
                     `<br>❤ ${p.hp[i]} · 🛡 ${p.armor[i]} · $${p.money[i]}` +
                     (inv ? `<br><span class="meta">${inv}</span>` : '');
@@ -1417,7 +1420,7 @@ export default function ReplayView({
                     onClick={() => onRound(r.round_number)}
                     title={chipTitle(r, teams)}
                   >
-                    {r.round_number}
+                    {r.round_number + roundOffset}
                   </button>
                 </Fragment>
               ))}
@@ -1501,7 +1504,7 @@ export default function ReplayView({
                         setHeatRounds(s);
                       }}
                     >
-                      {r.round_number}
+                      {r.round_number + roundOffset}
                     </button>
                   </Fragment>
                 ))}
@@ -1604,7 +1607,7 @@ export default function ReplayView({
                         setGhostRounds(s);
                       }}
                     >
-                      {r.round_number}
+                      {r.round_number + roundOffset}
                     </button>
                   </Fragment>
                 ))}
