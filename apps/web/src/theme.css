@@ -274,13 +274,17 @@ button.swatch { width: 22px; height: 22px; padding: 0; border-radius: 5px; }
 .stripwrap::after { right: 0; background: linear-gradient(270deg, #0d100e, transparent); }
 .teamstrip.scrollrow {
   display: flex; flex-wrap: nowrap; overflow-x: auto; margin: 0;
-  padding-bottom: 6px; scrollbar-width: thin; scrollbar-color: #2a332c #151a17;
+  padding-bottom: 6px; scrollbar-width: thin; scrollbar-color: #4a5f4e #1a201c;
 }
 /* WebKit: özel stil vermek overlay oto-gizlemeyi kapatır → çubuk hep görünür */
-.teamstrip.scrollrow::-webkit-scrollbar { height: 8px; }
-.teamstrip.scrollrow::-webkit-scrollbar-track { background: #151a17; border-radius: 4px; }
-.teamstrip.scrollrow::-webkit-scrollbar-thumb { background: #2f3a31; border-radius: 4px; }
-.teamstrip.scrollrow::-webkit-scrollbar-thumb:hover { background: #3a5f3e; }
+.teamstrip.scrollrow::-webkit-scrollbar { height: 10px; }
+.teamstrip.scrollrow::-webkit-scrollbar-track {
+  background: #1a201c; border-radius: 5px; border: 1px solid #232a26;
+}
+.teamstrip.scrollrow::-webkit-scrollbar-thumb {
+  background: #4a5f4e; border-radius: 5px; border: 1px solid #1a201c;
+}
+.teamstrip.scrollrow::-webkit-scrollbar-thumb:hover { background: #5f7a63; }
 .teamstrip.scrollrow .teamcard { flex: 0 0 185px; }
 .teamcard {
   display: flex; align-items: center; gap: 10px;
