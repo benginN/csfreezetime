@@ -248,6 +248,13 @@ export default function ReplayView({
   };
   const roundNotes = (notesQ.data?.notes ?? []).filter((n) => n.round_number === round);
   const ghostKey = useMemo(() => [...ghostRounds].sort((a, b) => a - b).join(','), [ghostRounds]);
+  useEffect(() => {
+    if (!ghostPlayer || ghostSide === 'both') return;
+    const p = (players.data ?? []).find((x) => x.nickname === ghostPlayer);
+    if (!p) return;
+    const rs = ghostSide === 'T' ? p.t_rounds : p.ct_rounds;
+    if (!rs.some((r) => ghostRounds.has(r))) setGhostPlayer('');
+  }, [ghostSide, ghostKey, players.data]); // eslint-disable-line react-hooks/exhaustive-deps
   const heatKey = useMemo(() => [...heatRounds].sort((a, b) => a - b).join(','), [heatRounds]);
   useEffect(() => {
     if (!heatPlayer || heatSide === 'both') return;
@@ -1333,9 +1340,15 @@ export default function ReplayView({
                 <label>player</label>
                 <select value={ghostPlayer} onChange={(e) => setGhostPlayer(e.target.value)}>
                   <option value="">all</option>
-                  {(players.data ?? []).map((p) => (
-                    <option key={p.player_id} value={p.nickname}>{p.nickname}</option>
-                  ))}
+                  {(players.data ?? [])
+                    .filter((p) => {
+                      if (ghostSide === 'both') return true;
+                      const rs = ghostSide === 'T' ? p.t_rounds : p.ct_rounds;
+                      return rs.some((r) => ghostRounds.has(r));
+                    })
+                    .map((p) => (
+                      <option key={p.player_id} value={p.nickname}>{p.nickname}</option>
+                    ))}
                 </select>
                 <button className="ghost" onClick={() => setGhostRounds(new Set())}>clear</button>
               </div>
