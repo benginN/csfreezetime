@@ -171,9 +171,10 @@ func (s *server) ingestLocalDemo(
 	}
 	if private {
 		// satırı önce biz açarız: parser ON CONFLICT ile korur, is_private kalır
+		// org: schema seed'indeki tek-org kurulumun sabiti (parser DEFAULT_ORG)
 		if _, err := s.pg.Exec(ctx, `
-			INSERT INTO matches (match_id, demo_sha256, demo_object_key, status, is_private)
-			VALUES ($1, $2, $3, 'parsing', true)
+			INSERT INTO matches (match_id, org_id, demo_sha256, demo_object_key, status, is_private)
+			VALUES ($1, '00000000-0000-0000-0000-000000000001', $2, $3, 'parsing', true)
 			ON CONFLICT (demo_sha256) DO UPDATE SET is_private = true`,
 			matchID, sha, objectKey); err != nil {
 			return nil, 500, fmt.Errorf("private pre-insert: %w", err)
