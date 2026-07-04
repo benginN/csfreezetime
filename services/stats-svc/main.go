@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -185,13 +186,16 @@ func (s *server) matches(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		cond, args = "(m.team_a_id = $1 OR m.team_b_id = $1)", []any{tid}
-		if since := r.URL.Query().Get("since"); since != "" {
-			cond += " AND m.played_at >= $2::timestamptz"
-			args = append(args, since)
+		rosterMin, _ := strconv.Atoi(r.URL.Query().Get("roster_min"))
+		if since := r.URL.Query().Get("since"); since != "" || rosterMin > 0 {
+			elig := s.eligibleMatches(r.Context(), tid, since, rosterMin)
+			cond += " AND ($2::text[] IS NULL OR m.match_id::text = ANY($2::text[]))"
+			args = append(args, elig)
 		}
 	}
 	rows, err := s.pg.Query(r.Context(), `
 		SELECT m.match_id, m.map_name, m.status, m.event_name,
+		       to_char(m.played_at, 'YYYY-MM-DD'), m.tournament,
 		       m.team_a_id, ta.name, m.team_b_id, tb.name,
 		       count(r.*) AS rounds,
 		       count(*) FILTER (WHERE (r.winner_side = 'T'  AND r.t_team_id  = m.team_a_id)
@@ -204,30 +208,34 @@ func (s *server) matches(w http.ResponseWriter, r *http.Request) {
 		LEFT JOIN teams tb ON tb.team_id = m.team_b_id
 		WHERE `+cond+`
 		GROUP BY m.match_id, m.map_name, m.status, m.event_name,
+		         m.played_at, m.tournament,
 		         m.team_a_id, ta.name, m.team_b_id, tb.name
-		ORDER BY m.event_name NULLS LAST, m.map_name`, args...)
+		ORDER BY m.played_at DESC NULLS LAST, m.map_name`, args...)
 	if err != nil {
 		writeErr(w, 500, err)
 		return
 	}
 	defer rows.Close()
 	type match struct {
-		MatchID uuid.UUID  `json:"match_id"`
-		MapName *string    `json:"map_name"`
-		Status  string     `json:"status"`
-		Name    *string    `json:"name"`
-		TeamAID *uuid.UUID `json:"team_a_id"`
-		TeamA   *string    `json:"team_a"`
-		TeamBID *uuid.UUID `json:"team_b_id"`
-		TeamB   *string    `json:"team_b"`
-		Rounds  int        `json:"rounds"`
-		ScoreA  int        `json:"score_a"`
-		ScoreB  int        `json:"score_b"`
+		MatchID    uuid.UUID  `json:"match_id"`
+		MapName    *string    `json:"map_name"`
+		Status     string     `json:"status"`
+		Name       *string    `json:"name"`
+		PlayedAt   *string    `json:"played_at"`
+		Tournament *string    `json:"tournament"`
+		TeamAID    *uuid.UUID `json:"team_a_id"`
+		TeamA      *string    `json:"team_a"`
+		TeamBID    *uuid.UUID `json:"team_b_id"`
+		TeamB      *string    `json:"team_b"`
+		Rounds     int        `json:"rounds"`
+		ScoreA     int        `json:"score_a"`
+		ScoreB     int        `json:"score_b"`
 	}
 	var out []match
 	for rows.Next() {
 		var m match
 		if err := rows.Scan(&m.MatchID, &m.MapName, &m.Status, &m.Name,
+			&m.PlayedAt, &m.Tournament,
 			&m.TeamAID, &m.TeamA, &m.TeamBID, &m.TeamB,
 			&m.Rounds, &m.ScoreA, &m.ScoreB); err != nil {
 			writeErr(w, 500, err)

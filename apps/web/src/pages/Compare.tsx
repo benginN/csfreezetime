@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { useWindow, WindowPicker } from '../lib/window';
+import { useRoster, useWindow, WindowPicker } from '../lib/window';
 import { api, type ReportResp } from '../api';
 import { drawMapBase, hidpiCtx, loadMapBase, RADAR, type MapBase } from '../lib/mapbase';
 import { paintHeat } from '../lib/heatpaint';
@@ -19,12 +19,13 @@ export default function Compare() {
   const teams = useQuery({ queryKey: ['teams'], queryFn: () => api.teams() });
   const list = (teams.data ?? []).filter((t) => t.matches > 0);
   const [win, since, setWin] = useWindow();
+  const [roster, setRoster] = useRoster();
 
   const sumA = useQuery({
-    queryKey: ['teamSummary', a, since], queryFn: () => api.teamSummary(a, since), enabled: !!a,
+    queryKey: ['teamSummary', a, since, roster], queryFn: () => api.teamSummary(a, since, roster), enabled: !!a,
   });
   const sumB = useQuery({
-    queryKey: ['teamSummary', b, since], queryFn: () => api.teamSummary(b, since), enabled: !!b,
+    queryKey: ['teamSummary', b, since, roster], queryFn: () => api.teamSummary(b, since, roster), enabled: !!b,
   });
   // harita listesi: iki takımın da oynadıkları önce, tek taraflılar işaretli
   const maps = useMemo(() => {
@@ -37,11 +38,11 @@ export default function Compare() {
   const mapName = params.get('map') || maps.both[0] || maps.only[0] || '';
 
   const repA = useQuery({
-    queryKey: ['report', a, mapName, since], queryFn: () => api.report(a, mapName, since),
+    queryKey: ['report', a, mapName, since, roster], queryFn: () => api.report(a, mapName, since, roster),
     enabled: !!a && !!mapName,
   });
   const repB = useQuery({
-    queryKey: ['report', b, mapName, since], queryFn: () => api.report(b, mapName, since),
+    queryKey: ['report', b, mapName, since, roster], queryFn: () => api.report(b, mapName, since, roster),
     enabled: !!b && !!mapName,
   });
 
@@ -55,7 +56,7 @@ export default function Compare() {
     <>
       <h1>Team comparison</h1>
       <div className="toolbar">
-        <WindowPicker win={win} onChange={setWin} />
+        <WindowPicker win={win} onChange={setWin} roster={roster} onRoster={setRoster} />
         <TeamPick label="Team A" value={a} list={list} onPick={(v) => set('a', v)} />
         <span className="meta">vs</span>
         <TeamPick label="Team B" value={b} list={list} onPick={(v) => set('b', v)} />
@@ -463,10 +464,12 @@ function HeatMini({
   const [base, setBase] = useState<MapBase | null>(null);
   useEffect(() => { loadMapBase(mapName).then(setBase); }, [mapName]);
   const [, since] = useWindow();
+  const [roster] = useRoster();
   const heat = useQuery({
-    queryKey: ['teamHeat', teamId, mapName, side, t0, t1, since],
+    queryKey: ['teamHeat', teamId, mapName, side, t0, t1, since, roster],
     queryFn: () => api.teamHeatmap(teamId, new URLSearchParams({
       map: mapName, side, t0: String(t0), t1: String(t1), since,
+      roster_min: String(roster),
     })),
   });
   useEffect(() => {

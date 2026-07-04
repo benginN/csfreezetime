@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useWindow, WindowPicker } from '../lib/window';
+import { useRoster, useWindow, WindowPicker } from '../lib/window';
 import { api, type ReportResp } from '../api';
 import { drawMapBase, hidpiCtx, loadMapBase, RADAR, type MapBase } from '../lib/mapbase';
 import { paintHeat } from '../lib/heatpaint';
@@ -36,9 +36,10 @@ export default function Report() {
 
   const mapName = params.get('map') || maps[0] || '';
   const [win, since, setWin] = useWindow();
+  const [roster, setRoster] = useRoster();
   const rep = useQuery({
-    queryKey: ['report', teamId, mapName, since],
-    queryFn: () => api.report(teamId, mapName, since),
+    queryKey: ['report', teamId, mapName, since, roster],
+    queryFn: () => api.report(teamId, mapName, since, roster),
     enabled: !!mapName,
   });
 
@@ -60,7 +61,7 @@ export default function Report() {
         >
           {maps.map((m) => <option key={m}>{m}</option>)}
         </select>
-        <WindowPicker win={win} onChange={setWin} />
+        <WindowPicker win={win} onChange={setWin} roster={roster} onRoster={setRoster} />
         <button onClick={() => window.print()}>🖨 Print</button>
         {d.insufficient && (
           <span className="error">small sample — treat every number with caution</span>
@@ -85,6 +86,8 @@ export default function Report() {
       </div>
 
       {/* 2 — Economy */}
+      <RecentResults teamId={teamId} mapName={d.map} since={since} roster={roster} />
+
       <h2>Economy behaviour <span className="meta">(rounds 2-12 / 14-24)</span></h2>
       <div className="grid cards">
         <BuyCard title="T buys" dist={d.economy.buy_T} />
@@ -526,10 +529,12 @@ function TeamHeat({
   const [base, setBase] = useState<MapBase | null>(null);
   useEffect(() => { loadMapBase(mapName).then(setBase); }, [mapName]);
   const [, since] = useWindow();
+  const [roster] = useRoster();
   const heat = useQuery({
-    queryKey: ['teamHeat', teamId, mapName, side, t0, t1, since],
+    queryKey: ['teamHeat', teamId, mapName, side, t0, t1, since, roster],
     queryFn: () => api.teamHeatmap(teamId, new URLSearchParams({
       map: mapName, side, t0: String(t0), t1: String(t1), since,
+      roster_min: String(roster),
     })),
   });
   useEffect(() => {
@@ -547,5 +552,44 @@ function TeamHeat({
       </div>
       <canvas ref={cvRef} className="flat" width={MAPW} height={MAPW} style={{ marginTop: 6 }} />
     </div>
+  );
+}
+
+
+// Pencere+kadro filtresine uyan geçmiş sonuçlar (rapordaki harita)
+function RecentResults({ teamId, mapName, since, roster }: {
+  teamId: string; mapName: string; since: string; roster: number;
+}) {
+  const q = useQuery({
+    queryKey: ['teamMatches', teamId, since, roster],
+    queryFn: () => api.matches(teamId, since, roster),
+  });
+  const rows = (q.data ?? []).filter((m) => m.map_name === mapName);
+  if (!rows.length) return null;
+  return (
+    <>
+      <h2>Recent results <span className="meta">on {mapName} ({rows.length})</span></h2>
+      <table style={{ maxWidth: 760 }}>
+        <tbody>
+          {rows.map((m) => {
+            const isA = m.team_a_id === teamId;
+            const us = isA ? m.score_a : m.score_b;
+            const them = isA ? m.score_b : m.score_a;
+            return (
+              <tr key={m.match_id}>
+                <td style={{ color: us > them ? '#7fd88f' : '#e05545', fontWeight: 700 }}>
+                  {us > them ? 'W' : 'L'}
+                </td>
+                <td>{us} : {them}</td>
+                <td>vs {isA ? m.team_b : m.team_a}</td>
+                <td className="meta cut">{m.tournament?.replace(/-/g, ' ')}</td>
+                <td className="meta">{m.played_at ?? ''}</td>
+                <td><Link to={`/match/${m.match_id}`}>▶</Link></td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </>
   );
 }

@@ -25,7 +25,24 @@ export function useWindow(): [string, string, (w: string) => void] {
   return [win, winToSince(win), set];
 }
 
-export function WindowPicker({ win, onChange }: { win: string; onChange: (w: string) => void }) {
+// Kadro çekirdeği filtresi: ?roster=N — takımın SON maçındaki beşliden en az
+// N kişinin oynadığı maçlar. (Koç bilgisi demolarda yok; bu onun pratik vekili.)
+export function useRoster(): [number, (n: number) => void] {
+  const [params, setParams] = useSearchParams();
+  const roster = Number(params.get('roster') ?? '0');
+  const set = (n: number) => {
+    const p = new URLSearchParams(params);
+    if (n > 0) p.set('roster', String(n));
+    else p.delete('roster');
+    setParams(p, { replace: true });
+  };
+  return [roster, set];
+}
+
+export function WindowPicker({ win, onChange, roster, onRoster }: {
+  win: string; onChange: (w: string) => void;
+  roster?: number; onRoster?: (n: number) => void;
+}) {
   const m = /^(\d+)([wmy])$/.exec(win);
   const n = m ? m[1] : '';
   const u = m ? m[2] : 'm';
@@ -43,6 +60,18 @@ export function WindowPicker({ win, onChange }: { win: string; onChange: (w: str
         <option value="y">years</option>
       </select>
       {win && <button className="ghost" onClick={() => onChange('')}>all time</button>}
+      {onRoster && (
+        <>
+          <label className="meta" title="only matches where at least N of the current five (from the team's latest match) played">
+            · lineup ≥
+          </label>
+          <select value={roster ?? 0} onChange={(e) => onRoster(Number(e.target.value))}>
+            {[0, 1, 2, 3, 4, 5].map((n) => (
+              <option key={n} value={n}>{n === 0 ? 'off' : `${n}/5`}</option>
+            ))}
+          </select>
+        </>
+      )}
     </span>
   );
 }

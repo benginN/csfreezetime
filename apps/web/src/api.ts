@@ -17,7 +17,8 @@ export interface MatchSummary {
   team_b: string | null;
   rounds: number;
   score_a: number;
-  score_b: number;
+  score_b: number;  played_at: string | null;
+  tournament: string | null;
 }
 
 export interface RoundRow {
@@ -446,8 +447,8 @@ export const api = {
       body: JSON.stringify({ label }),
     }).then((r) => r.json()),
   predict: (p: URLSearchParams) => get<Prediction>('/api/v1/predict?' + p),
-  matches: (teamId?: string, since = '') =>
-    get<MatchSummary[]>('/api/v1/matches' + (teamId ? `?team_id=${teamId}&since=${since}` : '')),
+  matches: (teamId?: string, since = '', roster = 0) =>
+    get<MatchSummary[]>('/api/v1/matches' + (teamId ? `?team_id=${teamId}&since=${since}&roster_min=${roster}` : '')),
   matchDetail: (id: string) => get<MatchDetail>(`/api/v1/matches/${id}`),
   matchPlayers: (id: string) =>
     get<{ player_id: string; nickname: string }[]>(`/api/v1/matches/${id}/players`),
@@ -455,14 +456,14 @@ export const api = {
     get<MatchHeatmap>(`/api/v1/matches/${id}/heatmap?` + p),
   teamHeatmap: (id: string, p: URLSearchParams) =>
     get<MatchHeatmap>(`/api/v1/teams/${id}/heatmap?` + p),
-  teamSummary: (id: string, since = '') =>
-    get<TeamSummary>(`/api/v1/teams/${id}/summary${since ? `?since=${since}` : ''}`),
+  teamSummary: (id: string, since = '', roster = 0) =>
+    get<TeamSummary>(`/api/v1/teams/${id}/summary?since=${since}&roster_min=${roster}`),
   playerProfile: (id: string) => get<PlayerProfile>(`/api/v1/players/${id}/profile`),
   winprob: () => get<{ cells: WinprobCell[] }>('/api/v1/winprob'),
   playerHeatmap: (id: string, p: URLSearchParams) =>
     get<MatchHeatmap>(`/api/v1/players/${id}/heatmap?` + p),
-  report: (teamId: string, map: string, since = '') =>
-    get<ReportResp>(`/api/v1/report?team_id=${teamId}&map=${encodeURIComponent(map)}&since=${since}`),
+  report: (teamId: string, map: string, since = '', roster = 0) =>
+    get<ReportResp>(`/api/v1/report?team_id=${teamId}&map=${encodeURIComponent(map)}&since=${since}&roster_min=${roster}`),
   roundTicks: (id: string, n: number) => get<RoundTicks>(`/api/v1/rounds/${id}/${n}/ticks`),
   mapLayout: (map: string) => get<MapLayout>(`/api/v1/maplayout?map=${map}`),
   query: (dsl: unknown) => post<QueryResult>('/api/v1/query', dsl),

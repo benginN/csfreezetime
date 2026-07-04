@@ -1,6 +1,6 @@
 import { Link, useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { useWindow, WindowPicker } from '../lib/window';
+import { useRoster, useWindow, WindowPicker } from '../lib/window';
 import { api } from '../api';
 import { teamHue, teamInitials } from '../lib/rounds';
 
@@ -8,17 +8,15 @@ import { teamHue, teamInitials } from '../lib/rounds';
 export default function Team() {
   const { teamId = '' } = useParams();
   const [win, since, setWin] = useWindow();
+  const [roster, setRoster] = useRoster();
 
   const summary = useQuery({
-    queryKey: ['teamSummary', teamId, since],
-    queryFn: () => api.teamSummary(teamId, since),
+    queryKey: ['teamSummary', teamId, since, roster],
+    queryFn: () => api.teamSummary(teamId, since, roster),
   });
-  const name = summary.data?.team ?? '';
   const matches = useQuery({
-    queryKey: ['search', name],
-    queryFn: () => api.search(name),
-    enabled: !!name,
-    select: (d) => d.matches.filter((m) => m.team_a === name || m.team_b === name),
+    queryKey: ['teamMatches', teamId, since, roster],
+    queryFn: () => api.matches(teamId, since, roster),
   });
 
   if (summary.isLoading || !summary.data) return <p className="meta">loading…</p>;
@@ -39,7 +37,7 @@ export default function Team() {
           ⚔ Compare with…
         </Link>
       </h1>
-      <div className="toolbar noprint"><WindowPicker win={win} onChange={setWin} /></div>
+      <div className="toolbar noprint"><WindowPicker win={win} onChange={setWin} roster={roster} onRoster={setRoster} /></div>
 
       <div className="grid cards statgrid">
         <Stat label="Record" v={`${ov.wins}–${ov.matches - ov.wins}`} n={`${ov.matches} matches`} />
@@ -63,7 +61,7 @@ export default function Team() {
         ))}
       </div>
 
-      <h2>Matches</h2>
+      <h2>Matches <span className="meta">({(matches.data ?? []).length}{since ? ` since ${since}` : ''}{roster > 0 ? ` · lineup ≥${roster}/5` : ''})</span></h2>
       {(matches.data ?? []).map((m) => (
         <Link key={m.match_id} to={`/match/${m.match_id}`} className="matchrow">
           <span className="vs">
@@ -72,6 +70,7 @@ export default function Team() {
             <span>{m.team_b}</span>
           </span>
           <span className="badge gray">{m.map_name}</span>
+          {m.tournament && <span className="meta cut" style={{ maxWidth: 200 }}>🏆 {m.tournament.replace(/-/g, ' ')}</span>}
           <span className="meta">{m.played_at ?? ''}</span>
         </Link>
       ))}

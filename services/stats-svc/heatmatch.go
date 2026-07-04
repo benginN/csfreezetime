@@ -256,11 +256,13 @@ func (s *server) teamHeatmap(w http.ResponseWriter, r *http.Request) {
 	if side == "CT" {
 		teamCol = "ct_team_id"
 	}
+	rosterMin, _ := strconv.Atoi(q.Get("roster_min"))
+	elig := s.eligibleMatches(ctx, teamID, q.Get("since"), rosterMin)
 	prows, err := s.pg.Query(ctx, `
 		SELECT r.match_id, r.round_number, COALESCE(r.freeze_end_tick, r.start_tick), r.end_tick
 		FROM rounds r JOIN matches m ON m.match_id = r.match_id AND m.status = 'ready'
 		WHERE m.map_name = $1 AND r.`+teamCol+` = $2
-		  AND ($3 = '' OR m.played_at >= $3::timestamptz)`, mapName, teamID, q.Get("since"))
+		  AND ($3::text[] IS NULL OR m.match_id::text = ANY($3::text[]))`, mapName, teamID, elig)
 	if err != nil {
 		writeErr(w, 500, err)
 		return
