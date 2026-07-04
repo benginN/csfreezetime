@@ -572,3 +572,11 @@ Filtre boyutları: `map`, `side`, `team_scope`, `player_scope`, `buy_type`, `rou
 
 ### team_exec_templates (analitik #5)
 İlk 25 sn'nin utility-nokta kümesi şablon anahtarıdır; ≥3 tekrar eden şablonlar site dağılımı ve kazanma oranıyla saklanır (ml/templates.py, deterministik).
+
+### Saklama politikası (2026-07-05, ürün kararı)
+Katmanlı: ham .dem (MinIO) ve tick verisi (CH player_ticks/shots) 24 ay
+saklanır; sonrasında otomatik silinir (matches.tick_purged=true). PG meta
+ve istatistikler SÜRESİZ kalır — leaderboard/kariyer geriye dönük bozulmaz.
+Sonuç: >24 ay maçlarda replay/heatmap kapalı ("archived"); CH okuyan ml
+işleri (setups/roles/rotations/flash) o maçları doğal olarak dışarıda
+bırakır. RETENTION_MONTHS env (varsayılan 24; 0=kapalı).

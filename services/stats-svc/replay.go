@@ -180,6 +180,15 @@ func (s *server) roundTicks(w http.ResponseWriter, r *http.Request) {
 	}
 	ctx := r.Context()
 
+	// saklama: 24 ay üstü maçların tick verisi silinmiştir (meta durur)
+	var purged bool
+	_ = s.pg.QueryRow(ctx,
+		"SELECT tick_purged FROM matches WHERE match_id = $1", matchID).Scan(&purged)
+	if purged {
+		writeErr(w, 410, fmt.Errorf("this match is archived: replay data older than the retention window was removed; stats remain available"))
+		return
+	}
+
 	var mapName string
 	var freezeEnd *int32
 	if err := s.pg.QueryRow(ctx, `

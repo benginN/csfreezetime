@@ -20,11 +20,14 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/klauspost/compress/zstd"
+	"github.com/minio/minio-go/v7"
 	"github.com/nwaples/rardecode/v2"
 )
 
@@ -409,6 +412,55 @@ func wrapResult(r map[string]any, err error) ([]map[string]any, error) {
 		return nil, err
 	}
 	return []map[string]any{r}, nil
+}
+
+// retentionLoop: saklama politikası (ürün kararı 2026-07-05) — 24 aydan
+// eski maçların HAM demosu (MinIO) ve tick verisi (CH) silinir; PG meta
+// süresiz kalır (leaderboard/kariyer bozulmaz). Günde bir koşar.
+func (s *server) retentionLoop() {
+	months := 24
+	if v := os.Getenv("RETENTION_MONTHS"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil {
+			months = n
+		}
+	}
+	if months <= 0 {
+		return
+	}
+	for {
+		rows, err := s.pg.Query(context.Background(), `
+			SELECT match_id, demo_object_key FROM matches
+			WHERE status = 'ready' AND NOT tick_purged
+			  AND played_at < now() - ($1 || ' months')::interval
+			LIMIT 50`, strconv.Itoa(months))
+		if err == nil {
+			type victim struct {
+				id  uuid.UUID
+				key string
+			}
+			var vs []victim
+			for rows.Next() {
+				var v victim
+				if rows.Scan(&v.id, &v.key) == nil {
+					vs = append(vs, v)
+				}
+			}
+			rows.Close()
+			for _, v := range vs {
+				ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+				_ = s.up.mc.RemoveObject(ctx, s.up.bucket, v.key, minio.RemoveObjectOptions{})
+				err1 := s.ch.Exec(ctx, "DELETE FROM player_ticks WHERE match_id = ?", v.id)
+				err2 := s.ch.Exec(ctx, "DELETE FROM shots WHERE match_id = ?", v.id)
+				cancel()
+				if err1 == nil && err2 == nil {
+					_, _ = s.pg.Exec(context.Background(),
+						"UPDATE matches SET tick_purged = true WHERE match_id = $1", v.id)
+					log.Printf("saklama: %s arşivlendi (ham+tick silindi, meta kaldı)", v.id)
+				}
+			}
+		}
+		time.Sleep(24 * time.Hour)
+	}
 }
 
 // POST /api/v1/reprocess {"match_id": "..."} | {} = tüm arşiv.
