@@ -1,5 +1,5 @@
 {
-  "_comment": "Faz 2 çıkış kriteri: DSL 20 sorgu kalıbını karşılıyor (mimari.md §11). Beklenen değerler 14 maçlık test arşivinden bir kez türetilip sabitlendi; expect.value=null olanlar yalnızca şema/çalışabilirlik doğrular (op ge 0). | 2026-07-04: IEM Cologne Major arşivine (112 maç) yeniden sabitlendi",
+  "_comment": "Faz 2 çıkış kriteri: DSL 20 sorgu kalıbını karşılıyor (mimari.md §11). Beklenen değerler 14 maçlık test arşivinden bir kez türetilip sabitlendi; expect.value=null olanlar yalnızca şema/çalışabilirlik doğrular (op ge 0). | 2026-07-05: arşiv büyürken gte; yığın bitince eq ile yeniden sabitle",
   "queries": [
     {
       "name": "01 kill: silah filtresi (ak47, klip)",
@@ -38,8 +38,8 @@
       },
       "expect": {
         "field": "clips",
-        "op": "eq",
-        "value": 444
+        "op": "gte",
+        "value": 2414
       }
     },
     {
@@ -142,8 +142,8 @@
       },
       "expect": {
         "field": "count",
-        "op": "eq",
-        "value": 295
+        "op": "gte",
+        "value": 895
       }
     },
     {
@@ -164,8 +164,8 @@
       },
       "expect": {
         "field": "clips",
-        "op": "eq",
-        "value": 434
+        "op": "gte",
+        "value": 2371
       }
     },
     {
@@ -397,8 +397,8 @@
       },
       "expect": {
         "field": "round_count",
-        "op": "eq",
-        "value": 269
+        "op": "gte",
+        "value": 1473
       }
     },
     {
@@ -414,8 +414,8 @@
       },
       "expect": {
         "field": "count",
-        "op": "eq",
-        "value": 1294
+        "op": "gte",
+        "value": 6538
       }
     }
   ]
