@@ -231,8 +231,9 @@ pub async fn write_metadata(pool: &PgPool, match_id: Uuid, result: &ParseResult)
             INSERT INTO player_round_states (match_id, round_number, player_id, side,
                                              money_start, money_spent, equip_value,
                                              survived, kills, deaths, assists,
-                                             damage_dealt, flash_assists)
-            VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,0)
+                                             damage_dealt, flash_assists,
+                                             util_he_dmg, util_fire_dmg)
+            VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,0,$13,$14)
             "#,
         )
         .bind(match_id)
@@ -247,6 +248,8 @@ pub async fn write_metadata(pool: &PgPool, match_id: Uuid, result: &ParseResult)
         .bind(pr.deaths)
         .bind(pr.assists)
         .bind(pr.damage_dealt)
+        .bind(pr.util_he_dmg)
+        .bind(pr.util_fire_dmg)
         .execute(&mut *tx)
         .await?;
     }

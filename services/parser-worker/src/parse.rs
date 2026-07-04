@@ -139,6 +139,8 @@ pub struct PlayerRoundMeta {
     pub deaths: i16,
     pub assists: i16,
     pub damage_dealt: i16,
+    pub util_he_dmg: i16,
+    pub util_fire_dmg: i16,
 }
 
 const PLAYER_PROPS: &[&str] = &[
@@ -511,6 +513,8 @@ pub fn parse_demo_bytes(bytes: &[u8], match_id: Uuid) -> Result<ParseResult> {
             victim_place: ev_str(ev, "user_last_place_name"),
         });
     }
+    // utility hasarı: HE ve ateş (molotov/inferno) ayrı toplanır (§ analitik #4)
+    let mut util_dmg: AHashMap<(usize, u64), (i16, i16)> = AHashMap::default();
     for ev in output.game_events.iter().filter(|e| e.name == "player_hurt") {
         let Some(idx) = assign_round(ev.tick) else { continue };
         // yalnızca düşmana verilen hasar sayılır
@@ -520,8 +524,15 @@ pub fn parse_demo_bytes(bytes: &[u8], match_id: Uuid) -> Result<ParseResult> {
             ev_i64(ev, "user_team_num"),
         ) {
             if at != vt {
-                kd.entry((idx, a)).or_default().3 +=
-                    ev_i64(ev, "dmg_health").unwrap_or(0).clamp(0, 500) as i16;
+                let dmg = ev_i64(ev, "dmg_health").unwrap_or(0).clamp(0, 500) as i16;
+                kd.entry((idx, a)).or_default().3 += dmg;
+                match ev_str(ev, "weapon").as_deref() {
+                    Some("hegrenade") => util_dmg.entry((idx, a)).or_default().0 += dmg,
+                    Some("inferno") | Some("molotov") | Some("incgrenade") => {
+                        util_dmg.entry((idx, a)).or_default().1 += dmg
+                    }
+                    _ => {}
+                }
             }
         }
     }
@@ -697,6 +708,7 @@ pub fn parse_demo_bytes(bytes: &[u8], match_id: Uuid) -> Result<ParseResult> {
             };
             let money_start = econ.get(&(start, sid)).and_then(|s| s.balance);
             let (k, d, a, dmg) = kd.get(&(idx, sid)).copied().unwrap_or_default();
+            let (he_dmg, fire_dmg) = util_dmg.get(&(idx, sid)).copied().unwrap_or_default();
             player_rounds.push(PlayerRoundMeta {
                 round_number: idx as i16,
                 steamid: sid,
@@ -709,6 +721,8 @@ pub fn parse_demo_bytes(bytes: &[u8], match_id: Uuid) -> Result<ParseResult> {
                 deaths: d,
                 assists: a,
                 damage_dealt: dmg,
+                util_he_dmg: he_dmg,
+                util_fire_dmg: fire_dmg,
             });
         }
     }

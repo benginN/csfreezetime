@@ -11,6 +11,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"io"
 	"log"
@@ -408,6 +409,51 @@ func wrapResult(r map[string]any, err error) ([]map[string]any, error) {
 		return nil, err
 	}
 	return []map[string]any{r}, nil
+}
+
+// POST /api/v1/reprocess {"match_id": "..."} | {} = tüm arşiv.
+// MinIO'daki ham demoları demo.ingested olarak yeniden yayınlar — parser
+// şeması evrildiğinde arşivi tazelemenin standart yolu (sha dedup korunur;
+// parser aynı match_id ile üzerine yazar).
+func (s *server) reprocess(w http.ResponseWriter, r *http.Request) {
+	if s.up == nil {
+		writeErr(w, 503, fmt.Errorf("upload infrastructure unavailable"))
+		return
+	}
+	var body struct {
+		MatchID string `json:"match_id"`
+	}
+	_ = json.NewDecoder(r.Body).Decode(&body)
+	cond, args := "status IN ('ready','failed')", []any{}
+	if body.MatchID != "" {
+		cond, args = "match_id = $1", []any{body.MatchID}
+	}
+	rows, err := s.pg.Query(r.Context(), `
+		SELECT match_id, demo_sha256, demo_object_key,
+		       COALESCE(event_name,''), COALESCE(to_char(played_at,'YYYY-MM-DD"T"HH24:MI:SS"Z"'),''),
+		       COALESCE(tournament,'')
+		FROM matches WHERE `+cond, args...)
+	if err != nil {
+		writeErr(w, 500, err)
+		return
+	}
+	defer rows.Close()
+	n := 0
+	for rows.Next() {
+		var mid, sha, key, ev, played, tour string
+		if rows.Scan(&mid, &sha, &key, &ev, &played, &tour) != nil {
+			continue
+		}
+		payload, _ := json.Marshal(map[string]any{
+			"demo_sha256": sha, "match_id": mid, "object_key": key,
+			"source_file": ev, "played_at": played, "tournament": tour,
+		})
+		if s.up.nc.Publish("demo.ingested", payload) == nil {
+			n++
+		}
+	}
+	markIngest() // kuyruk boşalınca ml-auto tazeler
+	writeJSON(w, 200, map[string]any{"republished": n})
 }
 
 // GET /api/v1/coverage — arşiv kapsam envanteri (backfill kör uçuşu önler)

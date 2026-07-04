@@ -83,6 +83,27 @@ func (s *server) playerProfile(w http.ResponseWriter, r *http.Request) {
 		    GROUP BY g.side ORDER BY g.side DESC
 		) x`, playerID)
 
+	// utility hasarı: HE / ateş — bomba başına ortalama (taraf bazlı)
+	out["util_dmg"] = s.jsonQuery(ctx, `
+		WITH dmg AS (
+		    SELECT s.side, sum(s.util_he_dmg) AS he_dmg, sum(s.util_fire_dmg) AS fire_dmg
+		    FROM player_round_states s
+		    JOIN matches m ON m.match_id = s.match_id AND m.status = 'ready'
+		    WHERE s.player_id = $1 GROUP BY s.side
+		),
+		nades AS (
+		    SELECT g.side,
+		           count(*) FILTER (WHERE g.type = 'he') AS he_n,
+		           count(*) FILTER (WHERE g.type = 'molotov') AS fire_n
+		    FROM grenades g
+		    JOIN matches m ON m.match_id = g.match_id AND m.status = 'ready'
+		    WHERE g.thrower_id = $1 GROUP BY g.side
+		)
+		SELECT COALESCE(json_agg(x), '[]'::json) FROM (
+		    SELECT d.side, d.he_dmg, d.fire_dmg, n.he_n, n.fire_n
+		    FROM dmg d JOIN nades n USING (side) ORDER BY d.side DESC
+		) x`, playerID)
+
 	// trade davranışı: yaptığı trade'ler + kendi ölümlerinin trade edilme oranı
 	out["trades"] = s.jsonQuery(ctx, `
 		SELECT COALESCE(json_agg(x), '[]'::json) FROM (

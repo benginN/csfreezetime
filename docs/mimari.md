@@ -272,6 +272,7 @@ CREATE TABLE player_round_states (
     survived     BOOLEAN,
     kills SMALLINT, deaths SMALLINT, assists SMALLINT,
     damage_dealt SMALLINT, flash_assists SMALLINT,
+    util_he_dmg SMALLINT, util_fire_dmg SMALLINT,  -- HE / molotof-inferno hasarı (utility verimliliği)
     PRIMARY KEY (match_id, round_number, player_id),
     FOREIGN KEY (match_id, round_number)
         REFERENCES rounds(match_id, round_number) ON DELETE CASCADE
@@ -568,3 +569,6 @@ NATS konuları: `demo.ingested`, `demo.parsed`, `demo.enriched`, `ml.cluster.ass
 ## Ek A — DSL şema kapsamı (v1 özet)
 
 Filtre boyutları: `map`, `side`, `team_scope`, `player_scope`, `buy_type`, `round_number/score_state`, `date_range`, `source(scrim/official)`. Olay tipleri: `grenade` (tip, sıra, hedef bölge, zaman penceresi), `kill` (silah, first_kill, trade, bölge), `bomb` (plant/defuse, site, zaman), `presence` (bölgede ≥N oyuncu, zaman penceresi), `economy` (eşik koşulları). Çıktı biçimleri: `clips`, `rounds`, `aggregate` (sayı/oran), `heatmap_filterset`, `stack_set`. Şema, stats-svc'de tek bir JSON Schema dosyası olarak yaşar; hem LLM prompt'una hem form arayüzüne aynı kaynaktan üretilir.
+
+### team_exec_templates (analitik #5)
+İlk 25 sn'nin utility-nokta kümesi şablon anahtarıdır; ≥3 tekrar eden şablonlar site dağılımı ve kazanma oranıyla saklanır (ml/templates.py, deterministik).

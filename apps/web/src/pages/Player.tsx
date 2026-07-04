@@ -84,6 +84,18 @@ export default function Player() {
                     </tr>
                   );
                 })()}
+                {(() => {
+                  const ud = d.util_dmg.find((x) => x.side === r.side);
+                  if (!ud || (ud.he_n === 0 && ud.fire_n === 0) || (ud.he_dmg + ud.fire_dmg === 0)) return null;
+                  return (
+                    <tr>
+                      <td className="meta">util dmg</td>
+                      <td>{ud.he_n ? `HE ${(ud.he_dmg / ud.he_n).toFixed(1)}/nade` : '—'}</td>
+                      <td className="meta">fire</td>
+                      <td>{ud.fire_n ? `${(ud.fire_dmg / ud.fire_n).toFixed(1)}/nade` : '—'}</td>
+                    </tr>
+                  );
+                })()}
                 {r.side === 'CT' && r.anchor_place && (
                   <tr><td className="meta">anchor</td><td colSpan={3}>{r.anchor_place} ({Math.round(100 * (r.anchor_share ?? 0))}% occupancy)</td></tr>
                 )}

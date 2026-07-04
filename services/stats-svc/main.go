@@ -103,6 +103,7 @@ func main() {
 	r.Post("/api/v1/stack", srv.stack)
 	r.Post("/api/v1/upload", srv.upload)
 	r.Post("/api/v1/backfill/scan", srv.backfillScan)
+	r.Post("/api/v1/reprocess", srv.reprocess)
 	r.Get("/api/v1/backfill/status", srv.backfillStatus)
 	r.Get("/api/v1/coverage", srv.coverage)
 	r.Get("/api/v1/matches/{id}/status", srv.matchStatus)

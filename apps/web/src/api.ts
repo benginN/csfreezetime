@@ -267,6 +267,8 @@ export interface ReportPlayer {
 }
 
 export interface ReportResp {
+  util_dmg: { side: string; he_dmg: number; fire_dmg: number; he_n: number; fire_n: number }[];
+  exec_templates: { pattern: string[]; n: number; wins: number; site_mix: Record<string, number> }[];
   window_since?: string;
   archive_wide?: string[];
   team_id: string;
@@ -312,6 +314,7 @@ export interface WinprobCell {
 }
 
 export interface PlayerProfile {
+  util_dmg: { side: string; he_dmg: number; fire_dmg: number; he_n: number; fire_n: number }[];
   player_id: string;
   nickname: string;
   team: string | null;

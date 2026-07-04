@@ -370,6 +370,43 @@ func (s *server) report(w http.ResponseWriter, r *http.Request) {
 		    FROM tk t GROUP BY t.side ORDER BY t.side DESC
 		) x`, teamID, mapName, elig)
 
+	// Utility hasarı: HE ve ateş bombalarının bomba başına ortalama hasarı
+	// (PRS toplamları ÷ atış sayıları; pencere/kadro filtresine uyar)
+	out["util_dmg"] = s.jsonQuery(ctx, `
+		WITH dmg AS (
+		    SELECT s.side, sum(s.util_he_dmg) AS he_dmg, sum(s.util_fire_dmg) AS fire_dmg
+		    FROM player_round_states s
+		    JOIN rounds r USING (match_id, round_number)
+		    JOIN matches m ON m.match_id = s.match_id AND m.status = 'ready'
+		    WHERE m.map_name = $2 AND ($3::text[] IS NULL OR m.match_id::text = ANY($3::text[]))
+		      AND ((s.side = 'T' AND r.t_team_id = $1) OR (s.side = 'CT' AND r.ct_team_id = $1))
+		    GROUP BY s.side
+		),
+		nades AS (
+		    SELECT g.side,
+		           count(*) FILTER (WHERE g.type = 'he') AS he_n,
+		           count(*) FILTER (WHERE g.type = 'molotov') AS fire_n
+		    FROM grenades g
+		    JOIN rounds r USING (match_id, round_number)
+		    JOIN matches m ON m.match_id = g.match_id AND m.status = 'ready'
+		    WHERE m.map_name = $2 AND ($3::text[] IS NULL OR m.match_id::text = ANY($3::text[]))
+		      AND ((g.side = 'T' AND r.t_team_id = $1) OR (g.side = 'CT' AND r.ct_team_id = $1))
+		    GROUP BY g.side
+		)
+		SELECT COALESCE(json_agg(x), '[]'::json) FROM (
+		    SELECT d.side, d.he_dmg, d.fire_dmg, n.he_n, n.fire_n
+		    FROM dmg d JOIN nades n USING (side) ORDER BY d.side DESC
+		) x`, teamID, mapName, elig)
+
+	// Execute şablonları (ml/templates.py; arşiv geneli)
+	out["exec_templates"] = s.jsonQuery(ctx, `
+		SELECT COALESCE(json_agg(x ORDER BY x.n DESC), '[]'::json) FROM (
+		    SELECT pattern, n, wins, site_mix
+		    FROM team_exec_templates
+		    WHERE team_id = $1 AND map_name = $2
+		    ORDER BY n DESC LIMIT 8
+		) x`, teamID, mapName)
+
 	// Trade ikilileri: kim kimin ölümünü trade ediyor (5 sn penceresi)
 	out["trade_pairs"] = s.jsonQuery(ctx, `
 		SELECT COALESCE(json_agg(x ORDER BY x.n DESC), '[]'::json) FROM (
@@ -440,7 +477,7 @@ func (s *server) report(w http.ResponseWriter, r *http.Request) {
 	if since != "" || rosterMin > 0 {
 		out["window_since"] = since
 		out["roster_min"] = rosterMin
-		out["archive_wide"] = []string{"setups", "utility", "rotations", "players"}
+		out["archive_wide"] = []string{"setups", "utility", "rotations", "players", "exec_templates"}
 	}
 	writeJSON(w, 200, out)
 }

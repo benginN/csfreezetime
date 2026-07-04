@@ -11,13 +11,20 @@ import time
 
 from . import (
     anomaly, clustering, clutch, db, evaluate, features, flashstats,
-    integrity, roles, rotations, setups, tendencies, tournaments, utility, winprob,
+    integrity, roles, rotations, setups, templates, tendencies, tournaments, utility, winprob,
 )
 
 
 def cli() -> None:
     t0 = time.time()
     pgconn = db.pg()
+    # süreçler arası kilit: manuel koşu + ml-auto çakışması tablo yazımlarını
+    # yarıştırıp çift anahtar üretebilir; ikinci süreç sessizce çekilir.
+    with pgconn.cursor() as cur:
+        cur.execute("SELECT pg_try_advisory_lock(834729)")
+        if not cur.fetchone()[0]:
+            print("ml-jobs zaten çalışıyor (kilit dolu) — bu koşu atlandı")
+            return
     chc = db.ch()
 
     # kümelenecek (harita, taraf) çiftleri
@@ -63,6 +70,9 @@ def cli() -> None:
     print("— utility istihbaratı —")
     nu = utility.run(pgconn, chc)
     print(f"  {nu} utility kümesi (n≥{utility.MIN_COUNT})")
+
+    n_tpl = templates.run(pgconn)
+    print(f"— execute şablonları: {n_tpl} desen —")
 
     print("— kurulum (default) tespiti —")
     ns = setups.run(pgconn, chc)

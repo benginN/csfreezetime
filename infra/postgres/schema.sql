@@ -92,6 +92,7 @@ CREATE TABLE IF NOT EXISTS player_round_states (
     survived     BOOLEAN,
     kills SMALLINT, deaths SMALLINT, assists SMALLINT,
     damage_dealt SMALLINT, flash_assists SMALLINT,
+    util_he_dmg SMALLINT NOT NULL DEFAULT 0, util_fire_dmg SMALLINT NOT NULL DEFAULT 0, -- utility hasar ayrımı
     PRIMARY KEY (match_id, round_number, player_id),
     FOREIGN KEY (match_id, round_number)
         REFERENCES rounds(match_id, round_number) ON DELETE CASCADE
@@ -196,3 +197,15 @@ INSERT INTO maps (map_name, radar_pos_x, radar_pos_y, radar_scale, has_lower_lev
     ('de_train',    -2308, 2078, 4.082, FALSE, NULL),
     ('de_vertigo',  -3168, 1762, 4.00,  TRUE,  11700)
 ON CONFLICT (map_name) DO NOTHING;
+
+-- Execute şablonları (ml/templates.py): ilk 25 sn utility kümesi → site/kazanç
+CREATE TABLE IF NOT EXISTS team_exec_templates (
+    template_id SERIAL PRIMARY KEY,
+    team_id     UUID REFERENCES teams(team_id) ON DELETE CASCADE,
+    map_name    TEXT NOT NULL,
+    pattern     JSONB NOT NULL,
+    n           INT NOT NULL,
+    wins        INT NOT NULL,
+    site_mix    JSONB NOT NULL,
+    computed_at TIMESTAMPTZ DEFAULT now()
+);

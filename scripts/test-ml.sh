@@ -110,3 +110,8 @@ check "rotasyon sayım tutarlılığı (ihlal)" \
 
 echo
 [ $FAILS -eq 0 ] && echo "ML TESTLERİ GEÇTİ ✅" || { echo "$FAILS TEST BAŞARISIZ ❌"; exit 1; }
+
+# Execute şablonları: n>=3, wins<=n, desen >=2 öğe
+check "şablon eşik (n>=3)" "SELECT count(*) FROM team_exec_templates WHERE n < 3" 0
+check "şablon tutarlılık (wins<=n)" "SELECT count(*) FROM team_exec_templates WHERE wins > n" 0
+check "şablon boyut (>=2 utility)" "SELECT count(*) FROM team_exec_templates WHERE jsonb_array_length(pattern) < 2" 0

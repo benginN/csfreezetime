@@ -95,6 +95,26 @@ export default function Report() {
         <BuyCard title="After losing a pistol" dist={d.economy.after_pistol_loss} />
       </div>
 
+      {/* 3b — Execute templates */}
+      {d.exec_templates.length > 0 && (
+        <>
+          <h2>Execute templates <span className="meta">(recurring first-25s utility sets{d.archive_wide ? ' · full archive' : ''})</span></h2>
+          <div className="card" style={{ maxWidth: 760 }}>
+            {d.exec_templates.map((t, i) => {
+              const sites = Object.entries(t.site_mix).sort((a, b) => b[1] - a[1]);
+              return (
+                <div key={i} style={{ display: 'flex', gap: 8, alignItems: 'baseline', lineHeight: 1.8 }}>
+                  <span>{t.pattern.join(' + ')}</span>
+                  <span className="meta" style={{ marginLeft: 'auto', whiteSpace: 'nowrap' }}>
+                    ×{t.n} · {Math.round(100 * t.wins / t.n)}% W · → {sites.map(([s2, n2]) => `${s2} ${n2}`).join(', ')}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </>
+      )}
+
       {/* 3 — Strategy tendencies (küme adları koçça düzenlenebilir) */}
       <h2>Strategy tendencies <span className="meta">— ✏ names strategies for everyone</span></h2>
       <div className="grid cards">
@@ -143,6 +163,24 @@ export default function Report() {
       </div>
 
       {/* 5 — Utility */}
+      {d.util_dmg.some((u) => u.he_n + u.fire_n > 0) && (
+        <div className="card" style={{ maxWidth: 560, marginBottom: 10 }}>
+          <div className="teams"><span>Utility damage</span>
+            <span className="meta">avg per grenade (needs reprocessed demos)</span></div>
+          <table style={{ marginTop: 6 }}>
+            <thead><tr><th /><th>HE dmg/nade</th><th>fire dmg/nade</th></tr></thead>
+            <tbody>
+              {d.util_dmg.map((u) => (
+                <tr key={u.side}>
+                  <td><span className={`badge ${u.side}`}>{u.side}</span></td>
+                  <td>{u.he_n ? (u.he_dmg / u.he_n).toFixed(1) : '—'} <span className="meta">(n={u.he_n})</span></td>
+                  <td>{u.fire_n ? (u.fire_dmg / u.fire_n).toFixed(1) : '—'} <span className="meta">(n={u.fire_n})</span></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
       <h2>Utility habits {d.archive_wide && <span className="meta"> · full archive (window n/a)</span>}</h2>
       <UtilitySection d={d} mapName={mapName} />
       <div className="grid cards two" style={{ marginTop: 12 }}>
