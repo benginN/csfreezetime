@@ -26,6 +26,7 @@ func (s *server) report(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, 400, fmt.Errorf("map is required"))
 		return
 	}
+	since := q.Get("since") // ISO tarih; boşsa tüm arşiv
 	ctx := r.Context()
 
 	var teamName string
@@ -58,7 +59,7 @@ func (s *server) report(w http.ResponseWriter, r *http.Request) {
 		           CASE WHEN r.t_team_id = $1 THEN 'T' ELSE 'CT' END AS side,
 		           (r.winner_side = 'T') = (r.t_team_id = $1) AS won
 		    FROM rounds r JOIN matches m ON m.match_id = r.match_id AND m.status = 'ready'
-		    WHERE m.map_name = $2 AND (r.t_team_id = $1 OR r.ct_team_id = $1)
+		    WHERE m.map_name = $2 AND ($3 = '' OR m.played_at >= $3::timestamptz) AND (r.t_team_id = $1 OR r.ct_team_id = $1)
 		      AND r.winner_side IS NOT NULL
 		)
 		SELECT count(DISTINCT match_id),
@@ -68,7 +69,7 @@ func (s *server) report(w http.ResponseWriter, r *http.Request) {
 		       count(*) FILTER (WHERE side='CT' AND won),
 		       count(*) FILTER (WHERE round_number IN (1,13)),
 		       count(*) FILTER (WHERE round_number IN (1,13) AND won)
-		FROM tr`, teamID, mapName).Scan(
+		FROM tr`, teamID, mapName, since).Scan(
 		&ov.Matches, &ov.TRounds, &ov.TWins, &ov.CTRounds, &ov.CTWins,
 		&ov.PistolN, &ov.PistolWins)
 	if err != nil {
@@ -82,13 +83,13 @@ func (s *server) report(w http.ResponseWriter, r *http.Request) {
 		    SELECT r.match_id, r.round_number,
 		           (r.winner_side = 'T') = (r.t_team_id = $1) AS won
 		    FROM rounds r JOIN matches m ON m.match_id = r.match_id AND m.status = 'ready'
-		    WHERE m.map_name = $2 AND (r.t_team_id = $1 OR r.ct_team_id = $1)
+		    WHERE m.map_name = $2 AND ($3 = '' OR m.played_at >= $3::timestamptz) AND (r.t_team_id = $1 OR r.ct_team_id = $1)
 		      AND r.winner_side IS NOT NULL
 		)
 		SELECT count(*) FILTER (WHERE n.won),
 		       count(*)
 		FROM tr p JOIN tr n ON n.match_id = p.match_id AND n.round_number = p.round_number + 1
-		WHERE p.round_number IN (1,13) AND p.won`, teamID, mapName).Scan(&convWon, &convBase)
+		WHERE p.round_number IN (1,13) AND p.won`, teamID, mapName, since).Scan(&convWon, &convBase)
 	ov.ConvAfterWN = convBase
 	if convBase > 0 {
 		ov.ConvAfterW = float64(convWon) / float64(convBase)
@@ -100,10 +101,10 @@ func (s *server) report(w http.ResponseWriter, r *http.Request) {
 		           count(*) FILTER (WHERE (r.winner_side='T') = (r.t_team_id=$1)) AS w,
 		           count(*) FILTER (WHERE r.winner_side IS NOT NULL) AS n
 		    FROM rounds r JOIN matches m ON m.match_id = r.match_id AND m.status='ready'
-		    WHERE m.map_name = $2 AND (r.t_team_id = $1 OR r.ct_team_id = $1)
+		    WHERE m.map_name = $2 AND ($3 = '' OR m.played_at >= $3::timestamptz) AND (r.t_team_id = $1 OR r.ct_team_id = $1)
 		    GROUP BY r.match_id
 		)
-		SELECT count(*) FILTER (WHERE w > n - w) FROM per`, teamID, mapName).Scan(&ov.Wins)
+		SELECT count(*) FILTER (WHERE w > n - w) FROM per`, teamID, mapName, since).Scan(&ov.Wins)
 	out["overview"] = ov
 	if ov.TRounds+ov.CTRounds < 16 {
 		out["insufficient"] = true
@@ -123,8 +124,8 @@ func (s *server) report(w http.ResponseWriter, r *http.Request) {
 		rows, err := s.pg.Query(ctx, `
 			SELECT COALESCE(`+col+`, 'unknown'), count(*)
 			FROM rounds r JOIN matches m ON m.match_id = r.match_id AND m.status='ready'
-			WHERE m.map_name = $2 AND r.`+team+` = $1 AND r.round_number NOT IN (1,13)
-			GROUP BY 1`, teamID, mapName)
+			WHERE m.map_name = $2 AND ($3 = '' OR m.played_at >= $3::timestamptz) AND r.`+team+` = $1 AND r.round_number NOT IN (1,13)
+			GROUP BY 1`, teamID, mapName, since)
 		if err != nil {
 			writeErr(w, 500, err)
 			return
@@ -148,12 +149,12 @@ func (s *server) report(w http.ResponseWriter, r *http.Request) {
 		           CASE WHEN r.t_team_id = $1 THEN r.t_buy_type ELSE r.ct_buy_type END AS buy,
 		           (r.winner_side = 'T') = (r.t_team_id = $1) AS won
 		    FROM rounds r JOIN matches m ON m.match_id = r.match_id AND m.status='ready'
-		    WHERE m.map_name = $2 AND (r.t_team_id = $1 OR r.ct_team_id = $1)
+		    WHERE m.map_name = $2 AND ($3 = '' OR m.played_at >= $3::timestamptz) AND (r.t_team_id = $1 OR r.ct_team_id = $1)
 		)
 		SELECT COALESCE(n.buy,'unknown'), count(*)
 		FROM tr p JOIN tr n ON n.match_id = p.match_id AND n.round_number = p.round_number + 1
 		WHERE p.round_number IN (1,13) AND NOT p.won
-		GROUP BY 1`, teamID, mapName)
+		GROUP BY 1`, teamID, mapName, since)
 	if err == nil {
 		for rows.Next() {
 			var b string
@@ -168,27 +169,90 @@ func (s *server) report(w http.ResponseWriter, r *http.Request) {
 	out["economy"] = econ
 
 	// ---- tendencies + buy-koşullu tahmin tablosu ----
+	// Eğilimler pencere içinde CANLI hesaplanır (küme atamaları rounds'ta):
+	// prob = (gözlem + k·lig_payı)/(n + k), k=20 — ml-jobs formülünün SQL eşleniği.
 	out["tendencies"] = s.jsonQuery(ctx, `
+		WITH mine AS (
+		    SELECT CASE WHEN r.t_team_id = $1 THEN 'T' ELSE 'CT' END AS side,
+		           CASE WHEN r.t_team_id = $1 THEN r.t_strategy_cluster
+		                ELSE r.ct_strategy_cluster END AS cid
+		    FROM rounds r JOIN matches m ON m.match_id = r.match_id AND m.status='ready'
+		    WHERE m.map_name = $2 AND (r.t_team_id = $1 OR r.ct_team_id = $1)
+		      AND ($3 = '' OR m.played_at >= $3::timestamptz)
+		),
+		mine2 AS (SELECT side, cid FROM mine WHERE cid IS NOT NULL),
+		tot AS (SELECT side, count(*) AS n FROM mine2 GROUP BY side),
+		glob AS (
+		    SELECT y.side, y.cid,
+		           count(*)::float / sum(count(*)) OVER (PARTITION BY y.side) AS gshare
+		    FROM (
+		        SELECT 'T' AS side, r.t_strategy_cluster AS cid
+		        FROM rounds r JOIN matches m ON m.match_id = r.match_id AND m.status='ready'
+		        WHERE m.map_name = $2 AND r.t_strategy_cluster IS NOT NULL
+		          AND ($3 = '' OR m.played_at >= $3::timestamptz)
+		        UNION ALL
+		        SELECT 'CT', r.ct_strategy_cluster
+		        FROM rounds r JOIN matches m ON m.match_id = r.match_id AND m.status='ready'
+		        WHERE m.map_name = $2 AND r.ct_strategy_cluster IS NOT NULL
+		          AND ($3 = '' OR m.played_at >= $3::timestamptz)
+		    ) y GROUP BY y.side, y.cid
+		)
 		SELECT COALESCE(json_agg(x), '[]'::json) FROM (
-		    SELECT tt.side, tt.cluster_id, sc.label, sc.top_places,
-		           tt.observed, tt.sample_size, tt.shrunk_prob AS prob
-		    FROM team_tendencies tt
+		    SELECT g.side, g.cid AS cluster_id, sc.label, sc.top_places,
+		           COALESCE(c.cnt, 0) AS observed, t.n AS sample_size,
+		           (COALESCE(c.cnt, 0) + 20*g.gshare) / (t.n + 20) AS prob
+		    FROM glob g
+		    JOIN tot t ON t.side = g.side
+		    LEFT JOIN (SELECT side, cid, count(*) AS cnt FROM mine2 GROUP BY side, cid) c
+		           ON (c.side, c.cid) = (g.side, g.cid)
 		    LEFT JOIN strategy_clusters sc ON (sc.map_name, sc.side, sc.cluster_id)
-		         = (tt.map_name, tt.side, tt.cluster_id)
-		    WHERE tt.team_id = $1 AND tt.map_name = $2
-		    ORDER BY tt.side, tt.shrunk_prob DESC
-		) x`, teamID, mapName)
+		         = ($2, g.side, g.cid)
+		    ORDER BY g.side, 7 DESC
+		) x`, teamID, mapName, since)
 	out["conditional"] = s.jsonQuery(ctx, `
+		WITH mine AS (
+		    SELECT CASE WHEN r.t_team_id = $1 THEN 'T' ELSE 'CT' END AS side,
+		           CASE WHEN r.t_team_id = $1 THEN r.t_strategy_cluster
+		                ELSE r.ct_strategy_cluster END AS cid,
+		           CASE WHEN r.t_team_id = $1 THEN r.t_buy_type
+		                ELSE r.ct_buy_type END AS buy
+		    FROM rounds r JOIN matches m ON m.match_id = r.match_id AND m.status='ready'
+		    WHERE m.map_name = $2 AND (r.t_team_id = $1 OR r.ct_team_id = $1)
+		      AND ($3 = '' OR m.played_at >= $3::timestamptz)
+		),
+		mine2 AS (SELECT side, cid, buy FROM mine
+		          WHERE cid IS NOT NULL AND buy IS NOT NULL),
+		tot AS (SELECT side, buy, count(*) AS n FROM mine2 GROUP BY side, buy),
+		glob AS (
+		    SELECT y.side, y.cid,
+		           count(*)::float / sum(count(*)) OVER (PARTITION BY y.side) AS gshare
+		    FROM (
+		        SELECT 'T' AS side, r.t_strategy_cluster AS cid
+		        FROM rounds r JOIN matches m ON m.match_id = r.match_id AND m.status='ready'
+		        WHERE m.map_name = $2 AND r.t_strategy_cluster IS NOT NULL
+		          AND ($3 = '' OR m.played_at >= $3::timestamptz)
+		        UNION ALL
+		        SELECT 'CT', r.ct_strategy_cluster
+		        FROM rounds r JOIN matches m ON m.match_id = r.match_id AND m.status='ready'
+		        WHERE m.map_name = $2 AND r.ct_strategy_cluster IS NOT NULL
+		          AND ($3 = '' OR m.played_at >= $3::timestamptz)
+		    ) y GROUP BY y.side, y.cid
+		)
 		SELECT COALESCE(json_agg(x), '[]'::json) FROM (
-		    SELECT DISTINCT ON (tc.side, tc.buy_type)
-		           tc.side, tc.buy_type, tc.cluster_id, sc.label, sc.top_places,
-		           tc.prob, tc.sample_size
-		    FROM team_tendencies_cond tc
+		    SELECT DISTINCT ON (g.side, t.buy)
+		           g.side, t.buy AS buy_type, g.cid AS cluster_id,
+		           sc.label, sc.top_places,
+		           (COALESCE(c.cnt, 0) + 10*g.gshare) / (t.n + 10) AS prob,
+		           t.n AS sample_size
+		    FROM glob g
+		    JOIN tot t ON t.side = g.side
+		    LEFT JOIN (SELECT side, buy, cid, count(*) AS cnt
+		               FROM mine2 GROUP BY side, buy, cid) c
+		           ON (c.side, c.buy, c.cid) = (g.side, t.buy, g.cid)
 		    LEFT JOIN strategy_clusters sc ON (sc.map_name, sc.side, sc.cluster_id)
-		         = (tc.map_name, tc.side, tc.cluster_id)
-		    WHERE tc.team_id = $1 AND tc.map_name = $2
-		    ORDER BY tc.side, tc.buy_type, tc.prob DESC
-		) x`, teamID, mapName)
+		         = ($2, g.side, g.cid)
+		    ORDER BY g.side, t.buy, 6 DESC
+		) x`, teamID, mapName, since)
 
 	// ---- setups / utility / players (ml-jobs tabloları) ----
 	out["setups"] = s.jsonQuery(ctx, `
@@ -197,7 +261,7 @@ func (s *server) report(w http.ResponseWriter, r *http.Request) {
 		           share, avg_hold_sec, representatives
 		    FROM team_setups WHERE team_id = $1 AND map_name = $2
 		    ORDER BY side, t_offset, share DESC
-		) x`, teamID, mapName)
+		) x`, teamID, mapName, since)
 	// Flash→kill senkronu: kör kurbana atılan kill payı + flash-kill arası
 	// medyan süre + "iyi flash dönüşümü" (düşman körleyen flash'ın 4 sn içinde
 	// takım kill'ine dönüşme oranı)
@@ -209,7 +273,7 @@ func (s *server) report(w http.ResponseWriter, r *http.Request) {
 		    JOIN matches m ON m.match_id = k.match_id AND m.status = 'ready'
 		    JOIN player_round_states s ON (s.match_id, s.round_number, s.player_id)
 		         = (k.match_id, k.round_number, k.attacker_id)
-		    WHERE m.map_name = $2
+		    WHERE m.map_name = $2 AND ($3 = '' OR m.played_at >= $3::timestamptz)
 		      AND ((s.side = 'T' AND r.t_team_id = $1) OR (s.side = 'CT' AND r.ct_team_id = $1))
 		),
 		gaps AS (
@@ -236,7 +300,7 @@ func (s *server) report(w http.ResponseWriter, r *http.Request) {
 		    FROM grenades g
 		    JOIN rounds r USING (match_id, round_number)
 		    JOIN matches m ON m.match_id = g.match_id AND m.status = 'ready'
-		    WHERE m.map_name = $2 AND g.type = 'flash'
+		    WHERE m.map_name = $2 AND ($3 = '' OR m.played_at >= $3::timestamptz) AND g.type = 'flash'
 		      AND ((g.side = 'T' AND r.t_team_id = $1) OR (g.side = 'CT' AND r.ct_team_id = $1))
 		    GROUP BY g.side
 		)
@@ -249,7 +313,7 @@ func (s *server) report(w http.ResponseWriter, r *http.Request) {
 		           (SELECT good FROM fl WHERE fl.side = t.side) AS good_flashes,
 		           (SELECT converted FROM fl WHERE fl.side = t.side) AS converted
 		    FROM tk t GROUP BY t.side ORDER BY t.side DESC
-		) x`, teamID, mapName)
+		) x`, teamID, mapName, since)
 
 	// Trade ikilileri: kim kimin ölümünü trade ediyor (5 sn penceresi)
 	out["trade_pairs"] = s.jsonQuery(ctx, `
@@ -269,12 +333,12 @@ func (s *server) report(w http.ResponseWriter, r *http.Request) {
 		    ) prev
 		    JOIN players pt ON pt.player_id = k2.attacker_id
 		    JOIN players pv ON pv.player_id = prev.victim_id
-		    WHERE k2.is_trade AND m.map_name = $2
+		    WHERE k2.is_trade AND m.map_name = $2 AND ($3 = '' OR m.played_at >= $3::timestamptz)
 		      AND ((s2.side = 'T' AND r.t_team_id = $1) OR (s2.side = 'CT' AND r.ct_team_id = $1))
 		    GROUP BY pt.nickname, pv.nickname
 		    HAVING count(*) >= 2
 		    LIMIT 10
-		) x`, teamID, mapName)
+		) x`, teamID, mapName, since)
 
 	out["rotations"] = s.jsonQuery(ctx, `
 		SELECT COALESCE(json_agg(x), '[]'::json) FROM (
@@ -282,14 +346,14 @@ func (s *server) report(w http.ResponseWriter, r *http.Request) {
 		           med_delay_sec, dest_mix
 		    FROM setup_rotations WHERE team_id = $1 AND map_name = $2
 		    ORDER BY side, pattern_id, rotate_rate DESC
-		) x`, teamID, mapName)
+		) x`, teamID, mapName, since)
 	out["utility"] = s.jsonQuery(ctx, `
 		SELECT COALESCE(json_agg(x), '[]'::json) FROM (
 		    SELECT side, type, cluster_id, label, det_rx, det_ry, throw_rx, throw_ry,
 		           count, share, t_avg, t_std, strat_mix, representatives
 		    FROM utility_spots WHERE team_id = $1 AND map_name = $2
 		    ORDER BY side, type, count DESC
-		) x`, teamID, mapName)
+		) x`, teamID, mapName, since)
 	// Atılan rauntlar: takımın zirvede ≥%75 olasılığa ulaşıp kaybettiği
 	// rauntlar (throw tespiti; her satır replay'e link olur)
 	out["thrown"] = s.jsonQuery(ctx, `
@@ -300,11 +364,11 @@ func (s *server) report(w http.ResponseWriter, r *http.Request) {
 		    FROM round_winprob w
 		    JOIN rounds r USING (match_id, round_number)
 		    JOIN matches m ON m.match_id = r.match_id AND m.status = 'ready'
-		    WHERE m.map_name = $2 AND (r.t_team_id = $1 OR r.ct_team_id = $1)
+		    WHERE m.map_name = $2 AND ($3 = '' OR m.played_at >= $3::timestamptz) AND (r.t_team_id = $1 OR r.ct_team_id = $1)
 		      AND ((r.winner_side = 'T') <> (r.t_team_id = $1))
 		      AND (CASE WHEN r.t_team_id = $1 THEN w.max_t_prob ELSE w.max_ct_prob END) >= 0.75
 		    LIMIT 15
-		) x`, teamID, mapName)
+		) x`, teamID, mapName, since)
 
 	out["players"] = s.jsonQuery(ctx, `
 		SELECT COALESCE(json_agg(x), '[]'::json) FROM (
@@ -318,6 +382,10 @@ func (s *server) report(w http.ResponseWriter, r *http.Request) {
 		    ORDER BY p.nickname, pr.side
 		) x`, teamID)
 
+	if since != "" {
+		out["window_since"] = since
+		out["archive_wide"] = []string{"setups", "utility", "rotations", "players"}
+	}
 	writeJSON(w, 200, out)
 }
 
@@ -330,6 +398,7 @@ func (s *server) teamSummary(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	ctx := r.Context()
+	since := r.URL.Query().Get("since")
 	var teamName string
 	if err := s.pg.QueryRow(ctx,
 		"SELECT name FROM teams WHERE team_id = $1", teamID).Scan(&teamName); err != nil {
@@ -345,7 +414,7 @@ func (s *server) teamSummary(w http.ResponseWriter, r *http.Request) {
 		           CASE WHEN r.t_team_id = $1 THEN 'T' ELSE 'CT' END AS side,
 		           (r.winner_side = 'T') = (r.t_team_id = $1) AS won
 		    FROM rounds r JOIN matches m ON m.match_id = r.match_id AND m.status = 'ready'
-		    WHERE (r.t_team_id = $1 OR r.ct_team_id = $1) AND r.winner_side IS NOT NULL
+		    WHERE (r.t_team_id = $1 OR r.ct_team_id = $1) AND r.winner_side IS NOT NULL AND ($2 = '' OR m.played_at >= $2::timestamptz)
 		),
 		per AS (
 		    SELECT match_id, count(*) FILTER (WHERE won) AS w, count(*) AS n
@@ -359,7 +428,7 @@ func (s *server) teamSummary(w http.ResponseWriter, r *http.Request) {
 		       count(*) FILTER (WHERE side='CT' AND won),
 		       count(*) FILTER (WHERE round_number IN (1,13)),
 		       count(*) FILTER (WHERE round_number IN (1,13) AND won)
-		FROM tr`, teamID).Scan(&matches, &wins, &tR, &tW, &ctR, &ctW, &pisN, &pisW)
+		FROM tr`, teamID, since).Scan(&matches, &wins, &tR, &tW, &ctR, &ctW, &pisN, &pisW)
 	if err != nil {
 		writeErr(w, 500, err)
 		return
@@ -383,9 +452,9 @@ func (s *server) teamSummary(w http.ResponseWriter, r *http.Request) {
 		               > count(*) / 2.0 AS won
 		        FROM rounds r2 WHERE r2.match_id = r.match_id AND r2.winner_side IS NOT NULL
 		    ) mw ON TRUE
-		    WHERE (r.t_team_id = $1 OR r.ct_team_id = $1) AND r.winner_side IS NOT NULL
+		    WHERE (r.t_team_id = $1 OR r.ct_team_id = $1) AND r.winner_side IS NOT NULL AND ($2 = '' OR m.played_at >= $2::timestamptz)
 		    GROUP BY m.map_name
-		) x`, teamID)
+		) x`, teamID, since)
 	writeJSON(w, 200, out)
 }
 

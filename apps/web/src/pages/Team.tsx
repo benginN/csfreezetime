@@ -1,15 +1,17 @@
 import { Link, useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
+import { useWindow, WindowPicker } from '../lib/window';
 import { api } from '../api';
 import { teamHue, teamInitials } from '../lib/rounds';
 
 // Takım anasayfası: genel karne + harita karneleri (rapora link) + geçmiş maçlar.
 export default function Team() {
   const { teamId = '' } = useParams();
+  const [win, since, setWin] = useWindow();
 
   const summary = useQuery({
-    queryKey: ['teamSummary', teamId],
-    queryFn: () => api.teamSummary(teamId),
+    queryKey: ['teamSummary', teamId, since],
+    queryFn: () => api.teamSummary(teamId, since),
   });
   const name = summary.data?.team ?? '';
   const matches = useQuery({
@@ -37,6 +39,7 @@ export default function Team() {
           ⚔ Compare with…
         </Link>
       </h1>
+      <div className="toolbar noprint"><WindowPicker win={win} onChange={setWin} /></div>
 
       <div className="grid cards statgrid">
         <Stat label="Record" v={`${ov.wins}–${ov.matches - ov.wins}`} n={`${ov.matches} matches`} />

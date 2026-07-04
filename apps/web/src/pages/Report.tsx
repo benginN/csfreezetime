@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useWindow, WindowPicker } from '../lib/window';
 import { api, type ReportResp } from '../api';
 import { drawMapBase, hidpiCtx, loadMapBase, RADAR, type MapBase } from '../lib/mapbase';
 import { paintHeat } from '../lib/heatpaint';
@@ -34,9 +35,10 @@ export default function Report() {
   }, [teamMatches, teamName.data]);
 
   const mapName = params.get('map') || maps[0] || '';
+  const [win, since, setWin] = useWindow();
   const rep = useQuery({
-    queryKey: ['report', teamId, mapName],
-    queryFn: () => api.report(teamId, mapName),
+    queryKey: ['report', teamId, mapName, since],
+    queryFn: () => api.report(teamId, mapName, since),
     enabled: !!mapName,
   });
 
@@ -50,10 +52,15 @@ export default function Report() {
       <div className="toolbar noprint">
         <select
           value={mapName}
-          onChange={(e) => setParams({ map: e.target.value }, { replace: true })}
+          onChange={(e) => {
+            const p = new URLSearchParams(params);
+            p.set('map', e.target.value);
+            setParams(p, { replace: true });
+          }}
         >
           {maps.map((m) => <option key={m}>{m}</option>)}
         </select>
+        <WindowPicker win={win} onChange={setWin} />
         <button onClick={() => window.print()}>🖨 Print</button>
         {d.insufficient && (
           <span className="error">small sample — treat every number with caution</span>
@@ -61,7 +68,7 @@ export default function Report() {
       </div>
 
       <h1>
-        Opponent report: {d.team} <span className="meta">on {d.map} · {ov.matches} matches in archive</span>
+        Opponent report: {d.team} <span className="meta">on {d.map} · {ov.matches} matches{d.window_since ? ` since ${d.window_since}` : ' in archive'}</span>
       </h1>
 
       {/* 1 — Overview */}
@@ -125,7 +132,7 @@ export default function Report() {
       )}
 
       {/* 4 — Setups */}
-      <h2>Default setups <span className="meta">(positions 15 s into the round)</span></h2>
+      <h2>Default setups <span className="meta">(positions 15 s into the round)</span>{d.archive_wide && <span className="meta"> · full archive (window n/a)</span>}</h2>
       <div className="grid cards">
         {(['CT', 'T'] as const).map((side) => (
           <SetupCard key={side} d={d} side={side} mapName={mapName} />
@@ -133,7 +140,7 @@ export default function Report() {
       </div>
 
       {/* 5 — Utility */}
-      <h2>Utility habits</h2>
+      <h2>Utility habits {d.archive_wide && <span className="meta"> · full archive (window n/a)</span>}</h2>
       <UtilitySection d={d} mapName={mapName} />
       <div className="grid cards two" style={{ marginTop: 12 }}>
         <div className="card">
@@ -172,7 +179,7 @@ export default function Report() {
       </div>
 
       {/* 6 — Positioning heatmaps */}
-      <h2>Positioning <span className="meta">(all archived rounds)</span></h2>
+      <h2>Positioning <span className="meta">({d.window_since ? `rounds since ${d.window_since}` : 'all archived rounds'})</span></h2>
       <div className="grid cards heatgrid">
         {(['T', 'CT'] as const).map((side) => (
           [{ t0: 0, t1: 25, tag: 'first 25 s' }, { t0: 25, t1: 115, tag: 'after 25 s' }].map((wnd) => (
@@ -205,7 +212,7 @@ export default function Report() {
       )}
 
       {/* 7 — Players */}
-      <h2>Players</h2>
+      <h2>Players {d.archive_wide && <span className="meta"> · full archive (window n/a)</span>}</h2>
       <table>
         <thead>
           <tr>
@@ -278,7 +285,7 @@ function NamableBar({
   async function save() {
     await api.renameCluster(mapName, side, t.cluster_id, draft.trim());
     setEditing(false);
-    qc.invalidateQueries({ queryKey: ['report', teamId, mapName] });
+    qc.invalidateQueries({ queryKey: ['report', teamId, mapName] }); // tüm pencereler
   }
 
   if (editing) {
@@ -518,10 +525,11 @@ function TeamHeat({
   const cvRef = useRef<HTMLCanvasElement>(null);
   const [base, setBase] = useState<MapBase | null>(null);
   useEffect(() => { loadMapBase(mapName).then(setBase); }, [mapName]);
+  const [, since] = useWindow();
   const heat = useQuery({
-    queryKey: ['teamHeat', teamId, mapName, side, t0, t1],
+    queryKey: ['teamHeat', teamId, mapName, side, t0, t1, since],
     queryFn: () => api.teamHeatmap(teamId, new URLSearchParams({
-      map: mapName, side, t0: String(t0), t1: String(t1),
+      map: mapName, side, t0: String(t0), t1: String(t1), since,
     })),
   });
   useEffect(() => {

@@ -185,6 +185,10 @@ func (s *server) matches(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		cond, args = "(m.team_a_id = $1 OR m.team_b_id = $1)", []any{tid}
+		if since := r.URL.Query().Get("since"); since != "" {
+			cond += " AND m.played_at >= $2::timestamptz"
+			args = append(args, since)
+		}
 	}
 	rows, err := s.pg.Query(r.Context(), `
 		SELECT m.match_id, m.map_name, m.status, m.event_name,

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
+import { useWindow, WindowPicker } from '../lib/window';
 import { api, type ReportResp } from '../api';
 import { drawMapBase, hidpiCtx, loadMapBase, RADAR, type MapBase } from '../lib/mapbase';
 import { paintHeat } from '../lib/heatpaint';
@@ -17,12 +18,13 @@ export default function Compare() {
   const b = params.get('b') ?? '';
   const teams = useQuery({ queryKey: ['teams'], queryFn: () => api.teams() });
   const list = (teams.data ?? []).filter((t) => t.matches > 0);
+  const [win, since, setWin] = useWindow();
 
   const sumA = useQuery({
-    queryKey: ['teamSummary', a], queryFn: () => api.teamSummary(a), enabled: !!a,
+    queryKey: ['teamSummary', a, since], queryFn: () => api.teamSummary(a, since), enabled: !!a,
   });
   const sumB = useQuery({
-    queryKey: ['teamSummary', b], queryFn: () => api.teamSummary(b), enabled: !!b,
+    queryKey: ['teamSummary', b, since], queryFn: () => api.teamSummary(b, since), enabled: !!b,
   });
   // harita listesi: iki takımın da oynadıkları önce, tek taraflılar işaretli
   const maps = useMemo(() => {
@@ -35,11 +37,11 @@ export default function Compare() {
   const mapName = params.get('map') || maps.both[0] || maps.only[0] || '';
 
   const repA = useQuery({
-    queryKey: ['report', a, mapName], queryFn: () => api.report(a, mapName),
+    queryKey: ['report', a, mapName, since], queryFn: () => api.report(a, mapName, since),
     enabled: !!a && !!mapName,
   });
   const repB = useQuery({
-    queryKey: ['report', b, mapName], queryFn: () => api.report(b, mapName),
+    queryKey: ['report', b, mapName, since], queryFn: () => api.report(b, mapName, since),
     enabled: !!b && !!mapName,
   });
 
@@ -53,6 +55,7 @@ export default function Compare() {
     <>
       <h1>Team comparison</h1>
       <div className="toolbar">
+        <WindowPicker win={win} onChange={setWin} />
         <TeamPick label="Team A" value={a} list={list} onPick={(v) => set('a', v)} />
         <span className="meta">vs</span>
         <TeamPick label="Team B" value={b} list={list} onPick={(v) => set('b', v)} />
@@ -459,10 +462,11 @@ function HeatMini({
   const cvRef = useRef<HTMLCanvasElement>(null);
   const [base, setBase] = useState<MapBase | null>(null);
   useEffect(() => { loadMapBase(mapName).then(setBase); }, [mapName]);
+  const [, since] = useWindow();
   const heat = useQuery({
-    queryKey: ['teamHeat', teamId, mapName, side, t0, t1],
+    queryKey: ['teamHeat', teamId, mapName, side, t0, t1, since],
     queryFn: () => api.teamHeatmap(teamId, new URLSearchParams({
-      map: mapName, side, t0: String(t0), t1: String(t1),
+      map: mapName, side, t0: String(t0), t1: String(t1), since,
     })),
   });
   useEffect(() => {
