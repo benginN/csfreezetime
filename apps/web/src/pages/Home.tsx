@@ -35,7 +35,7 @@ export default function Home() {
       <div className="meta" style={{ margin: '4px 0 12px' }}>
         {res.isLoading ? 'searching…'
           : q ? `${matches.length} matches · “${q}”`
-          : `most recent ${matches.length} matches — search to reach the rest`}
+          : 'most recent 100 matches — search to reach the rest'}
       </div>
 
       {matches.map((m) => (
@@ -73,15 +73,8 @@ function TeamStrip() {
     .sort((a, b) => a.name.localeCompare(b.name));
   if (!list.length) return null;
   return (
-    <div style={{ position: 'relative' }}>
-      <button
-        className="ghost stripToggle"
-        title={open ? 'collapse' : 'show all teams'}
-        onClick={() => setOpen(!open)}
-      >
-        {open ? '▴' : `▾ ${list.length}`}
-      </button>
-    <div className={`teamstrip ${open ? '' : 'onerow'}`}>
+    <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start', margin: '4px 0 18px' }}>
+    <div className={`teamstrip ${open ? '' : 'onerow'}`} style={{ flex: 1, margin: 0 }}>
       {list.map((t) => (
         <Link key={t.team_id} to={`/team/${t.team_id}`} className="teamcard">
           <span className="monogram" style={{ background: `hsl(${teamHue(t.name)},45%,32%)` }}>
@@ -94,6 +87,14 @@ function TeamStrip() {
         </Link>
       ))}
     </div>
+      <button
+        className="ghost"
+        style={{ flex: '0 0 auto', height: 46, whiteSpace: 'nowrap' }}
+        title={open ? 'collapse' : 'show all teams'}
+        onClick={() => setOpen(!open)}
+      >
+        {open ? '▴ less' : `▾ all ${list.length}`}
+      </button>
     </div>
   );
 }
