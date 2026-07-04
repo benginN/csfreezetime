@@ -151,8 +151,12 @@ export default function Upload() {
         )}
       </div>
 
-      <BackfillPanel />
-      <CoveragePanel />
+      {localStorage.getItem('tm_admin') && (
+        <>
+          <BackfillPanel />
+          <CoveragePanel />
+        </>
+      )}
 
       <p className="meta">
         Note: strategy clusters and tendencies for a new demo are refreshed the
@@ -174,7 +178,7 @@ function BackfillPanel() {
   const timerRef = useRef<number | null>(null);
 
   async function refresh() {
-    const r = await fetch('/api/v1/backfill/status');
+    const r = await fetch('/api/v1/backfill/status', { headers: adminHeaders() });
     const j = await r.json();
     setStatus(j);
     if (!j.running && timerRef.current) {
@@ -185,7 +189,7 @@ function BackfillPanel() {
   useEffect(() => { refresh(); }, []);
 
   async function scan() {
-    const r = await fetch('/api/v1/backfill/scan', { method: 'POST' });
+    const r = await fetch('/api/v1/backfill/scan', { method: 'POST', headers: adminHeaders() });
     await r.json();
     await refresh();
     if (!timerRef.current) timerRef.current = window.setInterval(refresh, 2000);
@@ -231,7 +235,7 @@ function CoveragePanel() {
     tournaments: { tournament: string; matches: number; latest: string }[];
   } | null>(null);
   useEffect(() => {
-    fetch('/api/v1/coverage').then((r) => r.json()).then(setD).catch(() => {});
+    fetch('/api/v1/coverage', { headers: adminHeaders() }).then((r) => r.json()).then(setD).catch(() => {});
   }, []);
   if (!d?.totals) return null;
   return (
@@ -284,4 +288,10 @@ function CoveragePanel() {
       </div>
     </div>
   );
+}
+
+
+function adminHeaders(): Record<string, string> {
+  const t = localStorage.getItem('tm_admin');
+  return t ? { 'X-Admin-Token': t } : {};
 }

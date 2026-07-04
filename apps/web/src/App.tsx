@@ -14,12 +14,22 @@ import Playlists from './pages/Playlists';
 import MyDb from './pages/MyDb';
 import LocalReportPage from './pages/LocalReport';
 
+// ?admin=TOKEN ile bir kez tanıtılır; sonrasında admin panelleri görünür
+// ve istekler X-Admin-Token başlığı taşır.
+const adminParam = new URLSearchParams(window.location.search).get('admin');
+if (adminParam) {
+  localStorage.setItem('tm_admin', adminParam);
+  const u = new URL(window.location.href);
+  u.searchParams.delete('admin');
+  window.history.replaceState(null, '', u.toString());
+}
+
 export default function App() {
   return (
     <>
       <nav>
         <span className="brand" style={{ cursor: 'pointer' }} onClick={() => (window.location.href = '/')}>
-          TacticalMind
+          Freezetime
         </span>
         <SearchBar />
         <a href="/moments" style={{ whiteSpace: 'nowrap' }}>🔎 Moments</a>

@@ -9,7 +9,7 @@ import {
 
 // Create your own database: kullanıcı bilgisayarında bir demo klasörü tutar
 // (eski test-data gibi), burada o klasörü seçer. İşlenmemiş .dem'ler sunucuya
-// tek tek UĞRAR (private statü), sonuç paketi klasöre `.tacticalmind/` altına
+// tek tek UĞRAR (private statü), sonuç paketi klasöre `.freezetime/` altına
 // yazılır ve sunucu kopyası ANINDA silinir — sunucuda kalıcı hiçbir şey
 // durmaz. Paketli klasör taşınabilirdir: başka makinede seçilince upload'sız
 // saniyeler içinde içeri alınır. (Nihai hedef: WASM parser ile sunucuya hiç
@@ -27,7 +27,7 @@ type DirHandle = {
   requestPermission(o: { mode: string }): Promise<string>;
 };
 
-const BUNDLE_DIR = '.tacticalmind';
+const BUNDLE_DIR = '.freezetime';
 
 async function gzipJson(obj: unknown): Promise<Blob> {
   const stream = new Blob([JSON.stringify(obj)])

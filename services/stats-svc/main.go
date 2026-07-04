@@ -102,11 +102,11 @@ func main() {
 	r.Post("/api/v1/query", srv.query)
 	r.Post("/api/v1/stack", srv.stack)
 	r.Post("/api/v1/upload", srv.upload)
-	r.Post("/api/v1/backfill/scan", srv.backfillScan)
-	r.Post("/api/v1/reprocess", srv.reprocess)
+	r.Post("/api/v1/backfill/scan", adminOnly(srv.backfillScan))
+	r.Post("/api/v1/reprocess", adminOnly(srv.reprocess))
 	r.Delete("/api/v1/private/{id}", srv.privateDelete)
-	r.Get("/api/v1/backfill/status", srv.backfillStatus)
-	r.Get("/api/v1/coverage", srv.coverage)
+	r.Get("/api/v1/backfill/status", adminOnly(srv.backfillStatus))
+	r.Get("/api/v1/coverage", adminOnly(srv.coverage))
 	r.Get("/api/v1/matches/{id}/status", srv.matchStatus)
 	r.Get("/api/v1/matches/{id}/players", srv.matchPlayers)
 	r.Get("/api/v1/matches/{id}/heatmap", srv.matchHeatmap)
@@ -164,6 +164,20 @@ type server struct {
 	ch     chdriver.Conn
 	engine *dsl.Engine
 	up     *uploader
+}
+
+// adminOnly: sunucu verisini değiştirebilen/istihbarat sızdırabilen uçlar
+// (backfill, reprocess, coverage) yalnız ADMIN_TOKEN sahibine açıktır.
+// Token env'de tanımlı değilse (yerel geliştirme) kapı açık kalır.
+func adminOnly(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		want := os.Getenv("ADMIN_TOKEN")
+		if want != "" && r.Header.Get("X-Admin-Token") != want {
+			writeErr(w, 403, fmt.Errorf("admin token required"))
+			return
+		}
+		next(w, r)
+	}
 }
 
 func writeJSON(w http.ResponseWriter, status int, v any) {

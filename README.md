@@ -1,4 +1,4 @@
-# TacticalMind — CS2 Analiz Platformu
+# Freezetime — CS2 Analiz Platformu
 
 Profesyonel CS2 takımları için demo analiz platformu: demolar bir kez derinlemesine
 işlenir, koçun tüm sorguları önceden hesaplanmış tablolara düşer
