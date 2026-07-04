@@ -46,6 +46,7 @@ export default function MyDb() {
   const [phase, setPhase] = useState('');
   const [err, setErr] = useState('');
   const dirRef = useRef<DirHandle | null>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
   const stopRef = useRef(false);
   const fsSupported = 'showDirectoryPicker' in window;
 
@@ -141,7 +142,7 @@ export default function MyDb() {
     setPhase('');
   }
 
-  async function processDem(dir: DirHandle, fh: FileHandle) {
+  async function processDem(dir: DirHandle | null, fh: FileHandle) {
     const file = await fh.getFile();
     setPhase('uploading');
     const form = new FormData();
@@ -178,12 +179,14 @@ export default function MyDb() {
     });
 
     // paketi klasöre yaz (taşınabilirlik + yeniden kurulum upload'sız)
+    if (dir) {
     setPhase('writing bundle');
     const bd = await dir.getDirectoryHandle(BUNDLE_DIR, { create: true });
     const out = await bd.getFileHandle(fh.name.replace(/\.dem$/i, '') + '.json.gz', { create: true });
     const w = await out.createWritable();
     await w.write(await gzipJson({ match_id: id, detail, players, rounds: roundsData }));
     await w.close();
+    }
 
     // sunucudaki izi sil
     if (!publicCopy) {
@@ -218,10 +221,27 @@ export default function MyDb() {
             {queue && <button className="ghost" onClick={() => { stopRef.current = true; }}>⏹ stop (resumes later)</button>}
           </>
         ) : (
-          <span className="meta">
-            Folder mode needs Chrome or Edge (File System Access API). You can
-            still add single demos below.
-          </span>
+          <>
+            <span className="meta">
+              Folder mode needs Chrome or Edge (File System Access API) —
+              single-demo mode:
+            </span>
+            <input
+              ref={fileRef} type="file" accept=".dem" style={{ display: 'none' }}
+              onChange={async (e) => {
+                const file = e.target.files?.[0];
+                if (!file) return;
+                setErr('');
+                setQueue({ total: 1, done: 0, current: file.name });
+                try {
+                  await processDem(null, { name: file.name, getFile: async () => file });
+                  await refresh();
+                } catch (e2) { setErr(String(e2)); }
+                setQueue(null); setPhase('');
+              }}
+            />
+            <button disabled={!!queue} onClick={() => fileRef.current?.click()}>⬆ add a demo</button>
+          </>
         )}
       </div>
 
