@@ -22,7 +22,9 @@ func (s *server) matchPlayers(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	rows, err := s.pg.Query(r.Context(), `
-		SELECT p.player_id, p.nickname
+		SELECT p.player_id, p.nickname,
+		       COALESCE(array_agg(s.round_number) FILTER (WHERE s.side = 'T'),  '{}') AS t_rounds,
+		       COALESCE(array_agg(s.round_number) FILTER (WHERE s.side = 'CT'), '{}') AS ct_rounds
 		FROM player_round_states s JOIN players p ON p.player_id = s.player_id
 		WHERE s.match_id = $1
 		GROUP BY p.player_id, p.nickname ORDER BY p.nickname`, matchID)
@@ -32,13 +34,15 @@ func (s *server) matchPlayers(w http.ResponseWriter, r *http.Request) {
 	}
 	defer rows.Close()
 	type hit struct {
-		ID   uuid.UUID `json:"player_id"`
-		Nick string    `json:"nickname"`
+		ID       uuid.UUID `json:"player_id"`
+		Nick     string    `json:"nickname"`
+		TRounds  []int16   `json:"t_rounds"`
+		CTRounds []int16   `json:"ct_rounds"`
 	}
 	out := []hit{}
 	for rows.Next() {
 		var h hit
-		if rows.Scan(&h.ID, &h.Nick) == nil {
+		if rows.Scan(&h.ID, &h.Nick, &h.TRounds, &h.CTRounds) == nil {
 			out = append(out, h)
 		}
 	}

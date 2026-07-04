@@ -249,6 +249,13 @@ export default function ReplayView({
   const roundNotes = (notesQ.data?.notes ?? []).filter((n) => n.round_number === round);
   const ghostKey = useMemo(() => [...ghostRounds].sort((a, b) => a - b).join(','), [ghostRounds]);
   const heatKey = useMemo(() => [...heatRounds].sort((a, b) => a - b).join(','), [heatRounds]);
+  useEffect(() => {
+    if (!heatPlayer || heatSide === 'both') return;
+    const p = (players.data ?? []).find((x) => x.player_id === heatPlayer);
+    if (!p) return;
+    const rs = heatSide === 'T' ? p.t_rounds : p.ct_rounds;
+    if (!rs.some((r) => heatRounds.has(r))) setHeatPlayer('');
+  }, [heatSide, heatKey, players.data]); // eslint-disable-line react-hooks/exhaustive-deps
   const heatQ = useQuery({
     queryKey: ['mergedHeat', matchId, heatSide, heatPlayer, heatKey],
     enabled: heatOn && heatRounds.size > 0,
@@ -1246,9 +1253,17 @@ export default function ReplayView({
                 <label>player</label>
                 <select value={heatPlayer} onChange={(e) => setHeatPlayer(e.target.value)}>
                   <option value="">all</option>
-                  {(players.data ?? []).map((p) => (
-                    <option key={p.player_id} value={p.player_id}>{p.nickname}</option>
-                  ))}
+                  {(players.data ?? [])
+                    .filter((p) => {
+                      // taraf seçiliyse: seçili rauntlardan en az birinde o tarafta
+                      // oynamış olanlar (taraf değişimi rauntlara göre hesaplanır)
+                      if (heatSide === 'both') return true;
+                      const rs = heatSide === 'T' ? p.t_rounds : p.ct_rounds;
+                      return rs.some((r) => heatRounds.has(r));
+                    })
+                    .map((p) => (
+                      <option key={p.player_id} value={p.player_id}>{p.nickname}</option>
+                    ))}
                 </select>
               </div>
               <div className="roundchips">

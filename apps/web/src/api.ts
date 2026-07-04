@@ -451,7 +451,8 @@ export const api = {
     get<MatchSummary[]>('/api/v1/matches' + (teamId ? `?team_id=${teamId}&since=${since}&roster_min=${roster}` : '')),
   matchDetail: (id: string) => get<MatchDetail>(`/api/v1/matches/${id}`),
   matchPlayers: (id: string) =>
-    get<{ player_id: string; nickname: string }[]>(`/api/v1/matches/${id}/players`),
+    get<{ player_id: string; nickname: string; t_rounds: number[]; ct_rounds: number[] }[]>(
+      `/api/v1/matches/${id}/players`),
   matchHeatmap: (id: string, p: URLSearchParams) =>
     get<MatchHeatmap>(`/api/v1/matches/${id}/heatmap?` + p),
   teamHeatmap: (id: string, p: URLSearchParams) =>
