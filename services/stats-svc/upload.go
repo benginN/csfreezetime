@@ -174,6 +174,7 @@ func (s *server) ingestLocalDemo(
 	if err := s.up.nc.Publish("demo.ingested", payload); err != nil {
 		return nil, 500, fmt.Errorf("failed to enqueue: %w", err)
 	}
+	markIngest()
 	return map[string]any{
 		"match_id": matchID, "demo_sha256": sha,
 		"status": "queued", "size_bytes": size,

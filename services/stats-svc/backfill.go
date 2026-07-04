@@ -8,6 +8,7 @@ package main
 import (
 	"archive/zip"
 	"compress/gzip"
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
@@ -15,6 +16,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -36,6 +38,65 @@ type backfillState struct {
 }
 
 var bfState backfillState
+
+// ml-jobs otomasyonu: son ingest'ten sonra parse kuyruğu boşalıp ortalık
+// durulunca (settle) istatistik işleri kendiliğinden koşar — "her akşam
+// klasöre at" akışında insan halkası kalmaz. ML_AUTO=0 ile kapatılır.
+var (
+	mlMu       sync.Mutex
+	lastIngest time.Time
+	lastMLRun  time.Time
+)
+
+func markIngest() {
+	mlMu.Lock()
+	lastIngest = time.Now()
+	mlMu.Unlock()
+}
+
+func (s *server) mlAutoRun() {
+	if os.Getenv("ML_AUTO") == "0" {
+		return
+	}
+	dir := envOr("ML_JOBS_DIR", "services/ml")
+	for {
+		time.Sleep(60 * time.Second)
+		mlMu.Lock()
+		due := !lastIngest.IsZero() && lastIngest.After(lastMLRun) &&
+			time.Since(lastIngest) > 2*time.Minute
+		mlMu.Unlock()
+		if !due {
+			continue
+		}
+		// parse kuyruğu hâlâ çalışıyorsa bekle
+		var pending int
+		if err := s.pg.QueryRow(context.Background(),
+			"SELECT count(*) FROM matches WHERE status NOT IN ('ready','failed')").
+			Scan(&pending); err != nil || pending > 0 {
+			continue
+		}
+		log.Printf("ml-auto: istatistik işleri başlıyor (son ingest %.0f sn önce)",
+			time.Since(lastIngest).Seconds())
+		cmd := exec.Command("uv", "run", "--no-editable", "ml-jobs")
+		cmd.Dir = dir
+		out, err := cmd.CombinedOutput()
+		if err != nil {
+			log.Printf("ml-auto HATA: %v\n%s", err, tailStr(string(out), 800))
+		} else {
+			log.Printf("ml-auto tamam:\n%s", tailStr(string(out), 400))
+		}
+		mlMu.Lock()
+		lastMLRun = time.Now()
+		mlMu.Unlock()
+	}
+}
+
+func tailStr(s string, n int) string {
+	if len(s) <= n {
+		return s
+	}
+	return "…" + s[len(s)-n:]
+}
 
 func backfillDir() string { return envOr("BACKFILL_DIR", "backfill") }
 

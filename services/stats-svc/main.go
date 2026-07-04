@@ -147,6 +147,7 @@ func main() {
 	}
 
 	go srv.backfillWatch() // backfill klasörünü otomatik işle
+	go srv.mlAutoRun()     // kuyruk durulunca istatistikleri tazele
 
 	addr := envOr("STATS_ADDR", ":8090")
 	log.Printf("stats-svc hazır: http://localhost%s", addr)
