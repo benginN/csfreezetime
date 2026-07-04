@@ -4,7 +4,7 @@
 import type { MatchDetail, RoundTicks } from '../api';
 
 const DB = 'tm-local';
-const VER = 1;
+const VER = 2;
 
 export interface LocalMatchMeta {
   match_id: string;
@@ -19,8 +19,10 @@ function open(): Promise<IDBDatabase> {
   return new Promise((res, rej) => {
     const rq = indexedDB.open(DB, VER);
     rq.onupgradeneeded = () => {
-      rq.result.createObjectStore('matches', { keyPath: 'match_id' });
-      rq.result.createObjectStore('rounds');
+      const db = rq.result;
+      if (!db.objectStoreNames.contains('matches')) db.createObjectStore('matches', { keyPath: 'match_id' });
+      if (!db.objectStoreNames.contains('rounds')) db.createObjectStore('rounds');
+      if (!db.objectStoreNames.contains('misc')) db.createObjectStore('misc'); // klasör tutamacı vb.
     };
     rq.onsuccess = () => res(rq.result);
     rq.onerror = () => rej(rq.error);
@@ -63,4 +65,29 @@ export async function deleteLocal(id: string): Promise<void> {
     await tx('rounds', 'readwrite', (s) => s.delete(`${id}:${i}`));
   }
   localIds.delete(id);
+}
+
+// klasör tutamacı (File System Access API) — IndexedDB tutamaç saklayabilir
+export const saveDirHandle = (h: unknown) =>
+  tx('misc', 'readwrite', (s) => s.put(h, 'dirHandle'));
+export const getDirHandle = () =>
+  tx<unknown>('misc', 'readonly', (s) => s.get('dirHandle'));
+
+export interface Bundle {
+  match_id: string;
+  detail: MatchDetail;
+  players: LocalMatchMeta['players'];
+  rounds: Record<number, RoundTicks>;
+}
+
+// paketleri IndexedDB'ye aç (klasörden hızlı içe aktarma)
+export async function importBundle(b: Bundle, bytes: number): Promise<void> {
+  for (const [n, t] of Object.entries(b.rounds)) {
+    await putRound(b.match_id, Number(n), t);
+  }
+  await putMatch({
+    match_id: b.match_id, detail: b.detail, players: b.players,
+    saved_at: new Date().toISOString(),
+    rounds: b.detail.rounds.length, bytes,
+  });
 }
