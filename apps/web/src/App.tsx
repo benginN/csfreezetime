@@ -36,7 +36,7 @@ export default function App() {
         <a href="/compare" style={{ whiteSpace: 'nowrap' }}>⚔ Compare</a>
         <a href="/leaderboards" style={{ whiteSpace: 'nowrap' }}>🏆 Boards</a>
         <a href="/playlists" style={{ whiteSpace: 'nowrap' }}>🎬 Playlists</a>
-        <a href="/mydb" style={{ whiteSpace: 'nowrap' }}>💾 My DB</a>
+        <a href="/mydb" style={{ whiteSpace: 'nowrap' }}>⚡ Analyze</a>
         {localStorage.getItem('tm_admin') && (
           <a href="/upload" style={{ whiteSpace: 'nowrap' }}>⬆ Upload</a>
         )}

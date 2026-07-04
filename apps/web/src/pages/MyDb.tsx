@@ -201,7 +201,7 @@ export default function MyDb() {
 
   return (
     <>
-      <h1>My database <span className="meta">— lives in your folder + this browser, never on the server</span></h1>
+      <h1>Analyze your demos <span className="meta">— anonymous; nothing is kept on the server</span></h1>
       <p className="meta" style={{ maxWidth: 720 }}>
         Keep your demos in a folder (like a personal test-data). Pick it once:
         unprocessed demos are parsed one by one (the server keeps nothing —
