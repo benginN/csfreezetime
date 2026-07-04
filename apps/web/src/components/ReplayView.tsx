@@ -1446,7 +1446,7 @@ export default function ReplayView({
           </div>
         </div>
 
-        {!localMode && (<>
+
         <div className="layerpanel">
           <div className="headrow">
           <label className="layerhead">
@@ -1615,7 +1615,7 @@ export default function ReplayView({
               <p className="meta">own clock — plays independently of the replay · max 10 rounds</p>
           </div>
         </div>
-        </>)}
+
 
         {/* Notlar: raunt+saniyeye bağlı metin/sesli koç notları */}
         {!localMode && (

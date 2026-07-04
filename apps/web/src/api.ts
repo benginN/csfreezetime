@@ -473,8 +473,13 @@ export const api = {
     return get<{ player_id: string; nickname: string; t_rounds: number[]; ct_rounds: number[] }[]>(
       `/api/v1/matches/${id}/players`);
   },
-  matchHeatmap: (id: string, p: URLSearchParams) =>
-    get<MatchHeatmap>(`/api/v1/matches/${id}/heatmap?` + p),
+  matchHeatmap: async (id: string, p: URLSearchParams): Promise<MatchHeatmap> => {
+    if (localIds.has(id)) {
+      const { localHeatmap } = await import('./lib/localcompute');
+      return localHeatmap(id, p);
+    }
+    return get<MatchHeatmap>(`/api/v1/matches/${id}/heatmap?` + p);
+  },
   teamHeatmap: (id: string, p: URLSearchParams) =>
     get<MatchHeatmap>(`/api/v1/teams/${id}/heatmap?` + p),
   teamSummary: (id: string, since = '', roster = 0) =>
@@ -495,5 +500,17 @@ export const api = {
   mapLayout: (map: string) => get<MapLayout>(`/api/v1/maplayout?map=${map}`),
   query: (dsl: unknown) => post<QueryResult>('/api/v1/query', dsl),
   heatmap: (params: URLSearchParams) => get<HeatmapResp>('/api/v1/heatmap?' + params),
-  stack: (body: unknown) => post<StackResp>('/api/v1/stack', body),
+  stack: async (body: unknown): Promise<StackResp> => {
+    const b = body as { rounds: { match_id: string; round_number: number }[]; align?: string; side?: string };
+    if (b.rounds?.length && b.rounds.every((r) => localIds.has(r.match_id))) {
+      const { localStack } = await import('./lib/localcompute');
+      return localStack(
+        b.rounds[0].match_id,
+        b.rounds.map((r) => r.round_number),
+        b.align ?? 'round_start',
+        b.side,
+      );
+    }
+    return post<StackResp>('/api/v1/stack', body);
+  },
 };
