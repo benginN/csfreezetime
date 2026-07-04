@@ -12,6 +12,7 @@ import Help from './pages/Help';
 import Leaderboards from './pages/Leaderboards';
 import Playlists from './pages/Playlists';
 import MyDb from './pages/MyDb';
+import Analyze from './pages/Analyze';
 import LocalReportPage from './pages/LocalReport';
 
 // ?admin=TOKEN ile bir kez tanıtılır; sonrasında admin panelleri görünür
@@ -36,7 +37,8 @@ export default function App() {
         <a href="/compare" style={{ whiteSpace: 'nowrap' }}>⚔ Compare</a>
         <a href="/leaderboards" style={{ whiteSpace: 'nowrap' }}>🏆 Boards</a>
         <a href="/playlists" style={{ whiteSpace: 'nowrap' }}>🎬 Playlists</a>
-        <a href="/mydb" style={{ whiteSpace: 'nowrap' }}>⚡ Analyze</a>
+        <a href="/analyze" style={{ whiteSpace: 'nowrap' }}>⚡ Analyze</a>
+        <a href="/mydb" style={{ whiteSpace: 'nowrap' }}>🗄 Create DB</a>
         {localStorage.getItem('tm_admin') && (
           <a href="/upload" style={{ whiteSpace: 'nowrap' }}>⬆ Upload</a>
         )}
@@ -57,6 +59,7 @@ export default function App() {
           <Route path="/help" element={<Help />} />
           <Route path="/leaderboards" element={<Leaderboards />} />
           <Route path="/playlists" element={<Playlists />} />
+          <Route path="/analyze" element={<Analyze />} />
           <Route path="/mydb" element={<MyDb />} />
           <Route path="/mydb/report" element={<LocalReportPage />} />
         </Routes>

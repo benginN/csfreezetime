@@ -1,8 +1,10 @@
+import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../api';
 import { playUrl } from './Playlists';
-import { localIds } from '../lib/localdb';
+import { getMatch as getLocalMatch, listMatches as listLocalMatches, localIds } from '../lib/localdb';
+import { scoreOf } from '../lib/localingest';
 import { winnerTeamClass } from '../lib/rounds';
 import ReplayView from '../components/ReplayView';
 
@@ -33,16 +35,42 @@ export default function MatchPage() {
     select: (d) => d.matches.find((m) => m.match_id === id),
     enabled: !isLocal,
   });
-  // Parça demo (…-p1/-p2) ise kardeş parçaları bul
-  const partM = /^(.*)-p(\d)$/.exec(summary.data?.name ?? '');
+  // Parça demo (…-p1/-p2) ise kardeş parçaları bul — lokal maçta kaynak
+  // adı ve kardeşler IndexedDB'den gelir
+  const [localName, setLocalName] = useState<string | null>(null);
+  const [localSibs, setLocalSibs] = useState<{ match_id: string; name: string; sa: number; sb: number }[]>([]);
+  useEffect(() => {
+    if (!isLocal) return;
+    getLocalMatch(id).then((meta) => setLocalName(meta?.name ?? null));
+  }, [id, isLocal]);
+  const srcName = isLocal ? localName : (summary.data?.name ?? null);
+  const partM = /^(.*)-p(\d)$/.exec(srcName ?? '');
+  useEffect(() => {
+    if (!isLocal || !partM) { setLocalSibs([]); return; }
+    listLocalMatches().then((all) => {
+      setLocalSibs(all
+        .filter((m) => m.match_id !== id && (m.name ?? '').startsWith(partM[1] + '-p'))
+        .map((m) => {
+          const [sa, sb] = scoreOf(m.detail);
+          return { match_id: m.match_id, name: m.name ?? '', sa, sb };
+        })
+        .sort((a, b) => a.name.localeCompare(b.name)));
+    });
+  }, [id, isLocal, srcName]); // eslint-disable-line react-hooks/exhaustive-deps
   const siblings = useQuery({
     queryKey: ['parts', partM?.[1] ?? ''],
     queryFn: () => api.search(partM![1]),
-    enabled: !!partM,
+    enabled: !!partM && !isLocal,
     select: (d) => d.matches
       .filter((m) => m.match_id !== id && (m.name ?? '').startsWith(partM![1] + '-p'))
       .sort((a, b) => (a.name ?? '').localeCompare(b.name ?? '')),
   });
+  // ortak kardeş görünümü: {match_id, name, toplam raunt}
+  const sibRows = isLocal
+    ? localSibs.map((m) => ({ match_id: m.match_id, name: m.name, total: m.sa + m.sb }))
+    : (siblings.data ?? []).map((m) => ({
+        match_id: m.match_id, name: m.name ?? '', total: m.score_a + m.score_b,
+      }));
 
   if (detail.isLoading) return <p className="meta">loading…</p>;
   if (detail.error || !detail.data) return <p className="error">{String(detail.error)}</p>;
@@ -95,12 +123,12 @@ export default function MatchPage() {
 
   // parçalı kayıt: önceki parçaların raunt toplamı = görünen numara ofseti
   const partNo = partM ? Number(partM[2]) : 1;
-  const roundOffset = (siblings.data ?? [])
+  const roundOffset = sibRows
     .filter((sb) => {
-      const n = /-p(\d)$/.exec(sb.name ?? '')?.[1];
+      const n = /-p(\d)$/.exec(sb.name)?.[1];
       return n != null && Number(n) < partNo;
     })
-    .reduce((a, sb) => a + sb.score_a + sb.score_b, 0);
+    .reduce((a, sb) => a + sb.total, 0);
 
   const plItems = pl.data?.items ?? [];
   const goPl = (idx: number) => {
@@ -116,8 +144,8 @@ export default function MatchPage() {
             ⚠ split recording — this is <b>part {partM[2]}</b> of this map
             {roundOffset > 0 && <> (rounds continue from <b>{roundOffset + 1}</b>)</>}
           </span>
-          {(siblings.data ?? []).map((sb) => {
-            const n = /-p(\d)$/.exec(sb.name ?? '')?.[1];
+          {sibRows.map((sb) => {
+            const n = /-p(\d)$/.exec(sb.name)?.[1];
             return <Link key={sb.match_id} to={`/match/${sb.match_id}`}>watch part {n} →</Link>;
           })}
         </div>

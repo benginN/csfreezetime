@@ -13,6 +13,8 @@ export interface LocalMatchMeta {
   saved_at: string;
   rounds: number;
   bytes: number;
+  name?: string;                 // kaynak dosya adı (parça tespiti: …-p1/-p2)
+  origin?: 'single' | 'folder';  // hangi sekmeden geldi
 }
 
 function open(): Promise<IDBDatabase> {
@@ -75,6 +77,7 @@ export const getDirHandle = () =>
 
 export interface Bundle {
   match_id: string;
+  name?: string;
   detail: MatchDetail;
   players: LocalMatchMeta['players'];
   rounds: Record<number, RoundTicks>;
@@ -89,5 +92,6 @@ export async function importBundle(b: Bundle, bytes: number): Promise<void> {
     match_id: b.match_id, detail: b.detail, players: b.players,
     saved_at: new Date().toISOString(),
     rounds: b.detail.rounds.length, bytes,
+    name: b.name, origin: 'folder',
   });
 }
