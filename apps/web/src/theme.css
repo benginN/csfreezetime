@@ -331,3 +331,4 @@ table.cond { max-width: 760px; }
   background: #0b0e0cd9; border: 1px solid #2a332c; border-radius: 8px;
   padding: 6px 10px; font-size: 12px; line-height: 1.5;
 }
+.ghostclose { cursor: pointer; color: #8a938c; margin-left: 6px; } .ghostclose:hover { color: #e0e6e1; }
