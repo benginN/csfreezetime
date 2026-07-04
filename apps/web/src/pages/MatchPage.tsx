@@ -30,6 +30,16 @@ export default function MatchPage() {
     queryFn: () => api.search(''),
     select: (d) => d.matches.find((m) => m.match_id === id),
   });
+  // Parça demo (…-p1/-p2) ise kardeş parçaları bul
+  const partM = /^(.*)-p(\d)$/.exec(summary.data?.name ?? '');
+  const siblings = useQuery({
+    queryKey: ['parts', partM?.[1] ?? ''],
+    queryFn: () => api.search(partM![1]),
+    enabled: !!partM,
+    select: (d) => d.matches
+      .filter((m) => m.match_id !== id && (m.name ?? '').startsWith(partM![1] + '-p'))
+      .sort((a, b) => (a.name ?? '').localeCompare(b.name ?? '')),
+  });
 
   if (detail.isLoading) return <p className="meta">loading…</p>;
   if (detail.error || !detail.data) return <p className="error">{String(detail.error)}</p>;
@@ -76,6 +86,18 @@ export default function MatchPage() {
 
   return (
     <>
+      {partM && (
+        <div className="toolbar" style={{ background: '#1a1712', border: '1px solid #33291c', borderRadius: 8, padding: '6px 10px' }}>
+          <span className="meta">
+            ⚠ split recording — this is <b>part {partM[2]}</b> of this map (the GOTV demo
+            restarted mid-game; rounds continue in the other part)
+          </span>
+          {(siblings.data ?? []).map((sb) => {
+            const n = /-p(\d)$/.exec(sb.name ?? '')?.[1];
+            return <Link key={sb.match_id} to={`/match/${sb.match_id}`}>watch part {n} →</Link>;
+          })}
+        </div>
+      )}
       {plId && pl.data && (
         <div className="toolbar" style={{ background: '#151a17', border: '1px solid #232a26', borderRadius: 8, padding: '6px 10px' }}>
           <span>🎬 <b>{pl.data.name}</b></span>

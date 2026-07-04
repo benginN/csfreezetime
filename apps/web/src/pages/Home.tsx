@@ -14,7 +14,7 @@ export default function Home() {
     placeholderData: (prev) => prev, // yazarken liste titremesin
   });
 
-  const matches = res.data?.matches ?? [];
+  const matches = groupParts(res.data?.matches ?? []);
   const teams = res.data?.teams ?? [];
   // Sorgu tek takıma denk düşüyorsa altta eğilim + tahmin blokları
   const soloTeam = q.trim() && teams.length === 1 ? teams[0] : null;
@@ -45,6 +45,11 @@ export default function Home() {
             <span>{m.team_b ?? 'Team B'}</span>
           </span>
           <span className="badge gray">{m.map_name}</span>
+          {m.parts > 1 && (
+            <span className="badge gray" title="the GOTV recording was split mid-map; parts play separately, the score here is combined">
+              {m.parts} parts
+            </span>
+          )}
           {m.tournament && <span className="meta cut" style={{ maxWidth: 220 }}>🏆 {m.tournament.replace(/-/g, ' ')}</span>}
           <span className="meta">{m.played_at ?? ''}</span>
         </Link>
@@ -183,4 +188,37 @@ function Bar({ prob, label }: { prob: number; label: string }) {
       <div className="meta" style={{ flex: '0 0 55%' }}>{label}</div>
     </div>
   );
+}
+
+
+// GOTV kesintisiyle bölünen kayıtlar (…-p1/-p2) listede TEK satır olur:
+// skorlar toplanır, link ilk parçaya gider. (Gerçek DB birleştirme, çok
+// demolu maç şeması ile yayına hazırlık fazında.)
+interface MatchHit {
+  match_id: string; name: string | null;
+  score_a: number; score_b: number;
+}
+function groupParts<T extends MatchHit>(list: T[]): (T & { parts: number })[] {
+  const out: (T & { parts: number })[] = [];
+  const byBase = new Map<string, T & { parts: number }>();
+  for (const m of list) {
+    const pm = /^(.*)-p(\d)$/.exec(m.name ?? '');
+    if (!pm) {
+      out.push({ ...m, parts: 1 });
+      continue;
+    }
+    const key = pm[1];
+    const cur = byBase.get(key);
+    if (!cur) {
+      const row = { ...m, parts: 1 };
+      byBase.set(key, row);
+      out.push(row);
+    } else {
+      cur.parts += 1;
+      cur.score_a += m.score_a;
+      cur.score_b += m.score_b;
+      if (Number(pm[2]) === 1) cur.match_id = m.match_id; // link ilk parçaya
+    }
+  }
+  return out;
 }
