@@ -74,6 +74,17 @@ export default function MatchPage() {
         {d.map_name}
         {d.tournament ? ` · ${d.tournament.replace(/-/g, ' ')}` : ''}
         {summary.data?.played_at ? ` · ${summary.data.played_at}` : ''}
+        {d.team_a_id && d.team_b_id && (
+          <>
+            {' '}
+            <Link
+              to={`/compare?a=${d.team_a_id}&b=${d.team_b_id}&map=${d.map_name ?? ''}`}
+              title="head-to-head report for these teams on this map"
+            >
+              📊
+            </Link>
+          </>
+        )}
       </div>
     </div>
   );
@@ -120,9 +131,6 @@ export default function MatchPage() {
         rounds={d.rounds}
         teams={teams}
         onEnded={plId ? () => goPl(plIdx + 1) : undefined}
-        compareUrl={d.team_a_id && d.team_b_id
-          ? `/compare?a=${d.team_a_id}&b=${d.team_b_id}&map=${d.map_name ?? ''}`
-          : undefined}
       />
     </>
   );

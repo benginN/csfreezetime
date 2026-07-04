@@ -1,5 +1,4 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Application, Container, Graphics, Sprite, Text, Texture } from 'pixi.js';
 import { api, type KillRow, type RoundRow, type StackResp } from '../api';
@@ -76,11 +75,18 @@ function shortInv(inv: string[] | null): string {
 }
 
 
-const hlMatch = (r: RoundRow, v: string): boolean =>
-  !!v && (r.t_buy_type === v || r.ct_buy_type === v);
+// buy vurgusu takım renginde: eşleşen buy hangi takımınsa halka o renkte
+// (A = başlıktaki sol takım). İki takım da eşleşirse iki halka.
+const hlClass = (r: RoundRow, v: string, aId: string | null): string => {
+  if (!v) return '';
+  let cls = '';
+  if (r.t_buy_type === v) cls += r.t_team_id && r.t_team_id === aId ? ' hlA' : ' hlB';
+  if (r.ct_buy_type === v) cls += r.ct_team_id && r.ct_team_id === aId ? ' hlA' : ' hlB';
+  return cls;
+};
 
 export default function ReplayView({
-  matchId, round, onRound, seekTick, seekSec, matchKills, rounds, teams, header, onEnded, compareUrl,
+  matchId, round, onRound, seekTick, seekSec, matchKills, rounds, teams, header, onEnded,
 }: {
   matchId: string;
   round: number;
@@ -92,7 +98,6 @@ export default function ReplayView({
   teams: { aId: string | null; a: string | null; b: string | null };
   header?: React.ReactNode;
   onEnded?: () => void;
-  compareUrl?: string; // maç başlığındaki 📊 → takım karşılaştırma raporu
 }) {
   const ticksQ = useQuery({
     queryKey: ['ticks', matchId, round],
@@ -1074,16 +1079,17 @@ export default function ReplayView({
             const vt = d.players.find((p) => p.nickname === k.victim);
             if (!vt) continue;
             const ki = Math.min(lowerBound(d.ticks, k.tick), d.ticks.length - 1);
-            const wep = vt.weapon[ki] ?? vt.weapon[Math.max(0, ki - 1)];
+            // ölüm örneğinde silah '' gelir → bir önceki örneğe düş
+            const wep = vt.weapon[ki] || vt.weapon[Math.max(0, ki - 1)] || '';
             if (!wep) continue;
             const wl = wep.toLowerCase();
             if (wl.includes('knife') || wl.includes('c4') || wl.includes('karambit') ||
                 wl.includes('bayonet') || wl.includes('grenade') || wl.includes('molotov') ||
                 wl.includes('flash')) continue;
             const { x, y, s: ds } = place(k.victim_rx, k.victim_ry, k.lower);
-            gDrops.circle(x, y, 2.2 * Math.max(ds, 0.7))
-              .fill({ color: 0xd8c68a, alpha: 0.9 })
-              .stroke({ width: 0.8, color: 0x0b0e0c });
+            gDrops.rect(x - 2.6 * ds, y - 2.6 * ds, 5.2 * ds, 5.2 * ds)
+              .fill({ color: 0xe8d27a, alpha: 0.95 })
+              .stroke({ width: 1, color: 0x0b0e0c });
             dropDotsRef.current.push({ x, y, name: wep });
             const age = (tick - k.tick) / 64;
             if (age <= 3 && dropLblIdx < dropLabels.length) {
@@ -1367,11 +1373,6 @@ export default function ReplayView({
             <label>
               <input type="checkbox" checked={showPlaces} onChange={(e) => setShowPlaces(e.target.checked)} /> callouts
             </label>
-            {compareUrl && (
-              <Link to={compareUrl} title="head-to-head report for these teams on this map" style={{ marginLeft: 4 }}>
-                📊
-              </Link>
-            )}
           </div>
         </div>
 
@@ -1411,7 +1412,7 @@ export default function ReplayView({
                 <Fragment key={r.round_number}>
                   {isSideSwap(rounds[i - 1], r) && <span className="halfdiv" title="side swap" />}
                   <button
-                    className={`${winnerTeamClass(r, teams.aId)} win${r.winner_side ?? ''} ${r.round_number === round ? 'sel' : ''} ${hlMatch(r, hlReplay) ? 'hl' : ''}`}
+                    className={`${winnerTeamClass(r, teams.aId)} win${r.winner_side ?? ''} ${r.round_number === round ? 'sel' : ''} ${hlClass(r, hlReplay, teams.aId)}`}
                     onClick={() => onRound(r.round_number)}
                     title={chipTitle(r, teams)}
                   >
@@ -1487,7 +1488,7 @@ export default function ReplayView({
                   <Fragment key={r.round_number}>
                     {isSideSwap(rounds[i - 1], r) && <span className="halfdiv" title="side swap" />}
                     <button
-                      className={`${winnerTeamClass(r, teams.aId)} win${r.winner_side ?? ''} ${heatRounds.has(r.round_number) ? 'sel' : ''} ${hlMatch(r, hlHeat) ? 'hl' : ''}`}
+                      className={`${winnerTeamClass(r, teams.aId)} win${r.winner_side ?? ''} ${heatRounds.has(r.round_number) ? 'sel' : ''} ${hlClass(r, hlHeat, teams.aId)}`}
                       title={chipTitle(r, teams)}
                       onClick={() => {
                         const s = new Set(heatRounds);
@@ -1590,7 +1591,7 @@ export default function ReplayView({
                   <Fragment key={r.round_number}>
                     {isSideSwap(rounds[i - 1], r) && <span className="halfdiv" title="side swap" />}
                     <button
-                      className={`${winnerTeamClass(r, teams.aId)} win${r.winner_side ?? ''} ${ghostRounds.has(r.round_number) ? 'sel' : ''} ${hlMatch(r, hlGhost) ? 'hl' : ''}`}
+                      className={`${winnerTeamClass(r, teams.aId)} win${r.winner_side ?? ''} ${ghostRounds.has(r.round_number) ? 'sel' : ''} ${hlClass(r, hlGhost, teams.aId)}`}
                       title={chipTitle(r, teams)}
                       onClick={() => {
                         const s = new Set(ghostRounds);

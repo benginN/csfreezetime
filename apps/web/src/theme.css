@@ -347,5 +347,9 @@ table.cond { max-width: 760px; }
 .hlpick { margin-left: auto; display: inline-flex; align-items: center; gap: 5px;
           font-size: 11px; color: #8a938c; }
 .hlpick select { font-size: 11px; padding: 1px 4px; }
-/* buy-tipi vurgusu: amber iç halka */
-.roundchips button.hl { box-shadow: inset 0 0 0 2px #c9a86a; }
+/* buy-tipi vurgusu: eşleşen takımın renginde iç halka (A sol, B sağ takım) */
+.roundchips button.hlA { box-shadow: inset 0 0 0 2px #86d8e8; }
+.roundchips button.hlB { box-shadow: inset 0 0 0 2px #dcaaea; }
+.roundchips button.hlA.hlB {
+  box-shadow: inset 0 0 0 2px #86d8e8, inset 0 0 0 4px #dcaaea;
+}

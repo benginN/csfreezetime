@@ -151,11 +151,7 @@ function CompareBody({
         </div>
       ))}
 
-      <h2>Default setups <span className="meta">(15 s)</span></h2>
-      <div className="grid cards two">
-        <SetupMini rep={A} mapName={mapName} />
-        <SetupMini rep={B} mapName={mapName} />
-      </div>
+      <SetupsCompare A={A} B={B} mapName={mapName} />
 
       <UtilityCompare A={A} B={B} mapName={mapName} />
 
@@ -320,8 +316,29 @@ function TendCard({ rep, side }: { rep: ReportResp; side: 'T' | 'CT' }) {
   );
 }
 
-function SetupMini({ rep, mapName }: { rep: ReportResp; mapName: string }) {
-  const setup = rep.setups.filter((s) => s.side === 'CT' && s.t_offset === 15)[0];
+function SetupsCompare({ A, B, mapName }: { A: ReportResp; B: ReportResp; mapName: string }) {
+  const [side, setSide] = useState<'T' | 'CT'>('CT');
+  return (
+    <>
+      <h2>
+        Default setups <span className="meta">(15 s)</span>{' '}
+        <span className="toolbar" style={{ display: 'inline-flex', marginLeft: 10 }}>
+          <select value={side} onChange={(e) => setSide(e.target.value as 'T' | 'CT')}>
+            <option>CT</option><option>T</option>
+          </select>
+        </span>
+      </h2>
+      <div className="grid cards two">
+        <SetupMini rep={A} mapName={mapName} side={side} />
+        <SetupMini rep={B} mapName={mapName} side={side} />
+      </div>
+    </>
+  );
+}
+
+function SetupMini({ rep, mapName, side }: { rep: ReportResp; mapName: string; side: 'T' | 'CT' }) {
+  const patterns = rep.setups.filter((s) => s.side === side && s.t_offset === 15);
+  const setup = patterns[0];
   const cvRef = useRef<HTMLCanvasElement>(null);
   const [base, setBase] = useState<MapBase | null>(null);
   useEffect(() => { loadMapBase(mapName).then(setBase); }, [mapName]);
@@ -346,16 +363,31 @@ function SetupMini({ rep, mapName }: { rep: ReportResp; mapName: string }) {
       ctx.fillText(pp.place, x, y - 13);
       ctx.textAlign = 'left';
     }
-  }, [base, setup]);
+  }, [base, setup, side]);
   return (
     <div className="card">
       <div className="teams">
-        <span>{rep.team} <span className="badge CT">CT</span></span>
+        <span>{rep.team} <span className={`badge ${side}`}>{side}</span></span>
         <span className="meta">
           {setup ? `${Math.round(100 * setup.share)}% of ${setup.sample_size} rounds` : ''}
         </span>
       </div>
+      {!setup && (
+        <p className="meta">
+          no stable default detected — needs ≥8 {side} rounds on this map
+        </p>
+      )}
       <canvas ref={cvRef} className="flat" width={MAPW} height={MAPW} style={{ marginTop: 6 }} />
+      {patterns.length > 1 && (
+        <div className="meta" style={{ marginTop: 6, lineHeight: 1.6 }}>
+          {patterns.slice(1, 4).map((p) => (
+            <div key={p.pattern_id}>
+              {Math.round(100 * p.share)}% — {p.pattern.map((x) => `${x.place}×${x.n}`).join(' ')}
+              {p.avg_hold_sec != null && ` · holds ~${Math.round(p.avg_hold_sec)}s`}
+            </div>
+          ))}
+        </div>
+      )}
       {!setup && <p className="meta">not enough rounds for a reliable pattern</p>}
     </div>
   );
@@ -421,6 +453,24 @@ function UtilMap({ rep, mapName, side, type }: { rep: ReportResp; mapName: strin
         <span className="meta">{spots.length} recurring spots</span>
       </div>
       <canvas ref={cvRef} className="flat" width={MAPW} height={MAPW} style={{ marginTop: 6 }} />
+      {spots.length > 0 ? (
+        <table style={{ marginTop: 6, fontSize: 11.5 }}>
+          <tbody>
+            {spots.slice(0, 5).map((sp) => (
+              <tr key={sp.cluster_id}>
+                <td>{sp.label ?? '?'}</td>
+                <td>×{sp.count}</td>
+                <td className="meta">
+                  {sp.t_avg != null ? `~${Math.round(sp.t_avg)}±${Math.round(sp.t_std ?? 0)}s` : ''}
+                </td>
+                <td className="meta">{Math.round(100 * sp.share)}%</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      ) : (
+        <p className="meta" style={{ marginTop: 6 }}>no recurring spots yet (needs ≥3 throws per spot)</p>
+      )}
     </div>
   );
 }
