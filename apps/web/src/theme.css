@@ -253,7 +253,9 @@ button.swatch { width: 22px; height: 22px; padding: 0; border-radius: 5px; }
 .replaylayout { display: flex; gap: 16px; align-items: flex-start; flex-wrap: wrap; }
 .settingspanel { flex: 1 1 300px; min-width: 280px; max-width: 420px; display: flex; flex-direction: column; gap: 10px; }
 .layerpanel { background: #151a17; border: 1px solid #232a26; border-radius: 9px; padding: 10px 12px; }
-.layerhead { display: flex; align-items: center; gap: 8px; font-weight: 600; font-size: 14px; cursor: pointer; }
+/* Yalnız kutucuk + başlık metni tıklanabilir olsun: label satırı içeriğine
+   büzülür, satırın boş kısmına tıklamak toggle'a DOKUNMAZ (missclick önlemi) */
+.layerhead { display: inline-flex; width: fit-content; align-items: center; gap: 8px; font-weight: 600; font-size: 14px; cursor: pointer; }
 .layerbody { margin-top: 8px; display: flex; flex-direction: column; gap: 6px; font-size: 12.5px; }
 .layerbody .row { display: flex; align-items: center; gap: 8px; }
 .layerbody .row label { color: #8a938c; min-width: 42px; }
