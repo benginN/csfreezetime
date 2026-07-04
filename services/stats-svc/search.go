@@ -118,7 +118,11 @@ func (s *server) search(w http.ResponseWriter, r *http.Request) {
 		}
 		matches = append(matches, m)
 	}
-	writeJSON(w, 200, map[string]any{"teams": teams, "players": players, "matches": matches})
+	var total int
+	_ = s.pg.QueryRow(ctx, "SELECT count(*) FROM matches WHERE status = 'ready'").Scan(&total)
+	writeJSON(w, 200, map[string]any{
+		"teams": teams, "players": players, "matches": matches, "total": total,
+	})
 }
 
 func itoa(n int) string { return strconv.Itoa(n) }
