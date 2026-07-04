@@ -12,7 +12,7 @@ const W = 860;
 const BASE_OVERSAMPLE = 2;      // PNG kaynak: 2x yeterli
 const VECTOR_OVERSAMPLE = 3;    // SVG kaynak: daha yükseğe değer (keskin kalır)
 const NADE_LIFE: Record<string, number> = { smoke: 20, molotov: 7, incendiary: 7, flash: 0.7, he: 0.7, decoy: 15 };
-const GHOST_TRAIL = 8;   // sn — hayalet iz uzunluğu
+const GHOST_TRAIL_DEFAULT = 8; // sn — hayalet iz uzunluğu (kullanıcı değiştirebilir)
 const ghostHue = (i: number) => Math.round((i * 137.508) % 360);
 
 // t dizisi artan sıralı: pencere başlangıcının indeksi (ikili arama)
@@ -153,6 +153,9 @@ export default function ReplayView({
   // hayaletlerin KENDİ saati (replay saatinden bağımsız oynar)
   const [ghostPlaying, setGhostPlaying] = useState(false);
   const [ghostSpeed, setGhostSpeed] = useState(2);
+  const [ghostTrail, setGhostTrail] = useState(GHOST_TRAIL_DEFAULT); // sn; Infinity = tüm yol
+  const ghostTrailRef = useRef(GHOST_TRAIL_DEFAULT);
+  ghostTrailRef.current = ghostTrail;
   const [ghostClock, setGhostClock] = useState('0:00');
   const ghostTimeRef = useRef(0);
   // hover: her karede güncellenen hayalet nokta konumları + seçili kimlik
@@ -757,7 +760,7 @@ export default function ReplayView({
             let labeled = false;
             for (const p of ly.players) {
               if (ghostPlayerRef.current && p.nick !== ghostPlayerRef.current) continue;
-              const from = lowerBound(p.t, tSec - GHOST_TRAIL);
+              const from = lowerBound(p.t, tSec - ghostTrailRef.current);
               let started = false;
               let prevLower: boolean | undefined;
               let lastX = 0, lastY = 0, lastS = 1, seen = false;
@@ -1408,6 +1411,14 @@ export default function ReplayView({
                 </button>
                 <select value={ghostSpeed} onChange={(e) => setGhostSpeed(Number(e.target.value))}>
                   {[0.25, 0.5, 1, 2, 4, 8].map((s) => <option key={s} value={s}>{s}×</option>)}
+                </select>
+                <label style={{ minWidth: 0 }} title="trail length behind each ghost">trail</label>
+                <select
+                  value={String(ghostTrail)}
+                  onChange={(e) => setGhostTrail(Number(e.target.value))}
+                >
+                  {[2, 4, 8, 15, 30].map((t) => <option key={t} value={t}>{t}s</option>)}
+                  <option value="Infinity">full</option>
                 </select>
                 <span className="meta" style={{ fontVariantNumeric: 'tabular-nums' }}>{ghostClock}</span>
               </div>
