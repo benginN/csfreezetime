@@ -50,7 +50,7 @@ export default function Home() {
       <div className="meta" style={{ margin: '4px 0 12px' }}>
         {res.isLoading ? 'searching…'
           : q ? `${matches.length} matches · “${q}”`
-          : 'most recent 100 matches — search to reach the rest'}
+          : 'most recent 100 matches — search to reach the entire database'}
       </div>
 
       {matches.map((m) => (
