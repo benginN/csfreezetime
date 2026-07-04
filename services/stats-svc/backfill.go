@@ -476,6 +476,7 @@ func (s *server) reprocess(w http.ResponseWriter, r *http.Request) {
 		MatchID string `json:"match_id"`
 	}
 	_ = json.NewDecoder(r.Body).Decode(&body)
+	// tekil maçta statü filtresi yok: takılı (parsing) işler de kurtarılabilir
 	cond, args := "status IN ('ready','failed')", []any{}
 	if body.MatchID != "" {
 		cond, args = "match_id = $1", []any{body.MatchID}

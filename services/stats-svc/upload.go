@@ -181,14 +181,17 @@ func (s *server) ingestLocalDemo(
 			return nil, 500, fmt.Errorf("private pre-insert: %w", err)
 		}
 	}
-	payload, _ := json.Marshal(map[string]any{
+	pay := map[string]any{
 		"demo_sha256": sha,
 		"match_id":    matchID,
 		"object_key":  objectKey,
 		"source_file": sourceFile,
-		"played_at":   playedAt,
 		"tournament":  tournament,
-	})
+	}
+	if playedAt != "" { // boş string timestamptz'e çevrilemez
+		pay["played_at"] = playedAt
+	}
+	payload, _ := json.Marshal(pay)
 	if err := s.up.nc.Publish("demo.ingested", payload); err != nil {
 		return nil, 500, fmt.Errorf("failed to enqueue: %w", err)
 	}

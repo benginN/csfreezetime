@@ -154,12 +154,14 @@ export default function MyDb() {
     const publicCopy = !!up.public_copy;
 
     setPhase('processing');
+    let done = false;
     for (let i = 0; i < 240; i++) {
       const st = await fetch(`/api/v1/matches/${id}/status`).then((r) => r.json());
-      if (st.status === 'private' || st.status === 'ready') break;
+      if (st.status === 'private' || st.status === 'ready') { done = true; break; }
       if (st.status === 'failed') throw new Error('demo could not be parsed');
       await new Promise((res) => setTimeout(res, 2000));
     }
+    if (!done) throw new Error('processing timed out — rescan the folder to retry this demo');
 
     setPhase('downloading');
     const detail = await api.matchDetail(id);
