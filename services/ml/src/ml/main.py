@@ -11,7 +11,7 @@ import time
 
 from . import (
     anomaly, clustering, clutch, db, evaluate, features, flashstats,
-    roles, rotations, setups, tendencies, tournaments, utility, winprob,
+    integrity, roles, rotations, setups, tendencies, tournaments, utility, winprob,
 )
 
 
@@ -27,6 +27,9 @@ def cli() -> None:
         )
         maps = [r[0] for r in cur.fetchall()]
 
+    n_fix = integrity.run(pgconn)
+    if n_fix:
+        print(f"— bütünlük: {n_fix} raunt etiketi onarıldı —")
     n_t = tournaments.run(pgconn)
     print(f"— turnuva etiketleri: {n_t} maç rafine edildi —")
 
