@@ -61,6 +61,7 @@ export interface KillRow {
 }
 
 export interface SearchResult {
+  total: number;
   teams: { id: string; name: string }[];
   players: { id: string; name: string }[];
   matches: {
