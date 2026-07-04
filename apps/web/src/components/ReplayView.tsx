@@ -1,4 +1,5 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Application, Container, Graphics, Sprite, Text, Texture } from 'pixi.js';
 import { api, type KillRow, type RoundRow, type StackResp } from '../api';
@@ -74,8 +75,12 @@ function shortInv(inv: string[] | null): string {
     .join(' · ');
 }
 
+
+const hlMatch = (r: RoundRow, v: string): boolean =>
+  !!v && (r.t_buy_type === v || r.ct_buy_type === v);
+
 export default function ReplayView({
-  matchId, round, onRound, seekTick, seekSec, matchKills, rounds, teams, header, onEnded,
+  matchId, round, onRound, seekTick, seekSec, matchKills, rounds, teams, header, onEnded, compareUrl,
 }: {
   matchId: string;
   round: number;
@@ -87,6 +92,7 @@ export default function ReplayView({
   teams: { aId: string | null; a: string | null; b: string | null };
   header?: React.ReactNode;
   onEnded?: () => void;
+  compareUrl?: string; // maç başlığındaki 📊 → takım karşılaştırma raporu
 }) {
   const ticksQ = useQuery({
     queryKey: ['ticks', matchId, round],
@@ -109,6 +115,10 @@ export default function ReplayView({
   // --- Katmanlar: üçü de aynı haritayı kullanır ama tamamen BAĞIMSIZDIR ---
   const [showReplay, setShowReplay] = useState(true);
   const [heatOn, setHeatOn] = useState(false);
+  // buy-tipi vurgusu: seçilen tip, raunt çiplerinde halkayla işaretlenir
+  const [hlReplay, setHlReplay] = useState('');
+  const [hlHeat, setHlHeat] = useState('');
+  const [hlGhost, setHlGhost] = useState('');
   const [heatSide, setHeatSide] = useState<'T' | 'CT' | 'both'>('T');
   const [heatPlayer, setHeatPlayer] = useState('');
   const [heatRounds, setHeatRounds] = useState<Set<number>>(
@@ -160,6 +170,8 @@ export default function ReplayView({
   const ghostTimeRef = useRef(0);
   // hover: her karede güncellenen hayalet nokta konumları + seçili kimlik
   const ghostDotsRef = useRef<{ x: number; y: number; li: number; nick: string }[]>([]);
+  const dropDotsRef = useRef<{ x: number; y: number; name: string }[]>([]);
+  const bombPosRef = useRef<{ round: number; rx: number; ry: number; lower: boolean } | null>(null);
   const ghostHoverRef = useRef<{ li: number; nick: string } | null>(null);
   const ghostPinRef = useRef<{ li: number; nick: string } | null>(null); // tıkla-sabitle
   const ghostTipRef = useRef<HTMLDivElement>(null);
@@ -471,6 +483,7 @@ export default function ReplayView({
       const gNades = new Graphics();
       const gKills = new Graphics();
       const gGhosts = new Graphics();     // hayalet izler (diğer rauntlar)
+      const gDrops = new Graphics();      // yere düşen silahlar (ölüm noktaları)
       const heatSprite = new Sprite(Texture.EMPTY); // ısı katmanı (zemin üstü)
       heatSprite.visible = false;
       const playersLayer = new Container();
@@ -491,7 +504,7 @@ export default function ReplayView({
         world.addChild(insetSprite, tag);
       }
       const gDraw = new Graphics(); // koç çizimleri (en üstte, dünya uzayında)
-      world.addChild(heatSprite, gGhosts, gNades, gKills, playersLayer, worldLabels, gDraw);
+      world.addChild(heatSprite, gGhosts, gNades, gDrops, gKills, playersLayer, worldLabels, gDraw);
       app.stage.addChild(world, feedLayer);
 
       // --- Zoom & pan: tekerlek imlece doğru yakınlaşır, sürükle kaydırır,
@@ -588,13 +601,23 @@ export default function ReplayView({
             if (dist < bd) { bd = dist; best = { li: d.li, nick: d.nick }; }
           }
           ghostHoverRef.current = best;
+          // hayalet yoksa: düşen silah noktaları
+          let dropName: string | null = null;
+          if (!best) {
+            let dd = thr * thr;
+            for (const dt of dropDotsRef.current) {
+              const dx = dt.x - p.x, dy = dt.y - p.y;
+              const dist = dx * dx + dy * dy;
+              if (dist < dd) { dd = dist; dropName = dt.name; }
+            }
+          }
           const tip = ghostTipRef.current;
           if (tip) {
-            if (best) {
+            if (best || dropName) {
               tip.style.display = 'block';
               tip.style.left = `${e.offsetX + 12}px`;
               tip.style.top = `${e.offsetY - 8}px`;
-              tip.textContent = best.nick;
+              tip.textContent = best ? best.nick : dropName;
             } else tip.style.display = 'none';
           }
           return;
@@ -637,6 +660,16 @@ export default function ReplayView({
       app.canvas.addEventListener('gesturestart', onGestureStart);
       app.canvas.addEventListener('gesturechange', onGestureChange);
 
+      // düşen silah etiketleri (ilk 3 sn görünür) — havuz
+      const dropLabels: Text[] = [];
+      for (let i = 0; i < 8; i++) {
+        const t = new Text({
+          text: '', style: { fontSize: 9, fill: 0xd8c68a, fontFamily: 'system-ui' },
+        });
+        t.visible = false;
+        world.addChild(t);
+        dropLabels.push(t);
+      }
       // hayalet raunt etiketleri (r7 gibi) — yeniden kullanılan havuz
       const ghostLabels: Text[] = [];
       for (let i = 0; i < 12; i++) {
@@ -914,6 +947,7 @@ export default function ReplayView({
           }
         }
 
+        let bombCarried = false;
         d.players.forEach((p, pi) => {
           const node = nodes[pi];
           const rx0 = p.rx[i0], ry0 = p.ry[i0];
@@ -1000,6 +1034,16 @@ export default function ReplayView({
             g.arc(x, y, r, a0, a1);
             g.stroke({ width: 2, color: hslToHex(Math.round((120 * hp) / 100), 0.75, 0.5) });
           }
+          // bomba taşıyıcı: sağ üstte küçük kırmızı nokta
+          if ((p.inv[i0] ?? []).some((w) => w.toLowerCase().includes('c4'))) {
+            bombCarried = true;
+            bombPosRef.current = {
+              round, rx: rx0 + (rx1 - rx0) * frac, ry: ry0 + (ry1 - ry0) * frac, lower,
+            };
+            g.circle(x + 7 * Math.max(s, 0.7), y - 7 * Math.max(s, 0.7), 2.4 * Math.max(s, 0.7))
+             .fill({ color: 0xe03030 })
+             .stroke({ width: 1, color: 0x0b0e0c });
+          }
           // seçili oyuncu vurgusu (zaman çubuğu onu takip ediyor)
           if (p.nickname === selPlayerRef.current) {
             g.circle(x, y, 14 * Math.max(s, 0.7))
@@ -1007,6 +1051,54 @@ export default function ReplayView({
           }
           node.name.position.set(x + 10 * Math.max(s, 0.72), y - 5 * Math.max(s, 0.72));
         });
+
+        // yerde duran bomba: taşıyıcı yoksa ve henüz kurulmadıysa son konumda
+        gDrops.clear();
+        dropDotsRef.current = [];
+        if (replayOn) {
+          const curRound = rounds.find((r) => r.round_number === round);
+          const bp = bombPosRef.current;
+          if (!bombCarried && bp && bp.round === round &&
+              (!curRound?.bomb_plant_tick || tick < curRound.bomb_plant_tick)) {
+            const { x, y, s: bs } = place(bp.rx, bp.ry, bp.lower);
+            gDrops.circle(x, y, 3 * Math.max(bs, 0.7))
+              .fill({ color: 0xe03030, alpha: 0.95 })
+              .stroke({ width: 1, color: 0x0b0e0c });
+            dropDotsRef.current.push({ x, y, name: 'C4 (dropped)' });
+          }
+          // düşen silahlar: ölüm anında kurbanın aktif silahı o noktada kalır;
+          // ilk 3 sn etiketi görünür, sonrasında hover ile okunur
+          let dropLblIdx = 0;
+          for (const k of d.kills) {
+            if (k.tick > tick || k.victim_rx == null || k.victim_ry == null) continue;
+            const vt = d.players.find((p) => p.nickname === k.victim);
+            if (!vt) continue;
+            const ki = Math.min(lowerBound(d.ticks, k.tick), d.ticks.length - 1);
+            const wep = vt.weapon[ki] ?? vt.weapon[Math.max(0, ki - 1)];
+            if (!wep) continue;
+            const wl = wep.toLowerCase();
+            if (wl.includes('knife') || wl.includes('c4') || wl.includes('karambit') ||
+                wl.includes('bayonet') || wl.includes('grenade') || wl.includes('molotov') ||
+                wl.includes('flash')) continue;
+            const { x, y, s: ds } = place(k.victim_rx, k.victim_ry, k.lower);
+            gDrops.circle(x, y, 2.2 * Math.max(ds, 0.7))
+              .fill({ color: 0xd8c68a, alpha: 0.9 })
+              .stroke({ width: 0.8, color: 0x0b0e0c });
+            dropDotsRef.current.push({ x, y, name: wep });
+            const age = (tick - k.tick) / 64;
+            if (age <= 3 && dropLblIdx < dropLabels.length) {
+              const lt = dropLabels[dropLblIdx++];
+              lt.text = wep;
+              lt.alpha = Math.max(0, 1 - age / 3);
+              lt.visible = true;
+              lt.scale.set(Math.max(ds, 0.75));
+              lt.position.set(x + 5, y - 12);
+            }
+          }
+          for (let i = dropLblIdx; i < dropLabels.length; i++) dropLabels[i].visible = false;
+        } else {
+          for (const lt of dropLabels) lt.visible = false;
+        }
 
         // --- koç çizimleri (zoom/pan ile birlikte; aktif çizim yarı saydam) ---
         gDraw.clear();
@@ -1275,14 +1367,30 @@ export default function ReplayView({
             <label>
               <input type="checkbox" checked={showPlaces} onChange={(e) => setShowPlaces(e.target.checked)} /> callouts
             </label>
+            {compareUrl && (
+              <Link to={compareUrl} title="head-to-head report for these teams on this map" style={{ marginLeft: 4 }}>
+                📊
+              </Link>
+            )}
           </div>
         </div>
 
         <div className="layerpanel">
+          <div className="headrow">
           <label className="layerhead">
             <input type="checkbox" checked={showReplay} onChange={(e) => setShowReplay(e.target.checked)} />
             Replay
           </label>
+            <span className="hlpick noprint">
+              highlight
+              <select value={hlReplay} onChange={(e) => setHlReplay(e.target.value)}>
+                <option value="">off</option>
+                {['pistol', 'eco', 'force', 'semi', 'full'].map((b) => (
+                  <option key={b} value={b}>{b}</option>
+                ))}
+              </select>
+            </span>
+          </div>
           <div className={`layerbody ${showReplay ? '' : 'dim'}`}>
             <div className="row">
               <button onClick={() => setPlaying(!playing)}>{playing ? '⏸' : '▶'}</button>
@@ -1303,7 +1411,7 @@ export default function ReplayView({
                 <Fragment key={r.round_number}>
                   {isSideSwap(rounds[i - 1], r) && <span className="halfdiv" title="side swap" />}
                   <button
-                    className={`${winnerTeamClass(r, teams.aId)} win${r.winner_side ?? ''} ${r.round_number === round ? 'sel' : ''}`}
+                    className={`${winnerTeamClass(r, teams.aId)} win${r.winner_side ?? ''} ${r.round_number === round ? 'sel' : ''} ${hlMatch(r, hlReplay) ? 'hl' : ''}`}
                     onClick={() => onRound(r.round_number)}
                     title={chipTitle(r, teams)}
                   >
@@ -1332,6 +1440,7 @@ export default function ReplayView({
         </div>
 
         <div className="layerpanel">
+          <div className="headrow">
           <label className="layerhead">
             <input
               type="checkbox"
@@ -1341,6 +1450,16 @@ export default function ReplayView({
             Heatmap
             {heatQ.isFetching && <span className="meta"> …</span>}
           </label>
+            <span className="hlpick noprint">
+              highlight
+              <select value={hlHeat} onChange={(e) => setHlHeat(e.target.value)}>
+                <option value="">off</option>
+                {['pistol', 'eco', 'force', 'semi', 'full'].map((b) => (
+                  <option key={b} value={b}>{b}</option>
+                ))}
+              </select>
+            </span>
+          </div>
           <div className={`layerbody ${heatOn ? '' : 'dim'}`}>
               <div className="row">
                 <label>side</label>
@@ -1368,7 +1487,7 @@ export default function ReplayView({
                   <Fragment key={r.round_number}>
                     {isSideSwap(rounds[i - 1], r) && <span className="halfdiv" title="side swap" />}
                     <button
-                      className={`${winnerTeamClass(r, teams.aId)} win${r.winner_side ?? ''} ${heatRounds.has(r.round_number) ? 'sel' : ''}`}
+                      className={`${winnerTeamClass(r, teams.aId)} win${r.winner_side ?? ''} ${heatRounds.has(r.round_number) ? 'sel' : ''} ${hlMatch(r, hlHeat) ? 'hl' : ''}`}
                       title={chipTitle(r, teams)}
                       onClick={() => {
                         const s = new Set(heatRounds);
@@ -1395,11 +1514,22 @@ export default function ReplayView({
         </div>
 
         <div className="layerpanel">
+          <div className="headrow">
           <label className="layerhead">
             <input type="checkbox" checked={ghostsOn} onChange={(e) => setGhostsOn(e.target.checked)} />
             Ghost rounds
             {ghostQ.isFetching && <span className="meta"> …</span>}
           </label>
+            <span className="hlpick noprint">
+              highlight
+              <select value={hlGhost} onChange={(e) => setHlGhost(e.target.value)}>
+                <option value="">off</option>
+                {['pistol', 'eco', 'force', 'semi', 'full'].map((b) => (
+                  <option key={b} value={b}>{b}</option>
+                ))}
+              </select>
+            </span>
+          </div>
           <div className={`layerbody ${ghostsOn ? '' : 'dim'}`}>
               {/* hayaletlerin kendi oynatması — replay saatinden bağımsız */}
               <div className="row">
@@ -1460,7 +1590,7 @@ export default function ReplayView({
                   <Fragment key={r.round_number}>
                     {isSideSwap(rounds[i - 1], r) && <span className="halfdiv" title="side swap" />}
                     <button
-                      className={`${winnerTeamClass(r, teams.aId)} win${r.winner_side ?? ''} ${ghostRounds.has(r.round_number) ? 'sel' : ''}`}
+                      className={`${winnerTeamClass(r, teams.aId)} win${r.winner_side ?? ''} ${ghostRounds.has(r.round_number) ? 'sel' : ''} ${hlMatch(r, hlGhost) ? 'hl' : ''}`}
                       title={chipTitle(r, teams)}
                       onClick={() => {
                         const s = new Set(ghostRounds);

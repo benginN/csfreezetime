@@ -120,6 +120,9 @@ export default function MatchPage() {
         rounds={d.rounds}
         teams={teams}
         onEnded={plId ? () => goPl(plIdx + 1) : undefined}
+        compareUrl={d.team_a_id && d.team_b_id
+          ? `/compare?a=${d.team_a_id}&b=${d.team_b_id}&map=${d.map_name ?? ''}`
+          : undefined}
       />
     </>
   );
