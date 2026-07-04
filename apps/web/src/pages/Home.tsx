@@ -22,6 +22,21 @@ export default function Home() {
   return (
     <>
       {!q.trim() && <TeamStrip />}
+      {(res.data?.teams ?? []).length > 0 && q.trim() && (
+        <div className="toolbar">
+          <span className="meta">teams:</span>
+          {(res.data?.teams ?? []).map((t) => (
+            <Link key={t.id} to={`/team/${t.id}`}>
+              <button className="ghost">
+                <span className="monogram sm" style={{ background: `hsl(${teamHue(t.name)},45%,32%)` }}>
+                  {teamInitials(t.name)}
+                </span>{' '}
+                {t.name}
+              </button>
+            </Link>
+          ))}
+        </div>
+      )}
       {(res.data?.players ?? []).length > 0 && q.trim() && (
         <div className="toolbar">
           <span className="meta">players:</span>

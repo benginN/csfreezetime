@@ -286,6 +286,7 @@ button.swatch { width: 22px; height: 22px; padding: 0; border-radius: 5px; }
   display: flex; align-items: center; justify-content: center;
   font-weight: 800; font-size: 14px; color: #fff;
 }
+.monogram.sm { width: 18px; height: 18px; flex-basis: 18px; font-size: 9px; border-radius: 4px; display: inline-flex; vertical-align: -3px; }
 .monogram.lg { width: 52px; height: 52px; flex-basis: 52px; font-size: 20px; border-radius: 11px; }
 .teamcard .tname { font-weight: 600; font-size: 13.5px; line-height: 1.2; }
 .teamcard .meta { display: block; margin-top: 2px; }
