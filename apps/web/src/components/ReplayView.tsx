@@ -1413,13 +1413,18 @@ export default function ReplayView({
                   {[0.25, 0.5, 1, 2, 4, 8].map((s) => <option key={s} value={s}>{s}×</option>)}
                 </select>
                 <label style={{ minWidth: 0 }} title="trail length behind each ghost">trail</label>
-                <select
-                  value={String(ghostTrail)}
-                  onChange={(e) => setGhostTrail(Number(e.target.value))}
-                >
-                  {[2, 4, 8, 15, 30].map((t) => <option key={t} value={t}>{t}s</option>)}
-                  <option value="Infinity">full</option>
-                </select>
+                <input
+                  type="range" min={1} max={61} step={1}
+                  style={{ width: 90 }}
+                  value={Number.isFinite(ghostTrail) ? ghostTrail : 61}
+                  onChange={(e) => {
+                    const v = Number(e.target.value);
+                    setGhostTrail(v >= 61 ? Infinity : v); // sağ uç = tüm yol
+                  }}
+                />
+                <span className="meta" style={{ minWidth: 30, fontVariantNumeric: 'tabular-nums' }}>
+                  {Number.isFinite(ghostTrail) ? `${ghostTrail}s` : 'full'}
+                </span>
                 <span className="meta" style={{ fontVariantNumeric: 'tabular-nums' }}>{ghostClock}</span>
               </div>
               <input
