@@ -394,7 +394,7 @@ func (s *server) ingestStream(r io.Reader, sourceFile, playedAt, tournament stri
 		return nil, err
 	}
 	sha := hex.EncodeToString(h.Sum(nil))
-	resp, _, err := s.ingestLocalDemo(tmpPath, sha, size, sourceFile, playedAt, tournament)
+	resp, _, err := s.ingestLocalDemo(tmpPath, sha, size, sourceFile, playedAt, tournament, false)
 	if err != nil {
 		return nil, err
 	}

@@ -43,7 +43,11 @@ func (s *server) search(w http.ResponseWriter, r *http.Request) {
 	teams, players := []hit{}, []hit{}
 	if q != "" {
 		trows, err := s.pg.Query(ctx,
-			"SELECT team_id, name FROM teams WHERE lower(name) LIKE '%'||$1||'%' LIMIT 8",
+			`SELECT t.team_id, t.name FROM teams t
+			 WHERE lower(t.name) LIKE '%'||$1||'%'
+			   AND EXISTS (SELECT 1 FROM matches m
+			               WHERE (m.team_a_id = t.team_id OR m.team_b_id = t.team_id)
+			                 AND m.status = 'ready') LIMIT 8`,
 			strings.ToLower(q))
 		if err == nil {
 			for trows.Next() {
@@ -55,7 +59,11 @@ func (s *server) search(w http.ResponseWriter, r *http.Request) {
 			trows.Close()
 		}
 		prows, err := s.pg.Query(ctx,
-			"SELECT player_id, nickname FROM players WHERE lower(nickname) LIKE '%'||$1||'%' LIMIT 8",
+			`SELECT p.player_id, p.nickname FROM players p
+			 WHERE lower(p.nickname) LIKE '%'||$1||'%'
+			   AND EXISTS (SELECT 1 FROM player_round_states s2
+			               JOIN matches m ON m.match_id = s2.match_id AND m.status = 'ready'
+			               WHERE s2.player_id = p.player_id) LIMIT 8`,
 			strings.ToLower(q))
 		if err == nil {
 			for prows.Next() {

@@ -104,6 +104,7 @@ func main() {
 	r.Post("/api/v1/upload", srv.upload)
 	r.Post("/api/v1/backfill/scan", srv.backfillScan)
 	r.Post("/api/v1/reprocess", srv.reprocess)
+	r.Delete("/api/v1/private/{id}", srv.privateDelete)
 	r.Get("/api/v1/backfill/status", srv.backfillStatus)
 	r.Get("/api/v1/coverage", srv.coverage)
 	r.Get("/api/v1/matches/{id}/status", srv.matchStatus)
@@ -256,7 +257,8 @@ func (s *server) teams(w http.ResponseWriter, r *http.Request) {
 	rows, err := s.pg.Query(r.Context(), `
 		SELECT t.team_id, t.name, count(DISTINCT m.match_id) AS matches
 		FROM teams t
-		LEFT JOIN matches m ON m.team_a_id = t.team_id OR m.team_b_id = t.team_id
+		LEFT JOIN matches m ON (m.team_a_id = t.team_id OR m.team_b_id = t.team_id)
+		     AND m.status = 'ready'
 		GROUP BY t.team_id, t.name
 		HAVING count(DISTINCT m.match_id) > 0
 		ORDER BY matches DESC, t.name`)

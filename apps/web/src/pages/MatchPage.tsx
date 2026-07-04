@@ -2,6 +2,7 @@ import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../api';
 import { playUrl } from './Playlists';
+import { localIds } from '../lib/localdb';
 import { winnerTeamClass } from '../lib/rounds';
 import ReplayView from '../components/ReplayView';
 
@@ -11,6 +12,7 @@ export default function MatchPage() {
   const { id = '' } = useParams();
   const [params, setParams] = useSearchParams();
   const nav = useNavigate();
+  const isLocal = localIds.has(id);
   const round = Number(params.get('round') ?? '1');
   const seekTick = params.get('t') ? Number(params.get('t')) : null;
   const seekSec = params.get('ts') ? Number(params.get('ts')) : null;
@@ -21,7 +23,7 @@ export default function MatchPage() {
   const pl = useQuery({
     queryKey: ['playlist', plId],
     queryFn: () => api.playlist(plId!),
-    enabled: !!plId,
+    enabled: !!plId && !isLocal,
   });
 
   const detail = useQuery({ queryKey: ['match', id], queryFn: () => api.matchDetail(id) });
@@ -29,6 +31,7 @@ export default function MatchPage() {
     queryKey: ['search', ''],
     queryFn: () => api.search(''),
     select: (d) => d.matches.find((m) => m.match_id === id),
+    enabled: !isLocal,
   });
   // Parça demo (…-p1/-p2) ise kardeş parçaları bul
   const partM = /^(.*)-p(\d)$/.exec(summary.data?.name ?? '');
@@ -71,6 +74,7 @@ export default function MatchPage() {
         ? <Link to={`/report/${d.team_b_id}?map=${d.map_name ?? ''}`} title="Opponent report">{d.team_b}</Link>
         : (d.team_b ?? 'Team B')}
       <div className="meta">
+        {isLocal && <span className="badge gray" style={{ marginRight: 6 }}>💾 local</span>}
         {d.map_name}
         {d.tournament ? ` · ${d.tournament.replace(/-/g, ' ')}` : ''}
         {summary.data?.played_at ? ` · ${summary.data.played_at}` : ''}
@@ -131,6 +135,7 @@ export default function MatchPage() {
         rounds={d.rounds}
         teams={teams}
         onEnded={plId ? () => goPl(plIdx + 1) : undefined}
+        localMode={isLocal}
       />
     </>
   );

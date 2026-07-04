@@ -38,7 +38,9 @@ async def enrich_match(conn: psycopg.AsyncConnection, match_id: str) -> EnrichCo
         rounds_classified = await _classify_buys(cur, match_id)
         first_grenades = await _mark_first_grenades(cur, match_id)
         await cur.execute(
-            "UPDATE matches SET status = 'ready' WHERE match_id = %s", (match_id,)
+            """UPDATE matches SET status =
+                   CASE WHEN is_private THEN 'private' ELSE 'ready' END
+               WHERE match_id = %s""", (match_id,)
         )
     await conn.commit()
     return EnrichCounts(first_kills, trades, rounds_classified, first_grenades)

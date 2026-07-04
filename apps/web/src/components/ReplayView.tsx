@@ -86,7 +86,7 @@ const hlClass = (r: RoundRow, v: string, aId: string | null): string => {
 };
 
 export default function ReplayView({
-  matchId, round, onRound, seekTick, seekSec, matchKills, rounds, teams, header, onEnded,
+  matchId, round, onRound, seekTick, seekSec, matchKills, rounds, teams, header, onEnded, localMode,
 }: {
   matchId: string;
   round: number;
@@ -98,6 +98,7 @@ export default function ReplayView({
   teams: { aId: string | null; a: string | null; b: string | null };
   header?: React.ReactNode;
   onEnded?: () => void;
+  localMode?: boolean; // kişisel (IndexedDB) maç: sunucu katmanları kapalı
 }) {
   const ticksQ = useQuery({
     queryKey: ['ticks', matchId, round],
@@ -1421,6 +1422,7 @@ export default function ReplayView({
                 </Fragment>
               ))}
             </div>
+            {!localMode && (
             <div className="row">
               <label style={{ minWidth: 0 }}>🎬</label>
               <select value={plSel} onChange={(e) => setPlSel(e.target.value)}>
@@ -1437,9 +1439,11 @@ export default function ReplayView({
                 + save moment
               </button>
             </div>
+            )}
           </div>
         </div>
 
+        {!localMode && (<>
         <div className="layerpanel">
           <div className="headrow">
           <label className="layerhead">
@@ -1608,8 +1612,10 @@ export default function ReplayView({
               <p className="meta">own clock — plays independently of the replay · max 10 rounds</p>
           </div>
         </div>
+        </>)}
 
         {/* Notlar: raunt+saniyeye bağlı metin/sesli koç notları */}
+        {!localMode && (
         <div className="layerpanel">
           <label className="layerhead">📝 Notes {roundNotes.length > 0 && <span className="meta">({roundNotes.length} this round)</span>}</label>
           <div className="layerbody">
@@ -1654,6 +1660,7 @@ export default function ReplayView({
             </div>
           </div>
         </div>
+        )}
 
         {/* Zaman çubuğu: sağ alt (kill/olay işaretli, tıklayınca atlar) */}
         <div className="layerpanel">

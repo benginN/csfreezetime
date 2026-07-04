@@ -59,7 +59,8 @@ CREATE TABLE IF NOT EXISTS matches (
     tick_rate       SMALLINT DEFAULT 64,
     played_at       TIMESTAMPTZ,
     tournament      TEXT,
-    tick_purged     BOOLEAN NOT NULL DEFAULT false,  -- saklama: ham+tick silindi, meta kaldı  -- backfill arşiv adından; ml-jobs takım adlarını ayıklar
+    tick_purged     BOOLEAN NOT NULL DEFAULT false,
+    is_private      BOOLEAN NOT NULL DEFAULT false,  -- kullanıcı özel DB'si: ready yerine private, ana arşive girmez  -- saklama: ham+tick silindi, meta kaldı  -- backfill arşiv adından; ml-jobs takım adlarını ayıklar
     parser_version  TEXT NOT NULL,
     status          TEXT NOT NULL DEFAULT 'queued'
                     CHECK (status IN ('queued','parsing','enriching','ready','failed'))

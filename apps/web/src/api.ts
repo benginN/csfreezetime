@@ -1,3 +1,4 @@
+import { localIds, getMatch as getLocalMatch, getRound as getLocalRound } from './lib/localdb';
 // stats-svc API istemcisi — tüm tipler sunucu yanıtlarıyla birebir.
 
 export interface Team {
@@ -457,10 +458,21 @@ export const api = {
   predict: (p: URLSearchParams) => get<Prediction>('/api/v1/predict?' + p),
   matches: (teamId?: string, since = '', roster = 0) =>
     get<MatchSummary[]>('/api/v1/matches' + (teamId ? `?team_id=${teamId}&since=${since}&roster_min=${roster}` : '')),
-  matchDetail: (id: string) => get<MatchDetail>(`/api/v1/matches/${id}`),
-  matchPlayers: (id: string) =>
-    get<{ player_id: string; nickname: string; t_rounds: number[]; ct_rounds: number[] }[]>(
-      `/api/v1/matches/${id}/players`),
+  matchDetail: async (id: string): Promise<MatchDetail> => {
+    if (localIds.has(id)) {
+      const m = await getLocalMatch(id);
+      if (m) return m.detail;
+    }
+    return get<MatchDetail>(`/api/v1/matches/${id}`);
+  },
+  matchPlayers: async (id: string) => {
+    if (localIds.has(id)) {
+      const m = await getLocalMatch(id);
+      if (m) return m.players;
+    }
+    return get<{ player_id: string; nickname: string; t_rounds: number[]; ct_rounds: number[] }[]>(
+      `/api/v1/matches/${id}/players`);
+  },
   matchHeatmap: (id: string, p: URLSearchParams) =>
     get<MatchHeatmap>(`/api/v1/matches/${id}/heatmap?` + p),
   teamHeatmap: (id: string, p: URLSearchParams) =>
@@ -473,7 +485,13 @@ export const api = {
     get<MatchHeatmap>(`/api/v1/players/${id}/heatmap?` + p),
   report: (teamId: string, map: string, since = '', roster = 0) =>
     get<ReportResp>(`/api/v1/report?team_id=${teamId}&map=${encodeURIComponent(map)}&since=${since}&roster_min=${roster}`),
-  roundTicks: (id: string, n: number) => get<RoundTicks>(`/api/v1/rounds/${id}/${n}/ticks`),
+  roundTicks: async (id: string, n: number): Promise<RoundTicks> => {
+    if (localIds.has(id)) {
+      const r = await getLocalRound(id, n);
+      if (r) return r;
+    }
+    return get<RoundTicks>(`/api/v1/rounds/${id}/${n}/ticks`);
+  },
   mapLayout: (map: string) => get<MapLayout>(`/api/v1/maplayout?map=${map}`),
   query: (dsl: unknown) => post<QueryResult>('/api/v1/query', dsl),
   heatmap: (params: URLSearchParams) => get<HeatmapResp>('/api/v1/heatmap?' + params),

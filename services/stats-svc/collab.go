@@ -212,3 +212,38 @@ func (s *server) noteDelete(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, 200, map[string]any{"ok": true})
 }
+
+// DELETE /api/v1/private/{id} — kişisel maçın sunucudaki HER izini siler:
+// istemci veriyi IndexedDB'sine indirdikten sonra çağırır. Kamu maçlarında
+// çalışmaz (yanlışlıkla arşiv silinemez).
+func (s *server) privateDelete(w http.ResponseWriter, r *http.Request) {
+	matchID, err := uuid.Parse(chi.URLParam(r, "id"))
+	if err != nil {
+		writeErr(w, 400, fmt.Errorf("invalid match_id"))
+		return
+	}
+	ctx := r.Context()
+	var isPrivate bool
+	var objectKey string
+	if err := s.pg.QueryRow(ctx,
+		"SELECT is_private, demo_object_key FROM matches WHERE match_id = $1",
+		matchID).Scan(&isPrivate, &objectKey); err != nil {
+		writeErr(w, 404, fmt.Errorf("match not found"))
+		return
+	}
+	if !isPrivate {
+		writeErr(w, 403, fmt.Errorf("only private matches can be deleted"))
+		return
+	}
+	_ = s.ch.Exec(ctx, "DELETE FROM player_ticks WHERE match_id = ?", matchID)
+	_ = s.ch.Exec(ctx, "DELETE FROM shots WHERE match_id = ?", matchID)
+	if s.up != nil {
+		_ = s.up.mc.RemoveObject(ctx, s.up.bucket, objectKey, minio.RemoveObjectOptions{})
+	}
+	if _, err := s.pg.Exec(ctx,
+		"DELETE FROM matches WHERE match_id = $1", matchID); err != nil {
+		writeErr(w, 500, err)
+		return
+	}
+	writeJSON(w, 200, map[string]any{"deleted": true})
+}

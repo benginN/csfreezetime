@@ -580,3 +580,11 @@ ve istatistikler SÜRESİZ kalır — leaderboard/kariyer geriye dönük bozulma
 Sonuç: >24 ay maçlarda replay/heatmap kapalı ("archived"); CH okuyan ml
 işleri (setups/roles/rotations/flash) o maçları doğal olarak dışarıda
 bırakır. RETENTION_MONTHS env (varsayılan 24; 0=kapalı).
+
+### Kişisel veritabanı (create your own database)
+Kullanıcı demoları is_private=true ile işlenir; enrichment sonunda status
+'private' olur — 'ready' filtreleyen hiçbir yüzeye (arama, takımlar,
+leaderboard, ml) giremez. İstemci işlenmiş rauntları IndexedDB'ye indirir,
+ardından DELETE /api/v1/private/{id} sunucudaki HER izi (PG+CH+MinIO)
+siler. Aynı sha kamu arşivinde zaten varsa demo yeniden işlenmez; istemci
+kamu kopyasından indirir ve sunucudan silme yapılmaz (public_copy=true).

@@ -68,6 +68,7 @@ func (s *server) upload(w http.ResponseWriter, r *http.Request) {
 
 	var (
 		fileName string
+		private  bool
 		playedAt string
 		tmpPath  string
 		sha      string
@@ -83,6 +84,9 @@ func (s *server) upload(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		switch part.FormName() {
+		case "private":
+			b, _ := io.ReadAll(io.LimitReader(part, 8))
+			private = strings.TrimSpace(string(b)) == "1"
 		case "played_at":
 			b, _ := io.ReadAll(io.LimitReader(part, 64))
 			playedAt = strings.TrimSpace(string(b))
@@ -117,7 +121,7 @@ func (s *server) upload(w http.ResponseWriter, r *http.Request) {
 	defer os.Remove(tmpPath)
 
 	resp, code, err := s.ingestLocalDemo(tmpPath, sha, size,
-		strings.TrimSuffix(fileName, ".dem"), playedAt, "")
+		strings.TrimSuffix(fileName, ".dem"), playedAt, "", private)
 	if err != nil {
 		writeErr(w, code, err)
 		return
@@ -129,6 +133,7 @@ func (s *server) upload(w http.ResponseWriter, r *http.Request) {
 // demo.ingested). Manuel upload ve FACEIT import bu tek yolu paylaşır.
 func (s *server) ingestLocalDemo(
 	tmpPath, sha string, size int64, sourceFile, playedAt, tournament string,
+	private bool,
 ) (map[string]any, int, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
@@ -139,10 +144,11 @@ func (s *server) ingestLocalDemo(
 	err := s.pg.QueryRow(ctx,
 		"SELECT match_id, status FROM matches WHERE demo_sha256 = $1", sha).
 		Scan(&existingID, &existingStatus)
-	if err == nil && existingStatus == "ready" {
+	if err == nil && (existingStatus == "ready" || existingStatus == "private") {
 		return map[string]any{
 			"match_id": existingID, "demo_sha256": sha,
-			"status": "ready", "duplicate": true,
+			"status": existingStatus, "duplicate": true,
+			"public_copy": existingStatus == "ready",
 		}, 200, nil
 	}
 
@@ -163,6 +169,16 @@ func (s *server) ingestLocalDemo(
 	if existingID != uuid.Nil {
 		matchID = existingID // yarım kalmış işleme: aynı maç kimliğiyle tekrar dene
 	}
+	if private {
+		// satırı önce biz açarız: parser ON CONFLICT ile korur, is_private kalır
+		if _, err := s.pg.Exec(ctx, `
+			INSERT INTO matches (match_id, demo_sha256, demo_object_key, status, is_private)
+			VALUES ($1, $2, $3, 'parsing', true)
+			ON CONFLICT (demo_sha256) DO UPDATE SET is_private = true`,
+			matchID, sha, objectKey); err != nil {
+			return nil, 500, fmt.Errorf("private pre-insert: %w", err)
+		}
+	}
 	payload, _ := json.Marshal(map[string]any{
 		"demo_sha256": sha,
 		"match_id":    matchID,
@@ -174,7 +190,9 @@ func (s *server) ingestLocalDemo(
 	if err := s.up.nc.Publish("demo.ingested", payload); err != nil {
 		return nil, 500, fmt.Errorf("failed to enqueue: %w", err)
 	}
-	markIngest()
+	if !private {
+		markIngest()
+	}
 	return map[string]any{
 		"match_id": matchID, "demo_sha256": sha,
 		"status": "queued", "size_bytes": size,

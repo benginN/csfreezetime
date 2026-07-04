@@ -11,6 +11,7 @@ import Player from './pages/Player';
 import Help from './pages/Help';
 import Leaderboards from './pages/Leaderboards';
 import Playlists from './pages/Playlists';
+import MyDb from './pages/MyDb';
 
 export default function App() {
   return (
@@ -24,6 +25,7 @@ export default function App() {
         <a href="/compare" style={{ whiteSpace: 'nowrap' }}>⚔ Compare</a>
         <a href="/leaderboards" style={{ whiteSpace: 'nowrap' }}>🏆 Boards</a>
         <a href="/playlists" style={{ whiteSpace: 'nowrap' }}>🎬 Playlists</a>
+        <a href="/mydb" style={{ whiteSpace: 'nowrap' }}>💾 My DB</a>
         <a href="/upload" style={{ whiteSpace: 'nowrap' }}>⬆ Upload demo</a>
         <a href="/help" style={{ whiteSpace: 'nowrap' }}>? Help</a>
       </nav>
@@ -42,6 +44,7 @@ export default function App() {
           <Route path="/help" element={<Help />} />
           <Route path="/leaderboards" element={<Leaderboards />} />
           <Route path="/playlists" element={<Playlists />} />
+          <Route path="/mydb" element={<MyDb />} />
         </Routes>
       </main>
     </>
