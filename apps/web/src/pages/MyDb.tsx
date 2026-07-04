@@ -223,28 +223,32 @@ export default function MyDb() {
             {queue && <button className="ghost" onClick={() => { stopRef.current = true; }}>⏹ stop (resumes later)</button>}
           </>
         ) : (
-          <>
-            <span className="meta">
-              Folder mode needs Chrome or Edge (File System Access API) —
-              single-demo mode:
-            </span>
-            <input
-              ref={fileRef} type="file" accept=".dem" style={{ display: 'none' }}
-              onChange={async (e) => {
-                const file = e.target.files?.[0];
-                if (!file) return;
-                setErr('');
-                setQueue({ total: 1, done: 0, current: file.name });
-                try {
-                  await processDem(null, { name: file.name, getFile: async () => file });
-                  await refresh();
-                } catch (e2) { setErr(String(e2)); }
-                setQueue(null); setPhase('');
-              }}
-            />
-            <button disabled={!!queue} onClick={() => fileRef.current?.click()}>⬆ add a demo</button>
-          </>
+          <span className="meta">folder mode needs Chrome or Edge — single demos work everywhere:</span>
         )}
+        <input
+          ref={fileRef} type="file" accept=".dem" style={{ display: 'none' }}
+          onChange={async (e) => {
+            const file = e.target.files?.[0];
+            if (!file) return;
+            e.target.value = '';
+            setErr('');
+            setQueue({ total: 1, done: 0, current: file.name });
+            try {
+              // klasör seçiliyse paketi oraya da yaz; değilse yalnız tarayıcıya
+              await processDem(dirRef.current, { name: file.name, getFile: async () => file });
+              await refresh();
+            } catch (e2) { setErr(String(e2)); }
+            setQueue(null); setPhase('');
+          }}
+        />
+        <button
+          className={fsSupported ? 'ghost' : ''}
+          disabled={!!queue}
+          title="analyze one demo without setting up a folder"
+          onClick={() => fileRef.current?.click()}
+        >
+          ⚡ analyze a single demo
+        </button>
       </div>
 
       {queue && (
