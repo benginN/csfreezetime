@@ -21,4 +21,12 @@ def ch():
         username=os.environ["CLICKHOUSE_USER"],
         password=os.environ["CLICKHOUSE_PASSWORD"],
         database=os.environ["CLICKHOUSE_DB"],
+        # Düşük RAM'li ortam (Colima 8GB): büyük GROUP BY'lar belleğe
+        # sığmayınca diske taşsın; sorgu başına tavan da sunucu
+        # limitinin (7GB) altında kalsın ki OvercommitTracker kesmesin.
+        settings={
+            "max_bytes_before_external_group_by": 2 * 1024**3,
+            "max_bytes_before_external_sort": 2 * 1024**3,
+            "max_memory_usage": 5 * 1024**3,
+        },
     )
