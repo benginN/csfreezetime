@@ -42,19 +42,28 @@ def run(pgconn) -> int:
         if name_a and name_b:
             a, b = _slug(name_a), _slug(name_b)
             # slug'ın tüm token-önekleri aday: "lynn-vision-gaming" →
-            # [lynn, lynn-vision, lynn-vision-gaming] (HLTV kısaltmaları)
+            # [lynn, lynn-vision, lynn-vision-gaming] (HLTV kısaltmaları).
+            # HLTV arşiv adı artikel taşıyabilir ("the-mongolz") ama kulüp
+            # adı taşımayabilir ("MongolZ") — "the-" varyantı da aday olur.
             def prefixes(x: str) -> list[str]:
                 toks = x.split("-")
-                return ["-".join(toks[: i + 1]) for i in range(len(toks))]
+                cands = ["-".join(toks[: i + 1]) for i in range(len(toks))]
+                cands += ["the-" + c for c in cands if not c.startswith("the-")]
+                return cands
             cands_a = prefixes(a)
             cands_b = prefixes(b)
             tails = [f"-{x}-vs-{y}" for x in cands_a for y in cands_b]
             tails += [f"-{y}-vs-{x}" for x in cands_a for y in cands_b]
+            # En ERKEN başlayan kuyruk kazanır: kısa aday takım adının
+            # ortasından yakalarsa ("mongolz" ⊂ "the-mongolz") artikel
+            # turnuva adına yapışıyordu ("...rotterdam-2026-the" vakası).
+            best = None
             for tail in tails:
                 idx = raw.find(tail)
-                if idx > 0:
-                    refined = raw[:idx]
-                    break
+                if idx > 0 and (best is None or idx < best):
+                    best = idx
+            if best is not None:
+                refined = raw[:best]
         if refined and refined != raw:
             updates.append((refined, match_id))
             refined_events.add(refined)
