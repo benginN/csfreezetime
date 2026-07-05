@@ -11,7 +11,7 @@ const W = 860;
 // (kaynak PNG 1024 olduğundan ~4x üstü yine yumuşar ama pikselleşmez)
 const BASE_OVERSAMPLE = 2;      // PNG kaynak: 2x yeterli
 const VECTOR_OVERSAMPLE = 3;    // SVG kaynak: daha yükseğe değer (keskin kalır)
-const NADE_LIFE: Record<string, number> = { smoke: 20, molotov: 7, incendiary: 7, flash: 0.7, he: 1.6, decoy: 15 };
+const NADE_LIFE: Record<string, number> = { smoke: 20, molotov: 7, incendiary: 7, flash: 0.7, he: 1.1, decoy: 15 };
 const GHOST_TRAIL_DEFAULT = 8; // sn — hayalet iz uzunluğu (kullanıcı değiştirebilir)
 const ghostHue = (i: number) => Math.round((i * 137.508) % 360);
 
@@ -909,8 +909,8 @@ export default function ReplayView({
           const fade = Math.min(1, (life - dt) / 2);
           if (g.type === 'smoke') {
             const r = worldPx(144) * s;
-            gNades.circle(x, y, r).fill({ color: 0x848a90, alpha: 0.5 * fade });
-            gNades.circle(x, y, r).stroke({ width: 1, color: 0xa7adb3, alpha: 0.5 * fade });
+            gNades.circle(x, y, r).fill({ color: 0x62676d, alpha: 0.55 * fade });
+            gNades.circle(x, y, r).stroke({ width: 1, color: 0x8b9096, alpha: 0.5 * fade });
           } else if (g.type === 'molotov' || g.type === 'incendiary') {
             const r = worldPx(120) * s;
             const flick = 1 + 0.08 * Math.sin(phase * Math.PI * 4); // hafif alev titremesi
@@ -928,10 +928,22 @@ export default function ReplayView({
                 .stroke({ width: 1.5, color: 0xffffff, alpha: 0.8 * (1 - k) });
             }
           } else if (g.type === 'he') {
-            const k = dt / life;
-            const r = (4 + 12 * k) * s;
-            gNades.circle(x, y, r).fill({ color: 0xff8c3c, alpha: 0.8 * (1 - k) });
+            // hızlı patlama (ease-out) + dışa savrulan kırmızı partiküller
+            const k = Math.min(1, (dt / life) * 1.6);
+            const ek = 1 - (1 - k) * (1 - k); // ease-out: erken hızlı genişler
+            const r = (4 + 14 * ek) * s;
+            gNades.circle(x, y, r).fill({ color: 0xff8c3c, alpha: 0.85 * (1 - k) });
             gNades.circle(x, y, r + 3 * s).stroke({ width: 1.5, color: 0xd94f2a, alpha: 0.7 * (1 - k) });
+            for (let pi3 = 0; pi3 < 8; pi3++) {
+              // deterministik saçılma: bomba tick'i tohum, partikül başına açı+hız
+              const seed = (g.tick * 31 + pi3 * 97) % 360;
+              const ang = (seed / 180) * Math.PI;
+              const spd = 16 + (seed % 11);
+              const px2 = x + Math.cos(ang) * spd * ek * s;
+              const py2 = y + Math.sin(ang) * spd * ek * s;
+              gNades.circle(px2, py2, 1.3 * s)
+                .fill({ color: 0xe03030, alpha: 0.9 * (1 - k) });
+            }
           } else if (g.type === 'decoy') {
             gNades.circle(x, y, 5 * s).stroke({ width: 1, color: 0xc8c878, alpha: 0.5 * fade });
           }
