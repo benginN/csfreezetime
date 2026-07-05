@@ -300,7 +300,7 @@ func (s *server) backfillFile(path string) ([]map[string]any, error) {
 			return nil, err
 		}
 		defer gz.Close()
-		r, err := s.ingestStream(gz, demBase(path), playedAt, "")
+		r, err := s.ingestStream(gz, demBase(path), playedAt, tournamentSlug(path))
 		return wrapResult(r, err)
 	case strings.HasSuffix(lower, ".dem.zst"):
 		f, err := os.Open(path)
@@ -313,7 +313,7 @@ func (s *server) backfillFile(path string) ([]map[string]any, error) {
 			return nil, err
 		}
 		defer zr.Close()
-		r, err := s.ingestStream(zr, demBase(path), playedAt, "")
+		r, err := s.ingestStream(zr, demBase(path), playedAt, tournamentSlug(path))
 		return wrapResult(r, err)
 	default: // .dem
 		f, err := os.Open(path)
@@ -321,7 +321,7 @@ func (s *server) backfillFile(path string) ([]map[string]any, error) {
 			return nil, err
 		}
 		defer f.Close()
-		r, err := s.ingestStream(f, demBase(path), playedAt, "")
+		r, err := s.ingestStream(f, demBase(path), playedAt, tournamentSlug(path))
 		return wrapResult(r, err)
 	}
 }
