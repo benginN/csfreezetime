@@ -11,7 +11,7 @@ import time
 
 from . import (
     anomaly, clustering, clutch, db, evaluate, features, flashstats,
-    integrity, roles, rotations, setups, templates, tendencies, tournaments, utility, winprob,
+    aliases, integrity, roles, rotations, setups, templates, tendencies, tournaments, utility, winprob,
 )
 
 
@@ -34,6 +34,9 @@ def cli() -> None:
         )
         maps = [r[0] for r in cur.fetchall()]
 
+    n_alias = aliases.run(pgconn)
+    if n_alias:
+        print(f"— takım birleştirme: {n_alias} alias kanonikleştirildi —")
     n_fix = integrity.run(pgconn)
     if n_fix:
         print(f"— bütünlük: {n_fix} raunt etiketi onarıldı —")
