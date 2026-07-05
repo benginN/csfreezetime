@@ -362,6 +362,6 @@ table.cond { max-width: 760px; }
 }
 .roundchips button.planted::before { background: #e05545; }
 .roundchips button.defused::before { background: #5aa7e8; }
-/* C4 sayacı: kurulumdan sonra kırmızı-gri yanıp söner */
-@keyframes c4blink { 0%, 49% { color: #e05545; } 50%, 100% { color: #8a938c; } }
-.c4blink { animation: c4blink 1s step-end infinite; font-weight: 700; }
+/* C4 sayacı: renk oyun saatine bağlı (kalan saniye tek/çift) — her hızda senkron */
+.c4red  { color: #e05545; font-weight: 700; }
+.c4grey { color: #8a938c; font-weight: 700; }

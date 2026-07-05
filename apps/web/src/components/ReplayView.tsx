@@ -122,7 +122,7 @@ export default function ReplayView({
   const [speed, setSpeed] = useState(2);
   const [showNames, setShowNames] = useState(true);   // oyuncu adları
   const [showPlaces, setShowPlaces] = useState(true); // harita bölge adları
-  const [clock, setClock] = useState<{ text: string; remain: string; planted: boolean }>({ text: '0:00', remain: '1:55', planted: false });
+  const [clock, setClock] = useState<{ text: string; remain: string; planted: boolean; even: boolean }>({ text: '0:00', remain: '1:55', planted: false, even: true });
   const [hudRows, setHudRows] = useState<HudRow[]>([]);
 
   // --- Katmanlar: üçü de aynı haritayı kullanır ama tamamen BAĞIMSIZDIR ---
@@ -1194,7 +1194,11 @@ export default function ReplayView({
           const remain = plant != null && d.ticks[i0] >= plant
             ? 40 - (d.ticks[i0] - plant) / d.tick_rate
             : 115 - s;
-          setClock({ text: fmt(s), remain: fmt(remain), planted: plant != null && d.ticks[i0] >= plant });
+          setClock({
+            text: fmt(s), remain: fmt(remain),
+            planted: plant != null && d.ticks[i0] >= plant,
+            even: Math.floor(Math.max(0, remain)) % 2 === 0, // oyun saatine senkron
+          });
 
           // canvas içi killfeed (son 6 sn; replay katmanı kapalıysa boş)
           const recent = replayOn
@@ -1469,7 +1473,10 @@ export default function ReplayView({
                 {[0.25, 0.5, 1, 2, 4, 8].map((s) => <option key={s} value={s}>{s}×</option>)}
               </select>
               <span className="meta" style={{ fontVariantNumeric: 'tabular-nums' }}>
-                {clock.text} | <span className={clock.planted ? 'c4blink' : ''}>{clock.remain}</span>
+                {clock.text} |{' '}
+                <span className={clock.planted ? (clock.even ? 'c4red' : 'c4grey') : ''}>
+                  {clock.remain}
+                </span>
               </span>
               {ticksQ.isFetching && <span className="meta">…</span>}
             </div>
