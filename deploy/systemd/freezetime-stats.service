@@ -1,0 +1,16 @@
+[Unit]
+Description=FREEZETIME stats-svc (API + web + backfill izleyici + ml-auto)
+After=network-online.target docker.service
+Wants=network-online.target
+
+[Service]
+WorkingDirectory=/opt/freezetime
+EnvironmentFile=/opt/freezetime/infra/.env
+Environment=PATH=/root/.local/bin:/root/.cargo/bin:/usr/local/bin:/usr/bin:/bin
+Environment=BACKFILL_DELETE_DONE=1
+ExecStart=/opt/freezetime/services/stats-svc/stats-svc
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

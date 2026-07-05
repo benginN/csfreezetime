@@ -1,0 +1,16 @@
+[Unit]
+Description=FREEZETIME parser-worker #%i (demo -> PG/CH)
+After=network-online.target docker.service
+Wants=network-online.target
+
+[Service]
+WorkingDirectory=/opt/freezetime
+EnvironmentFile=/opt/freezetime/infra/.env
+ExecStart=/opt/freezetime/services/parser-worker/target/release/parser-worker
+Restart=always
+RestartSec=3
+# Dev demolar (850MB+) bellek zirvesi yapar; makineyi korumak için tavan
+MemoryMax=8G
+
+[Install]
+WantedBy=multi-user.target
