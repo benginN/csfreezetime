@@ -24,7 +24,11 @@ func (s *server) matchPlayers(w http.ResponseWriter, r *http.Request) {
 	rows, err := s.pg.Query(r.Context(), `
 		SELECT p.player_id, p.nickname,
 		       COALESCE(array_agg(s.round_number) FILTER (WHERE s.side = 'T'),  '{}') AS t_rounds,
-		       COALESCE(array_agg(s.round_number) FILTER (WHERE s.side = 'CT'), '{}') AS ct_rounds
+		       COALESCE(array_agg(s.round_number) FILTER (WHERE s.side = 'CT'), '{}') AS ct_rounds,
+		       -- koç: maç boyu tek kill/death'i olmayan katılımcı (GOTV'de
+		       -- takım slotunda görünür ama oynamaz)
+		       (COALESCE(sum(s.kills),0) + COALESCE(sum(s.deaths),0) = 0
+		        AND count(*) >= 6) AS is_coach
 		FROM player_round_states s JOIN players p ON p.player_id = s.player_id
 		WHERE s.match_id = $1
 		GROUP BY p.player_id, p.nickname ORDER BY p.nickname`, matchID)
@@ -38,11 +42,12 @@ func (s *server) matchPlayers(w http.ResponseWriter, r *http.Request) {
 		Nick     string    `json:"nickname"`
 		TRounds  []int16   `json:"t_rounds"`
 		CTRounds []int16   `json:"ct_rounds"`
+		IsCoach  bool      `json:"is_coach"`
 	}
 	out := []hit{}
 	for rows.Next() {
 		var h hit
-		if rows.Scan(&h.ID, &h.Nick, &h.TRounds, &h.CTRounds) == nil {
+		if rows.Scan(&h.ID, &h.Nick, &h.TRounds, &h.CTRounds, &h.IsCoach) == nil {
 			out = append(out, h)
 		}
 	}

@@ -58,6 +58,7 @@ interface HudRow {
   side: string;
   hp: number;
   armor: number;
+  helmet: boolean;
   weapon: string;
   money: number | null;
   inv: string;
@@ -276,6 +277,10 @@ export default function ReplayView({
     if (i >= 0) fIdxRef.current = i;
   };
   const roundNotes = (notesQ.data?.notes ?? []).filter((n) => n.round_number === round);
+  const coachSet = useMemo(
+    () => new Set((players.data ?? []).filter((p) => p.is_coach).map((p) => p.nickname)),
+    [players.data],
+  );
   const ghostKey = useMemo(() => [...ghostRounds].sort((a, b) => a - b).join(','), [ghostRounds]);
   useEffect(() => {
     if (!ghostPlayer || ghostSide === 'both') return;
@@ -1190,6 +1195,7 @@ export default function ReplayView({
             return {
               nick: p.nickname, side: p.side,
               hp: p.hp[i0] ?? 0, armor: p.armor[i0] ?? 0,
+              helmet: p.helmet?.[i0] ?? false,
               weapon: p.weapon[i0] ?? '',
               money: p.money[i0] ?? p.money_start, // canlı para; yoksa raunt başı
               inv: shortInv(p.inv[i0]),
@@ -1274,8 +1280,15 @@ export default function ReplayView({
   if (ticksQ.isLoading) return <p className="meta">loading round…</p>;
   if (ticksQ.error || !d) return <p className="error">{String(ticksQ.error)}</p>;
 
-  const tRows = hudRows.filter((r) => r.side === 'T');
-  const ctRows = hudRows.filter((r) => r.side === 'CT');
+  const tRows = hudRows.filter((r) => r.side === 'T' && !coachSet.has(r.nick));
+  const ctRows = hudRows.filter((r) => r.side === 'CT' && !coachSet.has(r.nick));
+  const curRound = rounds.find((r) => r.round_number === round);
+  const teamNameOf = (side: 'T' | 'CT'): string => {
+    const id = side === 'T' ? curRound?.t_team_id : curRound?.ct_team_id;
+    return (id && id === teams.aId ? teams.a : teams.b) ?? side;
+  };
+  const coachOf = (side: 'T' | 'CT'): string =>
+    hudRows.find((r) => r.side === side && coachSet.has(r.nick))?.nick ?? '';
 
   // Zaman çubuğu işaretleri: seçim yoksa tüm kill'ler; oyuncu seçiliyse onun
   // kill (yeşil) / ölüm (kırmızı) / bomba atışları (tip renginde).
@@ -1377,8 +1390,8 @@ export default function ReplayView({
               </>
             )}
           </div>
-          {showReplay && <HudPanel rows={tRows} cls="left" sel={selPlayer} onSel={setSelPlayer} />}
-          {showReplay && <HudPanel rows={ctRows} cls="right" sel={selPlayer} onSel={setSelPlayer} />}
+          {showReplay && <HudPanel rows={tRows} cls="left" sel={selPlayer} onSel={setSelPlayer} team={teamNameOf('T')} coach={coachOf('T')} side="T" />}
+          {showReplay && <HudPanel rows={ctRows} cls="right" sel={selPlayer} onSel={setSelPlayer} team={teamNameOf('CT')} coach={coachOf('CT')} side="CT" />}
         </div>
       </div>
 
@@ -1495,6 +1508,7 @@ export default function ReplayView({
                 <select value={heatPlayer} onChange={(e) => setHeatPlayer(e.target.value)}>
                   <option value="">all</option>
                   {(players.data ?? [])
+                    .filter((p) => !p.is_coach)
                     .filter((p) => {
                       // taraf seçiliyse: seçili rauntlardan en az birinde o tarafta
                       // oynamış olanlar (taraf değişimi rauntlara göre hesaplanır)
@@ -1599,6 +1613,7 @@ export default function ReplayView({
                 <select value={ghostPlayer} onChange={(e) => setGhostPlayer(e.target.value)}>
                   <option value="">all</option>
                   {(players.data ?? [])
+                    .filter((p) => !p.is_coach)
                     .filter((p) => {
                       if (ghostSide === 'both') return true;
                       const rs = ghostSide === 'T' ? p.t_rounds : p.ct_rounds;
@@ -1754,22 +1769,34 @@ export default function ReplayView({
 }
 
 function HudPanel({
-  rows, cls, sel, onSel,
+  rows, cls, sel, onSel, team, coach, side,
 }: {
   rows: HudRow[];
   cls: string;
   sel: string;
   onSel: (n: string | ((cur: string) => string)) => void;
+  team: string;
+  coach: string;
+  side: string;
 }) {
-  // Kompakt köşe HUD'u: tek satır/oyuncu; hover'da zırh/para/envanter açılır
+  // Kompakt köşe HUD'u: üst satır takım+koç; oyuncu satırı
+  // İsim · ❤can · 🛡kalkan(🪖 kask) · silah · KDA. Hover'da para+envanter.
   return (
     <div className={`hud ${cls}`}>
+      <div className="hudhead">
+        <span className={`badge ${side}`}>{side}</span>
+        <span className="cut" style={{ fontWeight: 700 }}>{team}</span>
+        <span className="meta cut" style={{ marginLeft: 'auto' }}>
+          {coach ? `coach ${coach}` : ''}
+        </span>
+      </div>
       <table>
         <colgroup>
-          <col style={{ width: '30%' }} />
-          <col style={{ width: '25%' }} />
-          <col style={{ width: '28%' }} />
-          <col style={{ width: '17%' }} />
+          <col style={{ width: '32%' }} />
+          <col style={{ width: '15%' }} />
+          <col style={{ width: '15%' }} />
+          <col style={{ width: '22%' }} />
+          <col style={{ width: '16%' }} />
         </colgroup>
         <tbody>
           {rows.map((r) => (
@@ -1782,18 +1809,16 @@ function HudPanel({
                 >
                   {r.nick}
                 </td>
-                <td>
-                  <span className="hpbar">
-                    <i style={{ width: `${r.hp}%`, background: `hsl(${(120 * r.hp) / 100},70%,45%)` }} />
-                  </span>{' '}
-                  {r.hp}
+                <td style={{ color: `hsl(${(120 * r.hp) / 100},60%,55%)` }}>❤{r.hp}</td>
+                <td title={r.helmet ? 'kevlar + helmet' : r.armor > 0 ? 'kevlar only' : ''}>
+                  {r.armor > 0 ? `${r.helmet ? '🪖' : '🛡'}${r.armor}` : '—'}
                 </td>
                 <td className="cut">{r.alive ? r.weapon : '—'}</td>
                 <td>{r.k}/{r.a}/{r.d}</td>
               </tr>
               <tr className="detail" style={{ opacity: r.alive ? 1 : 0.4 }}>
-                <td className="inv">🛡{r.armor} · ${r.money ?? '?'}</td>
-                <td colSpan={3} className="inv cut">{r.alive ? r.inv : ''}</td>
+                <td className="inv">${r.money ?? '?'}</td>
+                <td colSpan={4} className="inv cut">{r.alive ? r.inv : ''}</td>
               </tr>
             </Fragment>
           ))}

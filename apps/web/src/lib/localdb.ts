@@ -9,7 +9,7 @@ const VER = 2;
 export interface LocalMatchMeta {
   match_id: string;
   detail: MatchDetail;
-  players: { player_id: string; nickname: string; t_rounds: number[]; ct_rounds: number[] }[];
+  players: { player_id: string; nickname: string; t_rounds: number[]; ct_rounds: number[]; is_coach?: boolean }[];
   saved_at: string;
   rounds: number;
   bytes: number;

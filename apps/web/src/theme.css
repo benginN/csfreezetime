@@ -353,3 +353,4 @@ table.cond { max-width: 760px; }
 .roundchips button.hlA.hlB {
   box-shadow: inset 0 0 0 2px #86d8e8, inset 0 0 0 4px #dcaaea;
 }
+.hudhead { display: flex; align-items: center; gap: 6px; padding: 2px 4px 4px; border-bottom: 1px solid #232a26; margin-bottom: 2px; font-size: 12px; }

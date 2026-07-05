@@ -30,6 +30,7 @@ pub struct PlayerTickRow {
     pub velocity: f32,
     pub health: u8,
     pub armor: u8,
+    pub has_helmet: bool,
     pub active_weapon: String,
     pub is_alive: bool,
     pub is_ducking: bool,
@@ -152,6 +153,7 @@ const PLAYER_PROPS: &[&str] = &[
     "velocity",
     "health",
     "armor_value",
+    "has_helmet",
     "active_weapon_name",
     "is_alive",
     "ducking",
@@ -310,6 +312,7 @@ pub fn parse_demo_bytes(bytes: &[u8], match_id: Uuid) -> Result<ParseResult> {
     let (c_yaw, c_pitch) = (col("yaw")?, col("pitch")?);
     let c_vel = col("velocity")?;
     let (c_hp, c_armor) = (col("health")?, col("armor_value")?);
+    let c_helmet = col("has_helmet")?;
     let c_weapon = col("active_weapon_name")?;
     let c_alive = col("is_alive")?;
     let c_duck = col("ducking")?;
@@ -372,6 +375,7 @@ pub fn parse_demo_bytes(bytes: &[u8], match_id: Uuid) -> Result<ParseResult> {
             velocity: as_f32(c_vel, i).unwrap_or(0.0),
             health: as_i64(c_hp, i).unwrap_or(0).clamp(0, 255) as u8,
             armor: as_i64(c_armor, i).unwrap_or(0).clamp(0, 255) as u8,
+            has_helmet: as_bool(c_helmet, i).unwrap_or(false),
             active_weapon: as_string(c_weapon, i).unwrap_or_default(),
             is_alive: as_bool(c_alive, i).unwrap_or(false),
             is_ducking: as_bool(c_duck, i).unwrap_or(false),

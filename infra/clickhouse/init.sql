@@ -13,6 +13,7 @@ CREATE TABLE IF NOT EXISTS cs2.player_ticks (
     yaw Float32, pitch Float32,             -- crosshair analizi için kritik
     velocity      Float32,
     health UInt8, armor UInt8,
+    has_helmet UInt8 DEFAULT 0,  -- kask (HUD göstergesi)
     active_weapon LowCardinality(String),
     is_alive Bool, is_ducking Bool, is_walking Bool, is_scoped Bool,
     flash_remaining Float32,

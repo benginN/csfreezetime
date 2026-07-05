@@ -112,6 +112,7 @@ export interface PlayerTrack {
   weapon: (string | null)[];
   inv: (string[] | null)[];
   flash: (number | null)[];
+  helmet: (boolean | null)[];
   lower?: (boolean | null)[];
   shots: number[];
   money: (number | null)[];
@@ -470,7 +471,7 @@ export const api = {
       const m = await getLocalMatch(id);
       if (m) return m.players;
     }
-    return get<{ player_id: string; nickname: string; t_rounds: number[]; ct_rounds: number[] }[]>(
+    return get<{ player_id: string; nickname: string; t_rounds: number[]; ct_rounds: number[]; is_coach?: boolean }[]>(
       `/api/v1/matches/${id}/players`);
   },
   matchHeatmap: async (id: string, p: URLSearchParams): Promise<MatchHeatmap> => {
