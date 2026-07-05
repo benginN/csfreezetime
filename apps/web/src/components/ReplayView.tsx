@@ -1186,7 +1186,15 @@ export default function ReplayView({
           lastHud = i0;
           const fe = d.freeze_end_tick ?? d.ticks[startIdx];
           const s = Math.max(0, (d.ticks[i0] - fe) / d.tick_rate);
-          setClock(`${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`);
+          const fmt = (v: number) =>
+            `${Math.floor(v / 60)}:${String(Math.floor(Math.max(0, v) % 60)).padStart(2, '0')}`;
+          // kalan süre: kurulum öncesi raunt saati (1:55), kurulumdan sonra C4 (0:40)
+          const rr2 = rounds.find((r) => r.round_number === round);
+          const plant = rr2?.bomb_plant_tick;
+          const remain = plant != null && d.ticks[i0] >= plant
+            ? 40 - (d.ticks[i0] - plant) / d.tick_rate
+            : 115 - s;
+          setClock(`${fmt(s)} | ${fmt(remain)}`);
 
           // canvas içi killfeed (son 6 sn; replay katmanı kapalıysa boş)
           const recent = replayOn
