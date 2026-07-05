@@ -354,3 +354,11 @@ table.cond { max-width: 760px; }
   box-shadow: inset 0 0 0 2px #86d8e8, inset 0 0 0 4px #dcaaea;
 }
 .hudhead { display: flex; align-items: center; gap: 6px; padding: 2px 4px 4px; border-bottom: 1px solid #232a26; margin-bottom: 2px; font-size: 12px; }
+/* raunt çipi bomba işaretleri: sağ üst köşe noktası */
+.roundchips button { position: relative; }
+.roundchips button.planted::before, .roundchips button.defused::before {
+  content: ''; position: absolute; top: 1px; right: 1px;
+  width: 5px; height: 5px; border-radius: 50%;
+}
+.roundchips button.planted::before { background: #e05545; }
+.roundchips button.defused::before { background: #5aa7e8; }

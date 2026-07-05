@@ -78,6 +78,11 @@ function shortInv(inv: string[] | null): string {
 
 // buy vurgusu takım renginde: eşleşen buy hangi takımınsa halka o renkte
 // (A = başlıktaki sol takım). İki takım da eşleşirse iki halka.
+// bomba işareti: kurulan raunt = kırmızı köşe noktası, defuse = mavi
+const bombClass = (r: RoundRow): string =>
+  r.end_reason === 'bomb_defused' ? ' defused'
+    : r.bomb_plant_tick != null ? ' planted' : '';
+
 const hlClass = (r: RoundRow, v: string, aId: string | null): string => {
   if (!v) return '';
   let cls = '';
@@ -181,6 +186,7 @@ export default function ReplayView({
   const dropDotsRef = useRef<{ x: number; y: number; name: string }[]>([]);
   const bombPosRef = useRef<{ round: number; rx: number; ry: number; lower: boolean } | null>(null);
   const jumpAtRef = useRef<Map<number, number>>(new Map()); // oyuncu idx → zıplama tick'i
+  const plantPosRef = useRef<{ round: number; rx: number; ry: number; lower: boolean } | null>(null);
   const ghostHoverRef = useRef<{ li: number; nick: string } | null>(null);
   const ghostPinRef = useRef<{ li: number; nick: string } | null>(null); // tıkla-sabitle
   const ghostTipRef = useRef<HTMLDivElement>(null);
@@ -1088,6 +1094,38 @@ export default function ReplayView({
         dropDotsRef.current = [];
         if (replayOn) {
           const curRound = rounds.find((r) => r.round_number === round);
+          // kurulu bomba: plant anındaki taşıyıcının konumu (C4 envanterden
+          // düşmeden bir örnek öncesi) — raunt başına bir kez hesaplanır
+          const pt = curRound?.bomb_plant_tick;
+          if (pt != null && tick >= pt) {
+            if (plantPosRef.current?.round !== round) {
+              const pi2 = Math.min(lowerBound(d.ticks, pt), d.ticks.length - 1);
+              outer: for (const p of d.players) {
+                for (const j of [pi2 - 1, pi2, pi2 - 2]) {
+                  if (j >= 0 && (p.inv[j] ?? []).some((w2) => w2.toLowerCase().includes('c4'))
+                      && p.rx[j] != null && p.ry[j] != null) {
+                    plantPosRef.current = {
+                      round, rx: p.rx[j]!, ry: p.ry[j]!,
+                      lower: p.lower?.[j] ?? false,
+                    };
+                    break outer;
+                  }
+                }
+              }
+            }
+            const pp = plantPosRef.current;
+            if (pp?.round === round) {
+              const { x, y, s: ps } = place(pp.rx, pp.ry, pp.lower);
+              // turuncu nabız: ~1.4 sn'de bir parlayıp genişleyerek söner
+              const phase = ((tick - pt) / 64 % 1.4) / 1.4;
+              gDrops.circle(x, y, (5 + 14 * phase) * Math.max(ps, 0.7))
+                .stroke({ width: 1.6, color: 0xf59a3c, alpha: 0.5 * (1 - phase) });
+              gDrops.circle(x, y, 3.2 * Math.max(ps, 0.7))
+                .fill({ color: 0xe03030 })
+                .stroke({ width: 1, color: 0x0b0e0c });
+              dropDotsRef.current.push({ x, y, name: 'C4 (planted)' });
+            }
+          }
           const bp = bombPosRef.current;
           if (!bombCarried && bp && bp.round === round &&
               (!curRound?.bomb_plant_tick || tick < curRound.bomb_plant_tick)) {
@@ -1446,7 +1484,7 @@ export default function ReplayView({
                 <Fragment key={r.round_number}>
                   {isSideSwap(rounds[i - 1], r) && <span className="halfdiv" title="side swap" />}
                   <button
-                    className={`${winnerTeamClass(r, teams.aId)} win${r.winner_side ?? ''} ${r.round_number === round ? 'sel' : ''} ${hlClass(r, hlReplay, teams.aId)}`}
+                    className={`${winnerTeamClass(r, teams.aId)} win${r.winner_side ?? ''} ${r.round_number === round ? 'sel' : ''} ${hlClass(r, hlReplay, teams.aId)}${bombClass(r)}`}
                     onClick={() => onRound(r.round_number)}
                     title={chipTitle(r, teams)}
                   >
@@ -1526,7 +1564,7 @@ export default function ReplayView({
                   <Fragment key={r.round_number}>
                     {isSideSwap(rounds[i - 1], r) && <span className="halfdiv" title="side swap" />}
                     <button
-                      className={`${winnerTeamClass(r, teams.aId)} win${r.winner_side ?? ''} ${heatRounds.has(r.round_number) ? 'sel' : ''} ${hlClass(r, hlHeat, teams.aId)}`}
+                      className={`${winnerTeamClass(r, teams.aId)} win${r.winner_side ?? ''} ${heatRounds.has(r.round_number) ? 'sel' : ''} ${hlClass(r, hlHeat, teams.aId)}${bombClass(r)}`}
                       title={chipTitle(r, teams)}
                       onClick={() => {
                         const s = new Set(heatRounds);
@@ -1630,7 +1668,7 @@ export default function ReplayView({
                   <Fragment key={r.round_number}>
                     {isSideSwap(rounds[i - 1], r) && <span className="halfdiv" title="side swap" />}
                     <button
-                      className={`${winnerTeamClass(r, teams.aId)} win${r.winner_side ?? ''} ${ghostRounds.has(r.round_number) ? 'sel' : ''} ${hlClass(r, hlGhost, teams.aId)}`}
+                      className={`${winnerTeamClass(r, teams.aId)} win${r.winner_side ?? ''} ${ghostRounds.has(r.round_number) ? 'sel' : ''} ${hlClass(r, hlGhost, teams.aId)}${bombClass(r)}`}
                       title={chipTitle(r, teams)}
                       onClick={() => {
                         const s = new Set(ghostRounds);
