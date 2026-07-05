@@ -927,13 +927,11 @@ export default function ReplayView({
                 .lineTo(x + (r + 6 * s) * Math.cos(ang), y + (r + 6 * s) * Math.sin(ang))
                 .stroke({ width: 1.5, color: 0xffffff, alpha: 0.8 * (1 - k) });
             }
-            nadeLabel(x, y, r + 8, g, 0.9 * (1 - k), s);
           } else if (g.type === 'he') {
             const k = dt / life;
             const r = (4 + 12 * k) * s;
             gNades.circle(x, y, r).fill({ color: 0xff8c3c, alpha: 0.8 * (1 - k) });
             gNades.circle(x, y, r + 3 * s).stroke({ width: 1.5, color: 0xd94f2a, alpha: 0.7 * (1 - k) });
-            nadeLabel(x, y, r + 8, g, 0.9 * (1 - k), s);
           } else if (g.type === 'decoy') {
             gNades.circle(x, y, 5 * s).stroke({ width: 1, color: 0xc8c878, alpha: 0.5 * fade });
           }
