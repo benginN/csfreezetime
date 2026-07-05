@@ -28,8 +28,18 @@ func (s *server) matchPlayers(w http.ResponseWriter, r *http.Request) {
 		       -- koç: maç boyu tek kill/death'i olmayan katılımcı (GOTV'de
 		       -- takım slotunda görünür ama oynamaz)
 		       (COALESCE(sum(s.kills),0) + COALESCE(sum(s.deaths),0) = 0
-		        AND count(*) >= 6) AS is_coach
+		        AND count(*) >= 6) AS is_coach,
+		       -- HUD kümülatif istatistikleri: raunt-bazlı paralel diziler
+		       COALESCE(array_agg(s.round_number ORDER BY s.round_number), '{}') AS stat_rounds,
+		       COALESCE(array_agg(COALESCE(s.damage_dealt,0)::int ORDER BY s.round_number), '{}') AS stat_dmg,
+		       COALESCE(array_agg((s.util_he_dmg + s.util_fire_dmg)::int ORDER BY s.round_number), '{}') AS stat_util,
+		       COALESCE(array_agg(COALESCE(g.ef,0) ORDER BY s.round_number), '{}') AS stat_flashed
 		FROM player_round_states s JOIN players p ON p.player_id = s.player_id
+		LEFT JOIN LATERAL (
+		    SELECT sum(gr.enemies_flashed)::int AS ef FROM grenades gr
+		    WHERE gr.match_id = s.match_id AND gr.round_number = s.round_number
+		      AND gr.thrower_id = s.player_id AND gr.type = 'flash'
+		) g ON true
 		WHERE s.match_id = $1
 		GROUP BY p.player_id, p.nickname ORDER BY p.nickname`, matchID)
 	if err != nil {
@@ -43,11 +53,16 @@ func (s *server) matchPlayers(w http.ResponseWriter, r *http.Request) {
 		TRounds  []int16   `json:"t_rounds"`
 		CTRounds []int16   `json:"ct_rounds"`
 		IsCoach  bool      `json:"is_coach"`
+		SRounds  []int16   `json:"stat_rounds"`
+		SDmg     []int32   `json:"stat_dmg"`
+		SUtil    []int32   `json:"stat_util"`
+		SFlash   []int32   `json:"stat_flashed"`
 	}
 	out := []hit{}
 	for rows.Next() {
 		var h hit
-		if rows.Scan(&h.ID, &h.Nick, &h.TRounds, &h.CTRounds, &h.IsCoach) == nil {
+		if rows.Scan(&h.ID, &h.Nick, &h.TRounds, &h.CTRounds, &h.IsCoach,
+			&h.SRounds, &h.SDmg, &h.SUtil, &h.SFlash) == nil {
 			out = append(out, h)
 		}
 	}

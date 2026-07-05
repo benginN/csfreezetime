@@ -187,6 +187,20 @@ button.seriesrow:hover { background: #151a17; }
 .hud:hover { background: rgba(9, 13, 11, 0.92); }
 .hud tr.detail { display: none; }         /* detay satırı yalnız hover'da */
 .hud:hover tr.detail { display: table-row; }
+
+/* Harita altı kalıcı raunt killfeed'i (canvas'taki 6 sn'lik feed'den ayrı) */
+.roundfeed { margin-top: 6px; display: flex; flex-direction: column; gap: 2px; }
+.roundfeed .feedrow {
+  display: flex; align-items: baseline; gap: 8px; width: 100%;
+  background: #121613; border: 1px solid #232a26; border-radius: 6px;
+  padding: 3px 10px; font: inherit; font-size: 12.5px; text-align: left;
+  color: inherit; cursor: pointer;
+}
+.roundfeed .feedrow:hover { border-color: #3a5f3e; background: #121613; }
+.roundfeed .feedrow.future { opacity: 0.38; }
+.roundfeed .feedrow .t { flex: 0 0 34px; font-variant-numeric: tabular-nums; }
+.roundfeed .feedrow .wep { color: #8a938c; flex: 0 0 auto; }
+.roundfeed .feedrow .arrow { color: #5d665f; }
 .hud { pointer-events: auto; }            /* hover + isim tıklaması için */
 .hud.left { left: 8px; } .hud.right { right: 8px; }
 .hud table { font-size: 10.5px; line-height: 1.3; table-layout: fixed; width: 100%; }

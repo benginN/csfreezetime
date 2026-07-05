@@ -27,6 +27,27 @@ export function isSideSwap(prev: RoundRow | undefined, r: RoundRow): boolean {
   return !!prev && !!prev.t_team_id && !!r.t_team_id && prev.t_team_id !== r.t_team_id;
 }
 
+// Raunt şeridi ayraç indeksleri (i = bu chipten ÖNCE ayraç çiz). İki kaynak:
+//  - taraf değişimi: null t_team_id'li raunt zinciri koparmasın diye son
+//    BİLİNEN kimlikle karşılaştırılır (parçalı kayıtların boş rauntları)
+//  - MR12 yapısal sınırlar: devre (13) + uzatma yarıları (25'ten itibaren
+//    her 3 raunt) — CS2'de takımlar uzatmaya girerken taraf değiştirmez,
+//    yani 25'te veri swap'ı yoktur ama görsel sınır beklenir.
+// Parçalı kayıtta gerçek numara = round_number + roundOffset.
+export function roundDividers(rounds: RoundRow[], roundOffset = 0): Set<number> {
+  const out = new Set<number>();
+  let last: string | null = null;
+  rounds.forEach((r, i) => {
+    if (i > 0) {
+      const actual = r.round_number + roundOffset;
+      if (actual === 13 || (actual > 24 && (actual - 25) % 3 === 0)) out.add(i);
+      if (r.t_team_id && last && r.t_team_id !== last) out.add(i);
+    }
+    if (r.t_team_id) last = r.t_team_id;
+  });
+  return out;
+}
+
 export function chipTitle(
   r: RoundRow,
   teams: { aId: string | null; a: string | null; b: string | null },

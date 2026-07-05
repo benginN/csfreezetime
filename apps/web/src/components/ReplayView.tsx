@@ -4,7 +4,7 @@ import { Application, Container, Graphics, Sprite, Text, Texture } from 'pixi.js
 import { api, type KillRow, type RoundRow, type StackResp } from '../api';
 import { DPR, insetGeom, isVectorBase, loadMapBase, renderMapBaseCanvas, RADAR, SIDE_COLOR, type MapBase } from '../lib/mapbase';
 import { renderHeatLayer } from '../lib/heatpaint';
-import { chipTitle, isSideSwap, winnerTeamClass } from '../lib/rounds';
+import { chipTitle, roundDividers, winnerTeamClass } from '../lib/rounds';
 
 const W = 860;
 // Zemin dokusu için aşırı örnekleme: zoom'da bloklaşmayı azaltır
@@ -64,6 +64,7 @@ interface HudRow {
   inv: string;
   k: number; a: number; d: number;
   alive: boolean;
+  adr?: number; ef?: number; ud?: number; // kümülatif (raunt ≤ seçili raunt)
 }
 
 // Envanter kısaltmaları: bıçak/taban silahlar sadeleşsin
@@ -124,6 +125,7 @@ export default function ReplayView({
   const [showPlaces, setShowPlaces] = useState(true); // harita bölge adları
   const [clock, setClock] = useState<{ text: string; remain: string; planted: boolean; even: boolean }>({ text: '0:00', remain: '1:55', planted: false, even: true });
   const [hudRows, setHudRows] = useState<HudRow[]>([]);
+  const [curTick, setCurTick] = useState(0);
 
   // --- Katmanlar: üçü de aynı haritayı kullanır ama tamamen BAĞIMSIZDIR ---
   const [showReplay, setShowReplay] = useState(true);
@@ -296,6 +298,20 @@ export default function ReplayView({
     if (!rs.some((r) => ghostRounds.has(r))) setGhostPlayer('');
   }, [ghostSide, ghostKey, players.data]); // eslint-disable-line react-hooks/exhaustive-deps
   const heatKey = useMemo(() => [...heatRounds].sort((a, b) => a - b).join(','), [heatRounds]);
+  const dividers = useMemo(() => roundDividers(rounds, roundOffset), [rounds, roundOffset]);
+  // HUD istatistikleri (ADR / enemies flashed / utility damage): players
+  // endpoint'inin raunt-bazlı dizilerinden, seçili raunta KADAR kümülatif.
+  const statByNick = useMemo(() => {
+    const m = new Map<string, { sr: number[]; dmg: number[]; util: number[]; ef: number[] }>();
+    for (const p of players.data ?? []) {
+      if (p.stat_rounds) {
+        m.set(p.nickname, {
+          sr: p.stat_rounds, dmg: p.stat_dmg ?? [], util: p.stat_util ?? [], ef: p.stat_flashed ?? [],
+        });
+      }
+    }
+    return m;
+  }, [players.data]);
   useEffect(() => {
     if (!heatPlayer || heatSide === 'both') return;
     const p = (players.data ?? []).find((x) => x.player_id === heatPlayer);
@@ -981,9 +997,10 @@ export default function ReplayView({
           node.name.scale.set(Math.max(s, 0.72)); // inset'te küçük ama okunur
 
           if (!alive) {
+            // ölü işareti ölen oyuncunun TAKIM renginde (T sarı / CT mavi)
             g.moveTo(x - 4 * s, y - 4 * s).lineTo(x + 4 * s, y + 4 * s)
              .moveTo(x + 4 * s, y - 4 * s).lineTo(x - 4 * s, y + 4 * s)
-             .stroke({ width: 1.5, color: 0xaaaaaa, alpha: 0.55 });
+             .stroke({ width: 1.8, color: col, alpha: 0.85 });
             node.name.visible = false;
             return;
           }
@@ -1127,9 +1144,20 @@ export default function ReplayView({
           }
           // düşen silahlar: ölüm anında kurbanın aktif silahı o noktada kalır;
           // ilk 3 sn etiketi görünür, sonrasında hover ile okunur
+          const fe0 = curRound?.freeze_end_tick ?? d.ticks[0];
           let dropLblIdx = 0;
           for (const k of (d.kills ?? [])) {
             if (k.tick > tick || k.victim_rx == null || k.victim_ry == null) continue;
+            // ölüm noktası hover bilgisi: kim öldü, kaçıncı saniyede, kim vurdu
+            {
+              const dsec = Math.max(0, Math.round((k.tick - fe0) / d.tick_rate));
+              const dpos = place(k.victim_rx, k.victim_ry, k.lower);
+              dropDotsRef.current.push({
+                x: dpos.x, y: dpos.y,
+                name: `✕ ${k.victim ?? '?'} · ${Math.floor(dsec / 60)}:${String(dsec % 60).padStart(2, '0')}`
+                  + ` · by ${k.attacker ?? '?'}${k.weapon ? ` (${k.weapon})` : ''}`,
+              });
+            }
             const vt = d.players.find((p) => p.nickname === k.victim);
             if (!vt) continue;
             const ki = Math.min(lowerBound(d.ticks, k.tick), d.ticks.length - 1);
@@ -1243,6 +1271,7 @@ export default function ReplayView({
               alive: p.alive[i0] ?? false,
             };
           }));
+          setCurTick(tick); // harita altı killfeed'in oynanmış/gelecek ayrımı
           if (sliderRef.current) sliderRef.current.value = String(i0);
         }
       };
@@ -1320,8 +1349,25 @@ export default function ReplayView({
   if (ticksQ.isLoading) return <p className="meta">loading round…</p>;
   if (ticksQ.error || !d) return <p className="error">{String(ticksQ.error)}</p>;
 
-  const tRows = hudRows.filter((r) => r.side === 'T' && !coachSet.has(r.nick));
-  const ctRows = hudRows.filter((r) => r.side === 'CT' && !coachSet.has(r.nick));
+  const withStats = (r: HudRow): HudRow => {
+    const st = statByNick.get(r.nick);
+    if (!st) return r;
+    let dmg = 0, ef = 0, ud = 0, n = 0;
+    for (let i = 0; i < st.sr.length; i++) {
+      if (st.sr[i] > round) continue;
+      n++; dmg += st.dmg[i] ?? 0; ud += st.util[i] ?? 0; ef += st.ef[i] ?? 0;
+    }
+    return { ...r, adr: n ? Math.round(dmg / n) : 0, ef, ud };
+  };
+  const tRows = hudRows.filter((r) => r.side === 'T' && !coachSet.has(r.nick)).map(withStats);
+  const ctRows = hudRows.filter((r) => r.side === 'CT' && !coachSet.has(r.nick)).map(withStats);
+  // harita altı kalıcı feed: bu rauntun kill'leri maç listesinden
+  // (headshot/assister bilgisi tick payload'ındaki KillMark'ta yok)
+  const roundKills = matchKills.filter((k) => k.round_number === round);
+  const sideColorOf = (nick: string | null): string => {
+    const pp = nick ? d?.players.find((x) => x.nickname === nick) : undefined;
+    return pp?.side === 'T' ? '#eec27f' : pp?.side === 'CT' ? '#9ecbf0' : '#b9c2bb';
+  };
   const curRound = rounds.find((r) => r.round_number === round);
   const teamNameOf = (side: 'T' | 'CT'): string => {
     const id = side === 'T' ? curRound?.t_team_id : curRound?.ct_team_id;
@@ -1433,6 +1479,35 @@ export default function ReplayView({
           {showReplay && <HudPanel rows={tRows} cls="left" sel={selPlayer} onSel={setSelPlayer} team={teamNameOf('T')} coach={coachOf('T')} side="T" />}
           {showReplay && <HudPanel rows={ctRows} cls="right" sel={selPlayer} onSel={setSelPlayer} team={teamNameOf('CT')} coach={coachOf('CT')} side="CT" />}
         </div>
+        {/* Harita altı kalıcı killfeed: rauntun TÜM kill'leri; oynanmamışlar
+            soluk, satıra tıklayınca o ana atlanır. Sağ üstteki canvas feed'i
+            geçici (son 6 sn), bu liste kalıcı ve detaylı. */}
+        {showReplay && roundKills.length > 0 && (
+          <div className="roundfeed noprint">
+            {roundKills.map((k, i) => {
+              const sec = Math.max(0, Math.round(k.round_time));
+              return (
+                <button
+                  key={`${k.tick}-${i}`}
+                  className={`feedrow ${k.tick > curTick ? 'future' : ''}`}
+                  title="jump to this moment"
+                  onClick={() => {
+                    if (!d) return;
+                    const idx = d.ticks.findIndex((t) => t >= k.tick);
+                    if (idx >= 0) fIdxRef.current = idx;
+                  }}
+                >
+                  <span className="meta t">{Math.floor(sec / 60)}:{String(sec % 60).padStart(2, '0')}</span>
+                  <span style={{ color: sideColorOf(k.attacker) }}>{k.attacker ?? '?'}</span>
+                  {k.assister && <span className="meta">+ {k.assister}</span>}
+                  <span className="wep">{k.weapon ?? '?'}{k.headshot ? ' ⌖' : ''}</span>
+                  <span className="arrow">⟶</span>
+                  <span style={{ color: sideColorOf(k.victim) }}>{k.victim ?? '?'}</span>
+                </button>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {/* Sağ: başlık + ortak görünüm ayarları + üç katman + zaman çubuğu.
@@ -1489,7 +1564,7 @@ export default function ReplayView({
             <div className="roundchips">
               {rounds.map((r, i) => (
                 <Fragment key={r.round_number}>
-                  {isSideSwap(rounds[i - 1], r) && <span className="halfdiv" title="side swap" />}
+                  {dividers.has(i) && <span className="halfdiv" title="side swap / OT half" />}
                   <button
                     className={`${winnerTeamClass(r, teams.aId)} win${r.winner_side ?? ''} ${r.round_number === round ? 'sel' : ''} ${hlClass(r, hlReplay, teams.aId)}${bombClass(r)}`}
                     onClick={() => onRound(r.round_number)}
@@ -1569,7 +1644,7 @@ export default function ReplayView({
               <div className="roundchips">
                 {rounds.map((r, i) => (
                   <Fragment key={r.round_number}>
-                    {isSideSwap(rounds[i - 1], r) && <span className="halfdiv" title="side swap" />}
+                    {dividers.has(i) && <span className="halfdiv" title="side swap / OT half" />}
                     <button
                       className={`${winnerTeamClass(r, teams.aId)} win${r.winner_side ?? ''} ${heatRounds.has(r.round_number) ? 'sel' : ''} ${hlClass(r, hlHeat, teams.aId)}${bombClass(r)}`}
                       title={chipTitle(r, teams)}
@@ -1673,7 +1748,7 @@ export default function ReplayView({
               <div className="roundchips">
                 {rounds.map((r, i) => (
                   <Fragment key={r.round_number}>
-                    {isSideSwap(rounds[i - 1], r) && <span className="halfdiv" title="side swap" />}
+                    {dividers.has(i) && <span className="halfdiv" title="side swap / OT half" />}
                     <button
                       className={`${winnerTeamClass(r, teams.aId)} win${r.winner_side ?? ''} ${ghostRounds.has(r.round_number) ? 'sel' : ''} ${hlClass(r, hlGhost, teams.aId)}${bombClass(r)}`}
                       title={chipTitle(r, teams)}
@@ -1863,7 +1938,10 @@ function HudPanel({
               </tr>
               <tr className="detail" style={{ opacity: r.alive ? 1 : 0.4 }}>
                 <td className="inv">${r.money ?? '?'}</td>
-                <td colSpan={4} className="inv cut">{r.alive ? r.inv : ''}</td>
+                <td colSpan={4} className="inv cut" title="ADR · enemies flashed · utility damage · inventory">
+                  ADR {r.adr ?? 0} · ⚡{r.ef ?? 0} · 💥{r.ud ?? 0}
+                  {r.alive && r.inv ? ` · ${r.inv}` : ''}
+                </td>
               </tr>
             </Fragment>
           ))}

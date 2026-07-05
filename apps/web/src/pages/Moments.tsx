@@ -102,19 +102,22 @@ export default function Moments() {
 
   const set = (patch: Partial<FormState>) => setForm((f) => ({ ...f, ...patch }));
 
-  // harita + takım adları (klip satırlarında maç etiketi için)
-  const search = useQuery({ queryKey: ['search', ''], queryFn: () => api.search('') });
+  // harita + takım adları (klip satırlarında maç etiketi için).
+  // arama yalnız son 100 maçı döner; klipler tüm arşivden gelebildiğinden
+  // etiketler TAM maç listesinden kurulur (eskiden eski maçlar ham
+  // match_id'ye düşüyordu).
+  const allMatches = useQuery({ queryKey: ['matches'], queryFn: () => api.matches() });
   const maps = useMemo(
-    () => [...new Set((search.data?.matches ?? []).map((m) => m.map_name).filter(Boolean))].sort() as string[],
-    [search.data],
+    () => [...new Set((allMatches.data ?? []).map((m) => m.map_name).filter(Boolean))].sort() as string[],
+    [allMatches.data],
   );
   const matchLabel = useMemo(() => {
     const m = new Map<string, string>();
-    for (const x of search.data?.matches ?? []) {
-      m.set(x.match_id, `${x.team_a ?? '?'} vs ${x.team_b ?? '?'}`);
+    for (const x of allMatches.data ?? []) {
+      m.set(x.match_id, x.team_a && x.team_b ? `${x.team_a} vs ${x.team_b}` : (x.name ?? x.match_id.slice(0, 8)));
     }
     return m;
-  }, [search.data]);
+  }, [allMatches.data]);
 
   // seçilen haritanın bölge adları (area alanına öneri listesi)
   const layout = useQuery({

@@ -50,6 +50,13 @@ export interface Tendency {
   prob: number;
 }
 
+export interface MatchPlayerRow {
+  player_id: string; nickname: string;
+  t_rounds: number[]; ct_rounds: number[]; is_coach?: boolean;
+  // raunt-bazlı paralel diziler (HUD kümülatif ADR/EF/UD; lokal maçlarda yok)
+  stat_rounds?: number[]; stat_dmg?: number[]; stat_util?: number[]; stat_flashed?: number[];
+}
+
 export interface KillRow {
   round_number: number;
   tick: number;
@@ -466,13 +473,12 @@ export const api = {
     }
     return get<MatchDetail>(`/api/v1/matches/${id}`);
   },
-  matchPlayers: async (id: string) => {
+  matchPlayers: async (id: string): Promise<MatchPlayerRow[]> => {
     if (localIds.has(id)) {
       const m = await getLocalMatch(id);
       if (m) return m.players;
     }
-    return get<{ player_id: string; nickname: string; t_rounds: number[]; ct_rounds: number[]; is_coach?: boolean }[]>(
-      `/api/v1/matches/${id}/players`);
+    return get<MatchPlayerRow[]>(`/api/v1/matches/${id}/players`);
   },
   matchHeatmap: async (id: string, p: URLSearchParams): Promise<MatchHeatmap> => {
     if (localIds.has(id)) {
