@@ -11,7 +11,7 @@ const W = 860;
 // (kaynak PNG 1024 olduğundan ~4x üstü yine yumuşar ama pikselleşmez)
 const BASE_OVERSAMPLE = 2;      // PNG kaynak: 2x yeterli
 const VECTOR_OVERSAMPLE = 3;    // SVG kaynak: daha yükseğe değer (keskin kalır)
-const NADE_LIFE: Record<string, number> = { smoke: 20, molotov: 7, incendiary: 7, flash: 0.7, he: 0.7, decoy: 15 };
+const NADE_LIFE: Record<string, number> = { smoke: 20, molotov: 7, incendiary: 7, flash: 0.7, he: 1.6, decoy: 15 };
 const GHOST_TRAIL_DEFAULT = 8; // sn — hayalet iz uzunluğu (kullanıcı değiştirebilir)
 const ghostHue = (i: number) => Math.round((i * 137.508) % 360);
 
@@ -714,21 +714,6 @@ export default function ReplayView({
       };
 
       // Bomba tip etiketleri: yeniden kullanılan Text havuzu (Graphics yazı çizemez)
-      const nadeLabelPool: Text[] = [];
-      for (let i = 0; i < 24; i++) {
-        const t = new Text({
-          text: '',
-          style: { fontSize: 9, fill: 0xdde4de, fontFamily: 'system-ui', fontWeight: '600' },
-        });
-        t.anchor.set(0.5, 1);
-        t.visible = false;
-        worldLabels.addChild(t); // dünya uzayında: zoom'la birlikte hareket eder
-        nadeLabelPool.push(t);
-      }
-      const NADE_LABEL: Record<string, string> = {
-        smoke: 'SMOKE', molotov: 'FIRE', incendiary: 'FIRE',
-        flash: 'FLASH', he: 'HE', decoy: 'DECOY',
-      };
       const NADE_COLOR: Record<string, number> = {
         smoke: 0xb4b9be, molotov: 0xeb781e, incendiary: 0xeb781e,
         flash: 0xffffff, he: 0xff8c3c, decoy: 0xc8c878,
@@ -885,16 +870,6 @@ export default function ReplayView({
         playersLayer.visible = replayOn;
 
         gNades.clear();
-        let labelIdx = 0;
-        const nadeLabel = (x: number, y: number, offY: number, g: { type: string }, alpha: number, s: number) => {
-          if (labelIdx >= nadeLabelPool.length) return;
-          const t = nadeLabelPool[labelIdx++];
-          t.text = NADE_LABEL[g.type] ?? g.type.toUpperCase();
-          t.visible = true;
-          t.alpha = alpha;
-          t.scale.set(Math.max(s, 0.75));
-          t.position.set(x, y - offY);
-        };
         const phase = (tick / d.tick_rate) % 1; // hafif titreşim için zaman fazı
 
         for (const g of replayOn ? (d.grenades ?? []) : []) {
@@ -910,10 +885,19 @@ export default function ReplayView({
             const from = place(g.throw_rx, g.throw_ry, g.throw_lower);
             const to = place(g.rx, g.ry, g.lower);
             if ((g.throw_lower ?? false) === (g.lower ?? false)) { // aynı kat görünümünde
-              const fx = from.x + (to.x - from.x) * p;
-              const fy = from.y + (to.y - from.y) * p - Math.sin(Math.PI * p) * 9 * to.s;
-              gNades.moveTo(from.x, from.y).lineTo(fx, fy)
-                .stroke({ width: 1, color: NADE_COLOR[g.type] ?? 0xffffff, alpha: 0.22 });
+              // iz = geçilen yolun yayı (kiriş değil): taban sabit durur
+              const arc = (q: number): [number, number] => [
+                from.x + (to.x - from.x) * q,
+                from.y + (to.y - from.y) * q - Math.sin(Math.PI * q) * 9 * to.s,
+              ];
+              const steps = 12;
+              gNades.moveTo(from.x, from.y);
+              for (let i2 = 1; i2 <= steps; i2++) {
+                const [ax, ay] = arc((p * i2) / steps);
+                gNades.lineTo(ax, ay);
+              }
+              gNades.stroke({ width: 1, color: NADE_COLOR[g.type] ?? 0xffffff, alpha: 0.22 });
+              const [fx, fy] = arc(p);
               gNades.circle(fx, fy, 2.2 * to.s)
                 .fill({ color: NADE_COLOR[g.type] ?? 0xffffff, alpha: 0.85 });
             }
@@ -925,15 +909,13 @@ export default function ReplayView({
           const fade = Math.min(1, (life - dt) / 2);
           if (g.type === 'smoke') {
             const r = worldPx(144) * s;
-            gNades.circle(x, y, r).fill({ color: 0xb4b9be, alpha: 0.4 * fade });
-            gNades.circle(x, y, r).stroke({ width: 1, color: 0xd8dde0, alpha: 0.5 * fade });
-            nadeLabel(x, y, r + 3, g, 0.65 * fade, s);
+            gNades.circle(x, y, r).fill({ color: 0x848a90, alpha: 0.5 * fade });
+            gNades.circle(x, y, r).stroke({ width: 1, color: 0xa7adb3, alpha: 0.5 * fade });
           } else if (g.type === 'molotov' || g.type === 'incendiary') {
             const r = worldPx(120) * s;
             const flick = 1 + 0.08 * Math.sin(phase * Math.PI * 4); // hafif alev titremesi
             gNades.circle(x, y, r).fill({ color: 0xeb781e, alpha: 0.35 * fade });
             gNades.circle(x, y, r * 0.55 * flick).fill({ color: 0xf5a83c, alpha: 0.4 * fade });
-            nadeLabel(x, y, r + 3, g, 0.65 * fade, s);
           } else if (g.type === 'flash') {
             const k = dt / life;
             const r = (4 + 14 * k) * s;
@@ -954,10 +936,8 @@ export default function ReplayView({
             nadeLabel(x, y, r + 8, g, 0.9 * (1 - k), s);
           } else if (g.type === 'decoy') {
             gNades.circle(x, y, 5 * s).stroke({ width: 1, color: 0xc8c878, alpha: 0.5 * fade });
-            nadeLabel(x, y, 9, g, 0.5 * fade, s);
           }
         }
-        for (let i = labelIdx; i < nadeLabelPool.length; i++) nadeLabelPool[i].visible = false;
 
         gKills.clear();
         for (const k of replayOn ? d.kills : []) {
