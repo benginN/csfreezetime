@@ -389,7 +389,7 @@ func (s *server) roundTicks(w http.ResponseWriter, r *http.Request) {
 		VictimRY *float64 `json:"victim_ry"`
 		Lower    *bool    `json:"lower,omitempty"`
 	}
-	var kills []killMark
+	kills := []killMark{}
 	krows, err := s.pg.Query(ctx, `
 		SELECT k.tick, pa.nickname, pv.nickname, k.weapon, k.victim_x, k.victim_y, k.victim_z
 		FROM kills k
