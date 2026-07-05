@@ -124,6 +124,16 @@ canvas.flat { border: 1px solid #232a26; border-radius: 6px; display:block; }
 .matchrow .score { color: #b6e2b6; font-variant-numeric: tabular-nums; }
 .matchrow .meta { flex: 0 0 auto; }
 
+/* BO3/BO5 serileri: katlanır başlık satırı + içeride harita satırları */
+button.seriesrow { width: 100%; font: inherit; text-align: left; }
+button.seriesrow:hover { background: #151a17; }
+.seriesrow .caret {
+  flex: 0 0 auto; color: #8a938c; font-size: 10px;
+  transition: transform .15s ease;
+}
+.seriesrow.open .caret { transform: rotate(90deg); }
+.serieskids { margin: 0 0 8px 26px; }
+
 /* Sekmeler */
 .tabs { display: flex; gap: 2px; margin: 10px 0 14px; border-bottom: 1px solid #232a26; }
 .tabs button {

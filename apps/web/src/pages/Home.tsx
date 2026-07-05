@@ -1,6 +1,6 @@
 import { Link, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { api, type Tendency } from '../api';
+import { api, type SearchResult, type Tendency } from '../api';
 import { useMemo, useRef, useState } from 'react';
 import { teamHue, teamInitials } from '../lib/rounds';
 
@@ -15,6 +15,7 @@ export default function Home() {
   });
 
   const matches = groupParts(res.data?.matches ?? []);
+  const rows = groupSeries(matches);
   const teams = res.data?.teams ?? [];
   // Sorgu tek takıma denk düşüyorsa altta eğilim + tahmin blokları
   const soloTeam = q.trim() && teams.length === 1 ? teams[0] : null;
@@ -53,23 +54,11 @@ export default function Home() {
           : `most recent 100 matches — search to reach the entire database (total of ${res.data?.total ?? '…'} matches)`}
       </div>
 
-      {matches.map((m) => (
-        <Link key={m.match_id} to={`/match/${m.match_id}`} className="matchrow">
-          <span className="vs">
-            <span>{m.team_a ?? 'Team A'}</span>
-            <span className="score">{m.score_a} : {m.score_b}</span>
-            <span>{m.team_b ?? 'Team B'}</span>
-          </span>
-          <span className="badge gray">{m.map_name}</span>
-          {m.parts > 1 && (
-            <span className="badge gray" title="the GOTV recording was split mid-map; parts play separately, the score here is combined">
-              {m.parts} parts
-            </span>
-          )}
-          {m.tournament && <span className="meta cut" style={{ maxWidth: 220 }}>🏆 {m.tournament.replace(/-/g, ' ')}</span>}
-          <span className="meta">{m.played_at ?? ''}</span>
-        </Link>
-      ))}
+      {rows.map((it) =>
+        'maps' in it
+          ? <SeriesRow key={it.key} group={it} />
+          : <MatchRow key={it.match_id} m={it} />,
+      )}
       {!res.isLoading && matches.length === 0 && (
         <p className="meta">No results — try a team, player or map name.</p>
       )}
@@ -220,6 +209,100 @@ function Bar({ prob, label }: { prob: number; label: string }) {
   );
 }
 
+
+type HomeMatch = SearchResult['matches'][number] & { parts: number };
+
+function MatchRow({ m }: { m: HomeMatch }) {
+  return (
+    <Link to={`/match/${m.match_id}`} className="matchrow">
+      <span className="vs">
+        <span>{m.team_a ?? 'Team A'}</span>
+        <span className="score">{m.score_a} : {m.score_b}</span>
+        <span>{m.team_b ?? 'Team B'}</span>
+      </span>
+      <span className="badge gray">{m.map_name}</span>
+      {m.parts > 1 && (
+        <span className="badge gray" title="the GOTV recording was split mid-map; parts play separately, the score here is combined">
+          {m.parts} parts
+        </span>
+      )}
+      {m.tournament && <span className="meta cut" style={{ maxWidth: 220 }}>🏆 {m.tournament.replace(/-/g, ' ')}</span>}
+      <span className="meta">{m.played_at ?? ''}</span>
+    </Link>
+  );
+}
+
+// BO3/BO5 serisi: kapalı başlıkta harita galibiyeti sayılır (seri skoru),
+// ok'a basınca haritalar m1→mN sırasıyla açılır.
+function SeriesRow({ group }: { group: SeriesGroup }) {
+  const [open, setOpen] = useState(false);
+  const maps = [...group.maps].sort((x, y) => x.mapNo - y.mapNo);
+  const first = maps[0];
+  // 4./5. harita görülmüşse kesin BO5; aksi halde BO3 varsayılır
+  const bo = maps.some((m) => m.mapNo >= 4) ? 'BO5' : 'BO3';
+  let winsA = 0;
+  let winsB = 0;
+  for (const m of maps) {
+    if (m.score_a === m.score_b) continue;
+    const winner = m.score_a > m.score_b ? m.team_a : m.team_b;
+    if (winner && winner === first.team_a) winsA++;
+    else if (winner && winner === first.team_b) winsB++;
+  }
+  return (
+    <div>
+      <button
+        type="button"
+        className={`matchrow seriesrow${open ? ' open' : ''}`}
+        onClick={() => setOpen((o) => !o)}
+        aria-expanded={open}
+      >
+        <span className="caret">▶</span>
+        <span className="vs">
+          <span>{first.team_a ?? 'Team A'}</span>
+          <span className="score">{winsA} : {winsB}</span>
+          <span>{first.team_b ?? 'Team B'}</span>
+        </span>
+        <span className="badge gray">{bo}</span>
+        <span className="badge gray">{maps.length} maps</span>
+        {first.tournament && <span className="meta cut" style={{ maxWidth: 220 }}>🏆 {first.tournament.replace(/-/g, ' ')}</span>}
+        <span className="meta">{first.played_at ?? ''}</span>
+      </button>
+      {open && (
+        <div className="serieskids">
+          {maps.map((m) => <MatchRow key={m.match_id} m={m} />)}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// HLTV demo adı deseni: {a}-vs-{b}-m{N}-{harita}. Aynı taban ad + turnuva +
+// gün = tek seri (aynı etkinlikte iki kez eşleşen takımlar gün ile ayrışır).
+// Tek haritalık grup (BO1 ya da eksik seri) düz satır olarak kalır.
+interface SeriesGroup {
+  key: string;
+  maps: (HomeMatch & { mapNo: number })[];
+}
+function groupSeries(list: HomeMatch[]): (HomeMatch | SeriesGroup)[] {
+  const out: (HomeMatch | SeriesGroup)[] = [];
+  const byKey = new Map<string, SeriesGroup>();
+  for (const m of list) {
+    const pm = /^(.+-vs-.+)-m(\d+)-/.exec(m.name ?? '');
+    if (!pm) {
+      out.push(m);
+      continue;
+    }
+    const key = `${pm[1]}|${m.tournament ?? ''}|${(m.played_at ?? '').slice(0, 10)}`;
+    let g = byKey.get(key);
+    if (!g) {
+      g = { key, maps: [] };
+      byKey.set(key, g);
+      out.push(g); // seri, en yeni haritasının sırasında listelenir
+    }
+    g.maps.push({ ...m, mapNo: Number(pm[2]) });
+  }
+  return out.map((it) => ('maps' in it && it.maps.length === 1 ? it.maps[0] : it));
+}
 
 // GOTV kesintisiyle bölünen kayıtlar (…-p1/-p2) listede TEK satır olur:
 // skorlar toplanır, link ilk parçaya gider. (Gerçek DB birleştirme, çok
