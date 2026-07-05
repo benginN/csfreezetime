@@ -1,5 +1,5 @@
 {
-  "_comment": "Faz 2 çıkış kriteri: DSL 20 sorgu kalıbını karşılıyor (mimari.md §11). Beklenen değerler 14 maçlık test arşivinden bir kez türetilip sabitlendi; expect.value=null olanlar yalnızca şema/çalışabilirlik doğrular (op ge 0). | 2026-07-05: arşiv büyürken gte; yığın bitince eq ile yeniden sabitle",
+  "_comment": "Faz 2 çıkış kriteri: DSL 20 sorgu kalıbını karşılıyor (mimari.md §11). expect.value=null olanlar yalnızca şema/çalışabilirlik doğrular (op ge 0). | 2026-07-05: yerel yığın dondu (1157 maç/22924 raunt, tam reprocess sonrası) -> eq sabitlendi; arşiv yeniden büyümeye başlarsa (Hetzner part 2) gte'ye çevirip sonra yeniden sabitle",
   "queries": [
     {
       "name": "01 kill: silah filtresi (ak47, klip)",
@@ -38,8 +38,8 @@
       },
       "expect": {
         "field": "clips",
-        "op": "gte",
-        "value": 2414
+        "op": "eq",
+        "value": 4799
       }
     },
     {
@@ -142,8 +142,8 @@
       },
       "expect": {
         "field": "count",
-        "op": "gte",
-        "value": 895
+        "op": "eq",
+        "value": 1420
       }
     },
     {
@@ -164,8 +164,8 @@
       },
       "expect": {
         "field": "clips",
-        "op": "gte",
-        "value": 2371
+        "op": "eq",
+        "value": 4707
       }
     },
     {
@@ -397,8 +397,8 @@
       },
       "expect": {
         "field": "round_count",
-        "op": "gte",
-        "value": 1473
+        "op": "eq",
+        "value": 2968
       }
     },
     {
@@ -414,8 +414,8 @@
       },
       "expect": {
         "field": "count",
-        "op": "gte",
-        "value": 6538
+        "op": "eq",
+        "value": 13389
       }
     }
   ]
