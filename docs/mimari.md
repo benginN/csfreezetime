@@ -575,12 +575,12 @@ Filtre boyutları: `map`, `side`, `team_scope`, `player_scope`, `buy_type`, `rou
 İlk 25 sn'nin utility-nokta kümesi şablon anahtarıdır; ≥3 tekrar eden şablonlar site dağılımı ve kazanma oranıyla saklanır (ml/templates.py, deterministik).
 
 ### Saklama politikası (2026-07-05, ürün kararı)
-Katmanlı: ham .dem (MinIO) ve tick verisi (CH player_ticks/shots) 24 ay
+Katmanlı: ham .dem (MinIO) ve tick verisi (CH player_ticks/shots) 12 ay
 saklanır; sonrasında otomatik silinir (matches.tick_purged=true). PG meta
 ve istatistikler SÜRESİZ kalır — leaderboard/kariyer geriye dönük bozulmaz.
-Sonuç: >24 ay maçlarda replay/heatmap kapalı ("archived"); CH okuyan ml
+Sonuç: >12 ay maçlarda replay/heatmap kapalı ("archived"); CH okuyan ml
 işleri (setups/roles/rotations/flash) o maçları doğal olarak dışarıda
-bırakır. RETENTION_MONTHS env (varsayılan 24; 0=kapalı).
+bırakır. RETENTION_MONTHS env (varsayılan 12; 0=kapalı). 2026-07-05: 24→12 ay (ürün kararı — 1 yıldan eski meta analitik değer taşımıyor, depolama yarıya iner).
 
 ### Kişisel veritabanı (create your own database)
 Kullanıcı demoları is_private=true ile işlenir; enrichment sonunda status

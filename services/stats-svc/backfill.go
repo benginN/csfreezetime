@@ -423,11 +423,11 @@ func wrapResult(r map[string]any, err error) ([]map[string]any, error) {
 	return []map[string]any{r}, nil
 }
 
-// retentionLoop: saklama politikası (ürün kararı 2026-07-05) — 24 aydan
+// retentionLoop: saklama politikası (güncel karar: 12 ay) — eşikten
 // eski maçların HAM demosu (MinIO) ve tick verisi (CH) silinir; PG meta
 // süresiz kalır (leaderboard/kariyer bozulmaz). Günde bir koşar.
 func (s *server) retentionLoop() {
-	months := 24
+	months := 12
 	if v := os.Getenv("RETENTION_MONTHS"); v != "" {
 		if n, err := strconv.Atoi(v); err == nil {
 			months = n

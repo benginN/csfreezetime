@@ -107,7 +107,7 @@ export default function Help() {
         <li><b>Honest statistics:</b> every percentage carries its n; thresholds (e.g. 8+ rounds for setups, 30+ for role tags, 12+ for clustering, 3+ throws for utility spots) hide thin data entirely.</li>
         <li><b>Win probability</b> is historical: for each game state (alive counts, bomb, clock bucket) it is the actual T win rate across the archive, smoothed toward similar states when a cell is rare.</li>
         <li><b>Strategy clusters</b> group rounds by where a team spends the first 30 seconds and what utility it uses — no black boxes, no external AI; everything is deterministic and reproducible.</li>
-        <li><b>Retention:</b> matches older than 24 months keep their statistics and results forever, but replay/heatmap data is removed (marked "archived"). Old meta stays out of today&apos;s models by design — and the time-window filter lets you narrow further.</li>
+        <li><b>Retention:</b> matches older than 12 months keep their statistics and results forever, but replay/heatmap data is removed (marked "archived"). Old meta stays out of today&apos;s models by design — and the time-window filter lets you narrow further.</li>
       </ul>
 
       <h2>7. Tips</h2>
