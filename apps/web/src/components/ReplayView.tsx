@@ -179,6 +179,7 @@ export default function ReplayView({
   const ghostDotsRef = useRef<{ x: number; y: number; li: number; nick: string }[]>([]);
   const dropDotsRef = useRef<{ x: number; y: number; name: string }[]>([]);
   const bombPosRef = useRef<{ round: number; rx: number; ry: number; lower: boolean } | null>(null);
+  const jumpAtRef = useRef<Map<number, number>>(new Map()); // oyuncu idx → zıplama tick'i
   const ghostHoverRef = useRef<{ li: number; nick: string } | null>(null);
   const ghostPinRef = useRef<{ li: number; nick: string } | null>(null); // tıkla-sabitle
   const ghostTipRef = useRef<HTMLDivElement>(null);
@@ -1032,6 +1033,21 @@ export default function ReplayView({
           }
           g.circle(x, y, 5.5 * Math.max(s, 0.7)).fill({ color: dotCol })
            .stroke({ width: 1, color: 0x0b0e0c });
+          // zıplama: ani +z (≈>14 birim/örnek) → su damlası gibi genişleyip
+          // sönen gri halka (0.45 sn); merdiven/rampa yavaş tırmanışı elenir
+          {
+            const z0 = p.wz[Math.max(0, i0 - 1)], z1 = p.wz[i0];
+            const t0j = jumpAtRef.current.get(pi) ?? -1e9;
+            if (z0 != null && z1 != null && z1 - z0 > 14 && tick - t0j > 40) {
+              jumpAtRef.current.set(pi, tick);
+            }
+            const age = (tick - (jumpAtRef.current.get(pi) ?? -1e9)) / 64;
+            if (age >= 0 && age < 0.45) {
+              const k = age / 0.45;
+              g.circle(x, y, (7 + 20 * k) * Math.max(s, 0.7))
+               .stroke({ width: 1.2, color: 0x9aa39c, alpha: 0.35 * (1 - k) });
+            }
+          }
           // can halkası — yay başlangıcına moveTo: aksi halde yol (0,0)'dan
           // bağlanıp sol üstten gelen hayalet çizgi oluşturuyordu
           const hp = p.hp[i0] ?? 0;
@@ -1049,7 +1065,8 @@ export default function ReplayView({
             bombPosRef.current = {
               round, rx: rx0 + (rx1 - rx0) * frac, ry: ry0 + (ry1 - ry0) * frac, lower,
             };
-            g.circle(x + 7 * Math.max(s, 0.7), y - 7 * Math.max(s, 0.7), 2.4 * Math.max(s, 0.7))
+            // bomba işareti: oyuncu noktasının tam merkezinde
+            g.circle(x, y, 2.4 * Math.max(s, 0.7))
              .fill({ color: 0xe03030 })
              .stroke({ width: 1, color: 0x0b0e0c });
           }
