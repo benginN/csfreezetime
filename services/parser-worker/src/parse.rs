@@ -251,13 +251,18 @@ pub fn parse_demo_bytes(bytes: &[u8], match_id: Uuid) -> Result<ParseResult> {
 
     // Pass A: raunt sınırları. Isınma rauntlarını elemek için son
     // begin_new_match'ten sonraki round_start'lar sayılır.
+    // DİKKAT: bazı demolarda begin_new_match, 1. raundun round_start'ından
+    // 1 tick SONRA gelir (576 vs 577 vakası) — katı >= gerçek pistolu
+    // düşürüp tüm numaralandırmayı kaydırıyordu. 2 sn tolerans bırakılır;
+    // ısınma round_start'ları bundan çok daha erken olduğundan güvenli.
     let match_start_tick = output
         .game_events
         .iter()
         .filter(|e| e.name == "begin_new_match")
         .map(|e| e.tick)
         .max()
-        .unwrap_or(i32::MIN);
+        .unwrap_or(i32::MIN)
+        .saturating_sub(128);
 
     let mut round_starts: Vec<i32> = output
         .game_events

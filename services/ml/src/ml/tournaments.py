@@ -41,8 +41,13 @@ def run(pgconn) -> int:
         refined = None
         if name_a and name_b:
             a, b = _slug(name_a), _slug(name_b)
-            cands_a = [a] if "-" not in a else [a, a.split("-")[0]]
-            cands_b = [b] if "-" not in b else [b, b.split("-")[0]]
+            # slug'ın tüm token-önekleri aday: "lynn-vision-gaming" →
+            # [lynn, lynn-vision, lynn-vision-gaming] (HLTV kısaltmaları)
+            def prefixes(x: str) -> list[str]:
+                toks = x.split("-")
+                return ["-".join(toks[: i + 1]) for i in range(len(toks))]
+            cands_a = prefixes(a)
+            cands_b = prefixes(b)
             tails = [f"-{x}-vs-{y}" for x in cands_a for y in cands_b]
             tails += [f"-{y}-vs-{x}" for x in cands_a for y in cands_b]
             for tail in tails:
@@ -56,7 +61,16 @@ def run(pgconn) -> int:
         elif "-vs-" in raw:
             pending.append((match_id, raw))
 
-    # 2. geçiş — konsensüs: 1. geçişte doğrulanan etkinlik adlarından
+    # 2a. geçiş — DB'deki temiz etkinlik adları da konsensüse katılır
+    # (önceki koşularda doğrulanmış, '-vs-' içermeyen değerler)
+    with pgconn.cursor() as cur:
+        cur.execute(
+            "SELECT DISTINCT tournament FROM matches "
+            "WHERE tournament IS NOT NULL AND tournament NOT LIKE '%-vs-%'"
+        )
+        refined_events.update(r[0] for r in cur.fetchall())
+
+    # 2. geçiş — konsensüs: doğrulanan etkinlik adlarından
     # biriyle başlayan kalıntılar aynı etkinliğe bağlanır.
     for match_id, raw in pending:
         for ev in sorted(refined_events, key=len, reverse=True):
