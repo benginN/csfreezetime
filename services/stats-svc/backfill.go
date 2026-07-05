@@ -244,8 +244,12 @@ func (s *server) backfillRun(files []string, dir string) {
 				fmt.Sprintf("%s: %v", filepath.Base(f), err))
 		} else {
 			bfState.Results = append(bfState.Results, results...)
-			// başarılı dosya done/ altına (yeniden taramada atlanır)
-			os.Rename(f, filepath.Join(dir, "done", filepath.Base(f)))
+			if os.Getenv("BACKFILL_DELETE_DONE") == "1" {
+				os.Remove(f) // disk baskısı: işlenen arşivi bekletme
+			} else {
+				// başarılı dosya done/ altına (yeniden taramada atlanır)
+				os.Rename(f, filepath.Join(dir, "done", filepath.Base(f)))
+			}
 		}
 		bfState.Done++
 		bfState.mu.Unlock()
@@ -346,8 +350,11 @@ func (s *server) backfillRar(path, playedAt string) ([]map[string]any, error) {
 			entryPlayed = hdr.ModificationTime.UTC().Format(time.RFC3339)
 		}
 		r, err := s.ingestStream(rr, demBase(hdr.Name), entryPlayed, tournamentSlug(path))
-		res, _ := wrapResult(r, err)
-		out = append(out, res...)
+		if err != nil {
+			// içteki hata yutulmaz: arşiv done'a taşınmaz, hata panelde görünür
+			return out, fmt.Errorf("%s: %w", hdr.Name, err)
+		}
+		out = append(out, r)
 	}
 	return out, nil
 }
@@ -373,8 +380,10 @@ func (s *server) backfillZip(path, playedAt string) ([]map[string]any, error) {
 		}
 		r, err := s.ingestStream(f, demBase(zf.Name), entryPlayed, tournamentSlug(path))
 		f.Close()
-		res, _ := wrapResult(r, err)
-		out = append(out, res...)
+		if err != nil {
+			return out, fmt.Errorf("%s: %w", zf.Name, err)
+		}
+		out = append(out, r)
 	}
 	return out, nil
 }
@@ -507,6 +516,92 @@ func (s *server) reprocess(w http.ResponseWriter, r *http.Request) {
 	}
 	markIngest() // kuyruk boşalınca ml-auto tazeler
 	writeJSON(w, 200, map[string]any{"republished": n})
+}
+
+// POST /api/v1/admin/compress-raw {"limit": N} — mevcut sıkıştırılmamış ham
+// demoları yerinde .dem.zst'ye çevirir (oku→sıkıştır→yaz→doğrula→eskisini sil
+// →demo_object_key güncelle). İdempotent; arka planda koşar, log'a yazar.
+func (s *server) compressRaw(w http.ResponseWriter, r *http.Request) {
+	if s.up == nil {
+		writeErr(w, 503, fmt.Errorf("upload infrastructure unavailable"))
+		return
+	}
+	var body struct {
+		Limit int `json:"limit"`
+	}
+	_ = json.NewDecoder(r.Body).Decode(&body)
+	if body.Limit <= 0 {
+		body.Limit = 100000
+	}
+	rows, err := s.pg.Query(r.Context(), `
+		SELECT match_id, demo_object_key FROM matches
+		WHERE demo_object_key LIKE '%.dem' AND NOT tick_purged
+		LIMIT $1`, body.Limit)
+	if err != nil {
+		writeErr(w, 500, err)
+		return
+	}
+	type item struct{ id, key string }
+	var items []item
+	for rows.Next() {
+		var it item
+		if rows.Scan(&it.id, &it.key) == nil {
+			items = append(items, it)
+		}
+	}
+	rows.Close()
+
+	go func() {
+		okN, failN := 0, 0
+		for i, it := range items {
+			err := func() error {
+				ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+				defer cancel()
+				obj, err := s.up.mc.GetObject(ctx, s.up.bucket, it.key, minio.GetObjectOptions{})
+				if err != nil {
+					return err
+				}
+				defer obj.Close()
+				newKey := it.key + ".zst"
+				pr, pw := io.Pipe()
+				go func() {
+					zw, _ := zstd.NewWriter(pw, zstd.WithEncoderLevel(zstd.SpeedDefault))
+					_, cErr := io.Copy(zw, obj)
+					if cErr == nil {
+						cErr = zw.Close()
+					} else {
+						zw.Close()
+					}
+					pw.CloseWithError(cErr)
+				}()
+				info, err := s.up.mc.PutObject(ctx, s.up.bucket, newKey, pr, -1,
+					minio.PutObjectOptions{ContentType: "application/zstd"})
+				if err != nil {
+					return err
+				}
+				if info.Size <= 0 {
+					return fmt.Errorf("empty compressed object")
+				}
+				if _, err := s.pg.Exec(ctx,
+					"UPDATE matches SET demo_object_key = $1 WHERE match_id = $2",
+					newKey, it.id); err != nil {
+					return err
+				}
+				return s.up.mc.RemoveObject(ctx, s.up.bucket, it.key, minio.RemoveObjectOptions{})
+			}()
+			if err != nil {
+				failN++
+				log.Printf("compress-raw %d/%d HATA %s: %v", i+1, len(items), it.key, err)
+			} else {
+				okN++
+				if (i+1)%25 == 0 {
+					log.Printf("compress-raw ilerleme: %d/%d", i+1, len(items))
+				}
+			}
+		}
+		log.Printf("compress-raw bitti: ok=%d hata=%d", okN, failN)
+	}()
+	writeJSON(w, 200, map[string]any{"queued": len(items)})
 }
 
 // GET /api/v1/coverage — arşiv kapsam envanteri (backfill kör uçuşu önler)

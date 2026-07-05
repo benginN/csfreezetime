@@ -104,6 +104,7 @@ func main() {
 	r.Post("/api/v1/upload", srv.upload)
 	r.Post("/api/v1/backfill/scan", adminOnly(srv.backfillScan))
 	r.Post("/api/v1/reprocess", adminOnly(srv.reprocess))
+	r.Post("/api/v1/admin/compress-raw", adminOnly(srv.compressRaw))
 	r.Delete("/api/v1/private/{id}", srv.privateDelete)
 	r.Get("/api/v1/backfill/status", adminOnly(srv.backfillStatus))
 	r.Get("/api/v1/coverage", adminOnly(srv.coverage))

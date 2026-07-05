@@ -19,6 +19,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
+	"github.com/klauspost/compress/zstd"
 	"github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"
 	"github.com/nats-io/nats.go"
@@ -152,15 +153,26 @@ func (s *server) ingestLocalDemo(
 		}, 200, nil
 	}
 
-	// MinIO'ya yükle
-	objectKey := "raw/" + sha + ".dem"
+	// MinIO'ya SIKIŞTIRARAK yükle (~%45 küçülür; parser .zst'yi açar)
+	objectKey := "raw/" + sha + ".dem.zst"
 	f, err := os.Open(tmpPath)
 	if err != nil {
 		return nil, 500, err
 	}
 	defer f.Close()
-	if _, err := s.up.mc.PutObject(ctx, s.up.bucket, objectKey, f, size,
-		minio.PutObjectOptions{ContentType: "application/octet-stream"}); err != nil {
+	pr, pw := io.Pipe()
+	go func() {
+		zw, _ := zstd.NewWriter(pw, zstd.WithEncoderLevel(zstd.SpeedDefault))
+		_, cErr := io.Copy(zw, f)
+		if cErr == nil {
+			cErr = zw.Close()
+		} else {
+			zw.Close()
+		}
+		pw.CloseWithError(cErr)
+	}()
+	if _, err := s.up.mc.PutObject(ctx, s.up.bucket, objectKey, pr, -1,
+		minio.PutObjectOptions{ContentType: "application/zstd"}); err != nil {
 		return nil, 500, fmt.Errorf("S3 upload failed: %w", err)
 	}
 

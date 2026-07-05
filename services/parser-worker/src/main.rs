@@ -233,7 +233,20 @@ async fn run_pipeline(
         .send()
         .await
         .with_context(|| format!("S3 indirme hatası: {}", job.object_key))?;
-    let bytes = obj.body.collect().await?.into_bytes();
+    let mut bytes = obj.body.collect().await?.into_bytes();
+    // sıkıştırılmış ham demo (raw/<sha>.dem.zst) — depolama ~%45 küçülür
+    if job.object_key.ends_with(".zst") {
+        let t_dec = Instant::now();
+        let decoded = tokio::task::block_in_place(|| zstd::stream::decode_all(&bytes[..]))
+            .context("zstd açma hatası")?;
+        info!(
+            packed = bytes.len(),
+            unpacked = decoded.len(),
+            ms = t_dec.elapsed().as_millis() as u64,
+            "demo zstd açıldı"
+        );
+        bytes = decoded.into();
+    }
     info!(
         bytes = bytes.len(),
         ms = t_download.elapsed().as_millis() as u64,
