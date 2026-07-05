@@ -81,7 +81,9 @@ func (s *server) mlAutoRun() {
 		}
 		log.Printf("ml-auto: istatistik işleri başlıyor (son ingest %.0f sn önce)",
 			time.Since(lastIngest).Seconds())
-		cmd := exec.Command("uv", "run", "--no-editable", "ml-jobs")
+		// --reinstall-package: uv wheel önbelleği kaynak değişimini her zaman
+		// görmüyor; bayat kod koşmasın (bir kez takım verisini bozdu)
+		cmd := exec.Command("uv", "run", "--no-editable", "--reinstall-package", "ml", "ml-jobs")
 		cmd.Dir = dir
 		out, err := cmd.CombinedOutput()
 		if err != nil {

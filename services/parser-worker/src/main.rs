@@ -126,8 +126,9 @@ async fn main() -> Result<()> {
             jetstream::consumer::pull::Config {
                 durable_name: Some(CONSUMER_NAME.to_string()),
                 filter_subject: "demo.ingested".to_string(),
-                // 376 MB'lık demo indirme+parse dakikayı bulabilir
-                ack_wait: std::time::Duration::from_secs(300),
+                // dev demolar (850MB+ açılmış, uzun uzatmalar) 5 dk'yı aşabiliyor;
+                // erken redelivery = aynı devi iki worker'ın çiğnemesi
+                ack_wait: std::time::Duration::from_secs(1800),
                 // mimari.md §4.3: 3 denemeden sonra bırak (dead-letter Faz 1+)
                 max_deliver: 3,
                 ..Default::default()
