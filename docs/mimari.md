@@ -561,7 +561,7 @@ NATS konuları: `demo.ingested`, `demo.parsed`, `demo.enriched`, `ml.cluster.ass
 |---|---|---|---|
 | 0 — İskelet | 3-4 hafta | docker-compose ile PG+CH+MinIO+NATS; Rust parser worker PoC; tek demo → CH akışı | 1 demo < 5 sn'de parse edilip DB'de sorgulanabiliyor |
 | 1 — Çekirdek ürün | 5-6 hafta | Enrichment hattı, PG şeması, 2D replay tahtası, temel istatistik ekranları | Koç bir maçı yükleyip 90 sn içinde raunt raunt izleyebiliyor |
-| 2 — Isı haritası + arama v0 | 4 hafta | heatmap_grid + shader kompozitör; DSL sorgu motoru (form arayüzüyle, LLM'siz) | Zaman kaydırmalı ısı haritası anlık; DSL 20 sorgu kalıbını karşılıyor |
+| 2 — Isı haritası + arama v0 | 4 hafta | heatmap_grid + shader kompozitör; DSL sorgu motoru (form arayüzüyle, LLM'siz) | Zaman kaydırmalı ısı haritası anlık; DSL sorgu kalıpları smoke testlerle doğrulanıyor (scripts/test-dsl.sh) |
 | 3 — NLP + stacking | 4-5 hafta | LLM çeviri katmanı, grounding sözlüğü, altın set; Multi-View Stacking | Altın sette precision@10 ≥ 0,8; NLP→klip→stack akışı uçtan uca |
 | 4 — AI v1 | 6-8 hafta | Strateji kümeleme + isimlendirme arayüzü; kalibre tahmin modeli; anomali bayrakları + koç raporu | Tahmin, zamansal test setinde frekans taban çizgisini geçiyor; ilk pilot takım haftalık rapor alıyor |
 

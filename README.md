@@ -46,7 +46,7 @@ open http://localhost:8090   # SPA: maçlar, replay, analiz (/debug: test sayfas
 
 # 6. Testler
 scripts/e2e-test.sh          # boru hattı uçtan uca
-scripts/test-dsl.sh          # 20 golden DSL + replay/stack + p95
+scripts/test-dsl.sh          # replay/stack smoke + heatmap p95
 scripts/test-ml.sh           # kümeleme/eğilim/anomali tutarlılığı
 ```
 

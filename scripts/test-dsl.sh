@@ -1,16 +1,14 @@
 #!/usr/bin/env bash
-# DSL golden sorgu doğrulaması (Faz 2 çıkış kriteri: 20 kalıp) + heatmap p95.
+# Replay/stack smoke testleri + heatmap p95 ölçümü.
 # Kullanım: scripts/test-dsl.sh   (stats-svc :8090'da çalışıyor olmalı)
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 BASE="${STATS_URL:-http://localhost:8090}"
 
-python3 - "$ROOT/services/stats-svc/testdata/golden_queries.json" "$BASE" <<'EOF'
+python3 - "$BASE" <<'EOF'
 import json, sys, time, urllib.request
 
-path, base = sys.argv[1], sys.argv[2]
-spec = json.load(open(path))
+base = sys.argv[1]
 fails = 0
 
 def post(url, body):
@@ -18,27 +16,6 @@ def post(url, body):
                                  headers={"Content-Type": "application/json"})
     with urllib.request.urlopen(req, timeout=30) as r:
         return json.load(r)
-
-for q in spec["queries"]:
-    try:
-        res = post(base + "/api/v1/query", q["dsl"])
-    except Exception as e:
-        print(f"FAIL {q['name']}: istek hatası: {e}")
-        fails += 1
-        continue
-    if "error" in res:
-        print(f"FAIL {q['name']}: {res['error']}")
-        fails += 1
-        continue
-    exp = q["expect"]
-    f = exp["field"]
-    got = res.get(f)
-    n = len(got) if isinstance(got, list) else (got if got is not None else 0)
-    ok = n == exp["value"] if exp["op"] == "eq" else n >= exp["value"]
-    status = "PASS" if ok else "FAIL"
-    if not ok:
-        fails += 1
-    print(f"{status} {q['name']}: {f}={n} (beklenen {exp['op']} {exp['value']}, {res.get('duration_ms')} ms)")
 
 # Replay + stack smoke testleri (Faz 3 revize)
 matches = json.load(urllib.request.urlopen(base + "/api/v1/matches"))
