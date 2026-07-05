@@ -122,6 +122,15 @@ export default function MyDb() {
   const grouped = groupLocalParts(filtered);
   const totalMB = items.reduce((a, m) => a + m.bytes, 0) / 1e6;
 
+  // arama önerileri: eşleşen takım/oyuncu çipleri (ana sayfadaki gibi,
+  // ama LOKAL rapora giderler — sunucu verisiyle karışmaz)
+  const teamHits = !ql ? [] : [...new Set(items
+    .flatMap((m) => [m.detail.team_a, m.detail.team_b])
+    .filter((t): t is string => !!t && t.toLowerCase().includes(ql)))].slice(0, 6);
+  const playerHits = !ql ? [] : [...new Set(items
+    .flatMap((m) => m.players.filter((p) => !p.is_coach).map((p) => p.nickname))
+    .filter((n) => n.toLowerCase().includes(ql)))].slice(0, 8);
+
   return (
     <>
       <h1>Create your own database <span className="meta">— lives in your folder + this browser, never on the server</span></h1>
@@ -174,6 +183,24 @@ export default function MyDb() {
             onChange={(e) => setQ(e.target.value)}
           />
           {ql && <span className="meta">{grouped.length} results</span>}
+        </div>
+      )}
+      {teamHits.length > 0 && (
+        <div className="toolbar">
+          <span className="meta">teams:</span>
+          {teamHits.map((t) => (
+            <Link key={t} to={`/mydb/report?team=${encodeURIComponent(t)}`}>
+              <button className="ghost">🛡 {t} report</button>
+            </Link>
+          ))}
+        </div>
+      )}
+      {playerHits.length > 0 && (
+        <div className="toolbar">
+          <span className="meta">players:</span>
+          {playerHits.map((p) => (
+            <button key={p} className="ghost" onClick={() => setQ(p)}>👤 {p}</button>
+          ))}
         </div>
       )}
 

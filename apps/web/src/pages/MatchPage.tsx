@@ -94,11 +94,15 @@ export default function MatchPage() {
 
   const header = (
     <div className="matchhead">
-      {d.team_a_id
+      {isLocal && d.team_a
+        ? <Link to={`/mydb/report?team=${encodeURIComponent(d.team_a)}&map=${d.map_name ?? ''}`} title="local team report">{d.team_a}</Link>
+        : d.team_a_id
         ? <Link to={`/report/${d.team_a_id}?map=${d.map_name ?? ''}`} title="Opponent report">{d.team_a}</Link>
         : (d.team_a ?? 'Team A')}{' '}
       <span style={{ color: '#b6e2b6' }}>{scoreA} : {scoreB}</span>{' '}
-      {d.team_b_id
+      {isLocal && d.team_b
+        ? <Link to={`/mydb/report?team=${encodeURIComponent(d.team_b)}&map=${d.map_name ?? ''}`} title="local team report">{d.team_b}</Link>
+        : d.team_b_id
         ? <Link to={`/report/${d.team_b_id}?map=${d.map_name ?? ''}`} title="Opponent report">{d.team_b}</Link>
         : (d.team_b ?? 'Team B')}
       <div className="meta">
@@ -106,7 +110,7 @@ export default function MatchPage() {
         {d.map_name}
         {d.tournament ? ` · ${d.tournament.replace(/-/g, ' ')}` : ''}
         {summary.data?.played_at ? ` · ${summary.data.played_at}` : ''}
-        {d.team_a_id && d.team_b_id && (
+        {!isLocal && d.team_a_id && d.team_b_id && (
           <>
             {' '}
             <Link
