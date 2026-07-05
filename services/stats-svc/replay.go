@@ -87,7 +87,7 @@ func (s *server) matchDetail(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, 500, err)
 		return
 	}
-	var rounds []roundRow
+	rounds := []roundRow{}
 	for rows.Next() {
 		var x roundRow
 		if err := rows.Scan(&x.RoundNumber, &x.StartTick, &x.FreezeEndTick, &x.EndTick,
@@ -124,7 +124,7 @@ func (s *server) matchDetail(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer krows.Close()
-	var kills []killRow
+	kills := []killRow{}
 	for krows.Next() {
 		var x killRow
 		if err := krows.Scan(&x.RoundNumber, &x.Tick, &x.RoundTime,
@@ -429,7 +429,7 @@ func (s *server) roundTicks(w http.ResponseWriter, r *http.Request) {
 		ThrowRY    *float64 `json:"throw_ry"`
 		ThrowLower *bool    `json:"throw_lower,omitempty"`
 	}
-	var grenades []grenadeMark
+	grenades := []grenadeMark{}
 	grows, err := s.pg.Query(ctx, `
 		SELECT g.type, g.detonate_tick, g.side, p.nickname, g.det_x, g.det_y, g.det_z,
 		       g.throw_tick, g.throw_x, g.throw_y, g.throw_z

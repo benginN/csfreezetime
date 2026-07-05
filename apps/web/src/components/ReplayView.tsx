@@ -1001,7 +1001,7 @@ export default function ReplayView({
               // kill eşleşmesi: aynı anda (±4 tick) bu oyuncunun kill'i var mı
               let ex = mx0 + worldPx(750) * s * Math.cos(yaw);
               let ey = my0 - worldPx(750) * s * Math.sin(yaw);
-              for (const k of d.kills) {
+              for (const k of (d.kills ?? [])) {
                 if (k.attacker === p.nickname && Math.abs(k.tick - shotTick) <= 4
                     && k.victim_rx != null && k.victim_ry != null) {
                   const vp = place(k.victim_rx, k.victim_ry, k.lower);
@@ -1078,7 +1078,7 @@ export default function ReplayView({
           // düşen silahlar: ölüm anında kurbanın aktif silahı o noktada kalır;
           // ilk 3 sn etiketi görünür, sonrasında hover ile okunur
           let dropLblIdx = 0;
-          for (const k of d.kills) {
+          for (const k of (d.kills ?? [])) {
             if (k.tick > tick || k.victim_rx == null || k.victim_ry == null) continue;
             const vt = d.players.find((p) => p.nickname === k.victim);
             if (!vt) continue;
@@ -1140,7 +1140,7 @@ export default function ReplayView({
 
           // canvas içi killfeed (son 6 sn; replay katmanı kapalıysa boş)
           const recent = replayOn
-            ? d.kills.filter((k) => tick >= k.tick && tick - k.tick < 6 * d.tick_rate).slice(-6)
+            ? (d.kills ?? []).filter((k) => tick >= k.tick && tick - k.tick < 6 * d.tick_rate).slice(-6)
             : [];
           feedTexts.forEach((t, i) => {
             const k = recent[i];
@@ -1267,15 +1267,15 @@ export default function ReplayView({
     flash: '#ffffff', he: '#ff8c3c', decoy: '#c8c878',
   };
   const timelineMarks = !d ? [] : !selPlayer
-    ? d.kills.map((k) => ({
+    ? (d.kills ?? []).map((k) => ({
         tick: k.tick, color: '#e05545',
         title: `${k.attacker ?? '?'} ⟶ ${k.victim ?? '?'}`,
       }))
     : [
-        ...d.kills.filter((k) => k.attacker === selPlayer).map((k) => ({
+        ...(d.kills ?? []).filter((k) => k.attacker === selPlayer).map((k) => ({
           tick: k.tick, color: '#7fd88f', title: `kill: ${k.victim} (${k.weapon ?? ''})`,
         })),
-        ...d.kills.filter((k) => k.victim === selPlayer).map((k) => ({
+        ...(d.kills ?? []).filter((k) => k.victim === selPlayer).map((k) => ({
           tick: k.tick, color: '#e05545', title: `death: by ${k.attacker ?? '?'}`,
         })),
         ...(d.grenades ?? [])
