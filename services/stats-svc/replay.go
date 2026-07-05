@@ -500,6 +500,9 @@ func (s *server) stack(w http.ResponseWriter, r *http.Request) {
 		} `json:"rounds"`
 		Align string `json:"align"` // round_start | bomb_plant | first_kill
 		Side  string `json:"side,omitempty"`
+		// verilirse: her rauntta BU TAKIMIN o rauntki tarafı kullanılır
+		// (takım raporu raunt-bindirmesi; taraf maçtan maça değişir)
+		TeamID string `json:"team_id,omitempty"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeErr(w, 400, fmt.Errorf("could not parse JSON: %w", err))
@@ -529,6 +532,7 @@ func (s *server) stack(w http.ResponseWriter, r *http.Request) {
 		AlignTick   int32         `json:"align_tick"`
 		Skipped     string        `json:"skipped,omitempty"` // hizalama olayı yoksa neden
 		Players     []stackPlayer `json:"players,omitempty"`
+		laySide     string        // takım filtresinden türeyen raunt tarafı (dahili)
 	}
 
 	var mapName string
@@ -536,11 +540,13 @@ func (s *server) stack(w http.ResponseWriter, r *http.Request) {
 	for _, rr := range req.Rounds {
 		var m string
 		var freezeEnd, plantTick *int32
+		var tTeam, ctTeam *uuid.UUID
 		if err := s.pg.QueryRow(ctx, `
-			SELECT mt.map_name, r.freeze_end_tick, r.bomb_plant_tick
+			SELECT mt.map_name, r.freeze_end_tick, r.bomb_plant_tick,
+			       r.t_team_id, r.ct_team_id
 			FROM rounds r JOIN matches mt ON mt.match_id = r.match_id
 			WHERE r.match_id = $1 AND r.round_number = $2`,
-			rr.MatchID, rr.RoundNumber).Scan(&m, &freezeEnd, &plantTick); err != nil {
+			rr.MatchID, rr.RoundNumber).Scan(&m, &freezeEnd, &plantTick, &tTeam, &ctTeam); err != nil {
 			writeErr(w, 404, fmt.Errorf("raunt yok: %s/%d", rr.MatchID, rr.RoundNumber))
 			return
 		}
@@ -552,6 +558,18 @@ func (s *server) stack(w http.ResponseWriter, r *http.Request) {
 		}
 
 		ly := layer{MatchID: rr.MatchID, RoundNumber: rr.RoundNumber}
+		// takım filtresi: bu rauntta takımın tarafı; takım yoksa raunt atlanır
+		ly.laySide = req.Side
+		if req.TeamID != "" {
+			tid, err := uuid.Parse(req.TeamID)
+			if err == nil && tTeam != nil && *tTeam == tid {
+				ly.laySide = "T"
+			} else if err == nil && ctTeam != nil && *ctTeam == tid {
+				ly.laySide = "CT"
+			} else {
+				ly.Skipped = "team not in round"
+			}
+		}
 		switch req.Align {
 		case "round_start":
 			if freezeEnd == nil {
@@ -622,9 +640,9 @@ func (s *server) stack(w http.ResponseWriter, r *http.Request) {
 		      FROM player_ticks
 		      WHERE match_id = ? AND round_number = ? AND is_alive`
 		args := []any{ly.MatchID, uint8(ly.RoundNumber)}
-		if req.Side != "" {
+		if ly.laySide != "" {
 			q += " AND side = ?"
-			args = append(args, req.Side)
+			args = append(args, ly.laySide)
 		}
 		q += " ORDER BY player_id, tick"
 		rows, err := s.ch.Query(ctx, q, args...)

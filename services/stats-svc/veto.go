@@ -176,11 +176,31 @@ func (s *server) vetoSim(w http.ResponseWriter, r *http.Request) {
 		finals = append(finals, finalMap{p.Map, prob, p.Edge, p.N})
 	}
 
+	// tüm havuz: her harita için iki tarafın şansı (veto'dan bağımsız)
+	type poolRow struct {
+		Map   string  `json:"map"`
+		ProbA float64 `json:"prob_a"`
+		N     int     `json:"n"`
+	}
+	poolMaps := []poolRow{}
+	for _, p := range pool {
+		prob := 0.5 + edge(p)*3
+		if prob > 0.85 {
+			prob = 0.85
+		}
+		if prob < 0.15 {
+			prob = 0.15
+		}
+		poolMaps = append(poolMaps, poolRow{p.name, prob, na[p.name] + nb[p.name]})
+	}
+	sort.Slice(poolMaps, func(i, j int) bool { return poolMaps[i].ProbA > poolMaps[j].ProbA })
+
 	writeJSON(w, 200, map[string]any{
-		"format": format,
-		"pool":   len(pool),
-		"steps":  steps,
-		"finals": finals,
-		"note":   "strengths are shrunk round-win rates (k=20); map win prob is a linear heuristic on the edge, clamped to 15-85%",
+		"format":    format,
+		"pool":      len(pool),
+		"pool_maps": poolMaps,
+		"steps":     steps,
+		"finals":    finals,
+		"note":      "strengths are shrunk round-win rates (k=20); map win prob is a linear heuristic on the edge, clamped to 15-85%",
 	})
 }

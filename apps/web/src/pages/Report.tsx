@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRoster, useWindow, WindowPicker } from '../lib/window';
-import { api, type ReportResp } from '../api';
+import { api, type ReportResp, type StackResp } from '../api';
 import { drawMapBase, hidpiCtx, loadMapBase, RADAR, type MapBase } from '../lib/mapbase';
 import { paintHeat } from '../lib/heatpaint';
 
@@ -80,6 +80,7 @@ export default function Report() {
         <Stat label="Pistol rounds" v={pct(ov.pistol_wins, ov.pistol_rounds)} n={`${ov.pistol_wins}/${ov.pistol_rounds}`} />
         <Stat
           label="Convert after pistol win"
+          title="won the pistol AND the following (2nd/14th) round — holding the anti-eco"
           v={ov.conv_after_pistol_win_n ? `${Math.round(100 * ov.conv_after_pistol_win)}%` : '—'}
           n={`n=${ov.conv_after_pistol_win_n}`}
         />
@@ -219,15 +220,11 @@ export default function Report() {
         </div>
       </div>
 
-      {/* 6 — Positioning heatmaps */}
-      <h2>Positioning <span className="meta">({d.window_since ? `rounds since ${d.window_since}` : 'all archived rounds'})</span></h2>
-      <div className="grid cards heatgrid">
-        {(['T', 'CT'] as const).map((side) => (
-          [{ t0: 0, t1: 25, tag: 'first 25 s' }, { t0: 25, t1: 115, tag: 'after 25 s' }].map((wnd) => (
-            <TeamHeat key={side + wnd.tag} teamId={teamId} mapName={mapName} side={side} t0={wnd.t0} t1={wnd.t1} tag={wnd.tag} />
-          ))
-        ))}
-      </div>
+      {/* 6 — Positioning heatmaps (kullanıcı seçimli pencere + hizalama) */}
+      <PositioningSection teamId={teamId} mapName={mapName} windowNote={d.window_since} />
+
+      {/* 6.4 — Raunt bindirmesi: tüm maçlarda aynı raunt, ghost izleri */}
+      <RoundOverlay teamId={teamId} mapName={mapName} />
 
       {/* 6.5 — Thrown rounds */}
       {d.thrown.length > 0 && (
@@ -262,10 +259,14 @@ export default function Report() {
           </tr>
         </thead>
         <tbody>
-          {d.players.map((p, i) => (
-            <tr key={i}>
+          {[...d.players]
+            .sort((a, b) => a.nickname.localeCompare(b.nickname) || a.side.localeCompare(b.side))
+            .map((p, i, arr) => (
+            <tr key={p.player_id + p.side}>
               <td style={{ fontWeight: 600 }}>
-                <Link to={`/player/${p.player_id}`}>{p.nickname}</Link>
+                {i > 0 && arr[i - 1].nickname === p.nickname
+                  ? <span className="meta" style={{ paddingLeft: 8 }}>〃</span>
+                  : <Link to={`/player/${p.player_id}`}>{p.nickname}</Link>}
               </td>
               <td><span className={`badge ${p.side}`}>{p.side}</span></td>
               <td>
@@ -299,10 +300,10 @@ function pct(a: number, b: number): string {
   return b ? `${Math.round((100 * a) / b)}%` : '—';
 }
 
-function Stat({ label, v, n }: { label: string; v: string; n: string }) {
+function Stat({ label, v, n, title }: { label: string; v: string; n: string; title?: string }) {
   return (
-    <div className="card">
-      <div className="meta">{label}</div>
+    <div className="card" title={title}>
+      <div className="meta">{label}{title ? ' ⓘ' : ''}</div>
       <div style={{ fontSize: 22, fontWeight: 700, color: '#b6e2b6' }}>{v}</div>
       <div className="meta">{n}</div>
     </div>
@@ -558,10 +559,48 @@ function UtilitySection({ d, mapName }: { d: ReportResp; mapName: string }) {
   );
 }
 
+function PositioningSection({ teamId, mapName, windowNote }: {
+  teamId: string; mapName: string; windowNote?: string;
+}) {
+  const [anchor, setAnchor] = useState<'start' | 'plant'>('start');
+  const [t0, setT0] = useState(0);
+  const [t1, setT1] = useState(25);
+  return (
+    <>
+      <h2>
+        Positioning <span className="meta">({windowNote ? `rounds since ${windowNote}` : 'all archived rounds'})</span>
+        <span className="toolbar" style={{ display: 'inline-flex', marginLeft: 10, gap: 6 }}>
+          <select value={anchor} onChange={(e) => setAnchor(e.target.value as 'start' | 'plant')}>
+            <option value="start">from round start</option>
+            <option value="plant">after bomb plant</option>
+          </select>
+          <input type="number" min={0} max={110} style={{ width: 54 }} value={t0}
+            onChange={(e) => setT0(Math.max(0, Number(e.target.value)))} />
+          <span className="meta">→</span>
+          <input type="number" min={1} max={115} style={{ width: 54 }} value={t1}
+            onChange={(e) => setT1(Math.max(1, Number(e.target.value)))} />
+          <span className="meta">s</span>
+        </span>
+      </h2>
+      <div className="grid cards heatgrid">
+        {(['T', 'CT'] as const).map((side) => (
+          <TeamHeat
+            key={side + anchor + t0 + '-' + t1}
+            teamId={teamId} mapName={mapName} side={side}
+            t0={t0} t1={Math.max(t0 + 1, t1)} anchor={anchor}
+            tag={`${anchor === 'plant' ? 'post-plant ' : ''}${t0}-${Math.max(t0 + 1, t1)} s`}
+          />
+        ))}
+      </div>
+    </>
+  );
+}
+
 function TeamHeat({
-  teamId, mapName, side, t0, t1, tag,
+  teamId, mapName, side, t0, t1, tag, anchor = 'start',
 }: {
   teamId: string; mapName: string; side: 'T' | 'CT'; t0: number; t1: number; tag: string;
+  anchor?: 'start' | 'plant';
 }) {
   const cvRef = useRef<HTMLCanvasElement>(null);
   const [base, setBase] = useState<MapBase | null>(null);
@@ -569,10 +608,10 @@ function TeamHeat({
   const [, since] = useWindow();
   const [roster] = useRoster();
   const heat = useQuery({
-    queryKey: ['teamHeat', teamId, mapName, side, t0, t1, since, roster],
+    queryKey: ['teamHeat', teamId, mapName, side, t0, t1, since, roster, anchor],
     queryFn: () => api.teamHeatmap(teamId, new URLSearchParams({
       map: mapName, side, t0: String(t0), t1: String(t1), since,
-      roster_min: String(roster),
+      roster_min: String(roster), anchor,
     })),
   });
   useEffect(() => {
@@ -628,6 +667,128 @@ function RecentResults({ teamId, mapName, since, roster }: {
           })}
         </tbody>
       </table>
+    </>
+  );
+}
+
+
+// Takım raporu raunt-bindirmesi: seçilen TEK raunt numarası, takımın o
+// haritadaki tüm maçlarından (pencere/kadro filtresi dahil, en yeni 30)
+// üst üste oynatılır — taraf her rauntta takımın kendi tarafıdır.
+function RoundOverlay({ teamId, mapName }: { teamId: string; mapName: string }) {
+  const [, since] = useWindow();
+  const [roster] = useRoster();
+  const [roundNo, setRoundNo] = useState(1);
+  const [align, setAlign] = useState('round_start');
+  const [mode, setMode] = useState<'ghost' | 'heat'>('ghost');
+  const [t, setT] = useState(30);
+  const [data, setData] = useState<StackResp | null>(null);
+  const [busy, setBusy] = useState(false);
+  const cvRef = useRef<HTMLCanvasElement>(null);
+  const [base, setBase] = useState<MapBase | null>(null);
+  useEffect(() => { loadMapBase(mapName).then(setBase); }, [mapName]);
+
+  async function load() {
+    setBusy(true);
+    try {
+      const ms = (await api.matches(teamId, since, roster))
+        .filter((m) => m.map_name === mapName && m.status === 'ready')
+        .slice(0, 30);
+      const resp = await api.stack({
+        rounds: ms.map((m) => ({ match_id: m.match_id, round_number: roundNo })),
+        align, team_id: teamId,
+      });
+      setData(resp);
+    } finally { setBusy(false); }
+  }
+
+  useEffect(() => {
+    const cv = cvRef.current;
+    if (!cv || !base) return;
+    const ctx = hidpiCtx(cv, MAPW);
+    drawMapBase(ctx, MAPW, base, false);
+    if (!data) return;
+    const layers = data.layers.filter((l: StackResp['layers'][number]) => !l.skipped && l.players?.length);
+    if (mode === 'heat') {
+      const cells = new Map<string, number>();
+      for (const ly of layers) {
+        for (const p of ly.players ?? []) {
+          for (let i = 0; i < p.t.length; i++) {
+            if (p.t[i] < 0 || p.t[i] > t) continue;
+            const key = `${Math.floor(p.rx[i] / 8)}:${Math.floor(p.ry[i] / 8)}`;
+            cells.set(key, (cells.get(key) ?? 0) + 1);
+          }
+        }
+      }
+      paintHeat(ctx, MAPW, base, {
+        cells: [...cells.entries()].map(([k, w]) => {
+          const [cx, cy] = k.split(':').map(Number);
+          return [cx, cy, w] as [number, number, number];
+        }),
+        cell_radar: 8, radar: data.radar,
+      });
+      return;
+    }
+    layers.forEach((ly: StackResp['layers'][number], li: number) => {
+      const hue = Math.round((li * 137.508) % 360);
+      ctx.strokeStyle = `hsla(${hue},70%,60%,0.5)`;
+      ctx.lineWidth = 1.2;
+      for (const p of ly.players ?? []) {
+        ctx.beginPath();
+        let started = false;
+        for (let i = 0; i < p.t.length; i++) {
+          if (p.t[i] < 0 || p.t[i] > t) continue;
+          const x = (p.rx[i] * MAPW) / RADAR, y = (p.ry[i] * MAPW) / RADAR;
+          if (!started) { ctx.moveTo(x, y); started = true; } else ctx.lineTo(x, y);
+        }
+        ctx.stroke();
+        // uç nokta
+        for (let i = p.t.length - 1; i >= 0; i--) {
+          if (p.t[i] <= t && p.t[i] >= 0) {
+            const x = (p.rx[i] * MAPW) / RADAR, y = (p.ry[i] * MAPW) / RADAR;
+            ctx.fillStyle = `hsl(${hue},70%,60%)`;
+            ctx.beginPath(); ctx.arc(x, y, 2.6, 0, 7); ctx.fill();
+            break;
+          }
+        }
+      }
+    });
+  }, [base, data, t, mode]);
+
+  const n = data ? data.layers.filter((l: StackResp['layers'][number]) => !l.skipped).length : 0;
+  return (
+    <>
+      <h2>
+        Round overlay <span className="meta">(same round across every match{n ? ` · ${n} rounds` : ''})</span>
+        <span className="toolbar" style={{ display: 'inline-flex', marginLeft: 10, gap: 6 }}>
+          <label className="meta">round</label>
+          <input type="number" min={1} max={40} style={{ width: 52 }} value={roundNo}
+            onChange={(e) => setRoundNo(Math.max(1, Number(e.target.value)))} />
+          <select value={align} onChange={(e) => setAlign(e.target.value)}>
+            <option value="round_start">align: round start</option>
+            <option value="bomb_plant">align: bomb plant</option>
+            <option value="first_kill">align: first kill</option>
+          </select>
+          <button className={mode === 'ghost' ? '' : 'ghost'} onClick={() => setMode('ghost')}>trails</button>
+          <button className={mode === 'heat' ? '' : 'ghost'} onClick={() => setMode('heat')}>heat</button>
+          <button onClick={load} disabled={busy}>{busy ? '…' : 'load'}</button>
+        </span>
+      </h2>
+      {data && (
+        <div className="card" style={{ maxWidth: 560 }}>
+          <canvas ref={cvRef} style={{ width: '100%' }} />
+          <div className="row" style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 6 }}>
+            <input type="range" min={align === 'round_start' ? 0 : -10} max={60} value={t} style={{ flex: 1 }}
+              onChange={(e) => setT(Number(e.target.value))} />
+            <span className="meta" style={{ width: 46, fontVariantNumeric: 'tabular-nums' }}>{t}s</span>
+          </div>
+          <p className="meta">
+            each color = one match's round {roundNo}; drag the slider to sweep time.
+            Pistols: round 1/13 · post-plant reads: align at bomb plant.
+          </p>
+        </div>
+      )}
+      {!data && <p className="meta">pick a round number and load — e.g. round 1 shows every pistol at once.</p>}
     </>
   );
 }

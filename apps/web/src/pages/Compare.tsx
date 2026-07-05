@@ -174,6 +174,7 @@ function VetoSim({ aId, bId, aName, bName }: { aId: string; bId: string; aName: 
       return j as {
         steps: { action: string; map: string; edge: number; n: number }[];
         finals: { map: string; prob_a: number; edge: number; n: number }[];
+        pool_maps?: { map: string; prob_a: number; n: number }[];
         note: string;
       };
     },
@@ -218,22 +219,39 @@ function VetoSim({ aId, bId, aName, bName }: { aId: string; bId: string; aName: 
             </table>
           </div>
           <div className="card">
-            <div className="teams"><span>Projected maps</span></div>
+            <div className="teams"><span>Map pool outlook</span><span className="meta">all shared maps</span></div>
             <table style={{ marginTop: 6 }}>
-              <thead><tr><th>Map</th><th>{aName} win</th><th className="meta">rounds in archive</th></tr></thead>
+              <thead>
+                <tr><th>Map</th><th>{aName}</th><th>{bName}</th><th className="meta">rounds</th><th /></tr>
+              </thead>
               <tbody>
-                {sim.data.finals.map((f) => (
-                  <tr key={f.map}>
-                    <td>{f.map}</td>
-                    <td style={{ color: f.prob_a >= 0.5 ? '#7fd88f' : '#e05545', fontWeight: 700 }}>
-                      {Math.round(100 * f.prob_a)}%
-                    </td>
-                    <td className="meta">{f.n}</td>
-                  </tr>
-                ))}
+                {(sim.data.pool_maps ?? sim.data.finals).map((f) => {
+                  const step = sim.data.steps.find((st) => st.map === f.map);
+                  const act = step
+                    ? step.action === 'decider' ? 'decider'
+                      : step.action.startsWith('pick') ? `pick (${step.action === 'pickA' ? aName : bName})`
+                      : `ban (${step.action === 'banA' ? aName : bName})`
+                    : '';
+                  return (
+                    <tr key={f.map} style={{ opacity: act.startsWith('ban') ? 0.55 : 1 }}>
+                      <td>{f.map}</td>
+                      <td style={{ color: f.prob_a >= 0.5 ? '#7fd88f' : '#e05545', fontWeight: 700 }}>
+                        {Math.round(100 * f.prob_a)}%
+                      </td>
+                      <td style={{ color: f.prob_a < 0.5 ? '#7fd88f' : '#e05545', fontWeight: 700 }}>
+                        {Math.round(100 * (1 - f.prob_a))}%
+                      </td>
+                      <td className="meta">{f.n}</td>
+                      <td className="meta">{act}</td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
-            <p className="meta" style={{ marginTop: 8 }}>{sim.data.note}</p>
+            <p className="meta" style={{ marginTop: 8 }}>
+              real archive data: shrunk round-win rates per map, head-to-head
+              relative — {sim.data.note}
+            </p>
           </div>
         </div>
       )}
