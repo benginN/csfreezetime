@@ -159,6 +159,16 @@ func (s *server) predictHandler(w http.ResponseWriter, r *http.Request) {
 	if method == "team_buy" && buy == "" {
 		method = "team" // buy bilinmiyorsa bir seviye genele düş
 	}
+	// rakip-kalibre yöntemler (B1): opp_id verilmişse ve satır varsa;
+	// yoksa dürüstçe takım katmanına düşülür (aşağıdaki zincir devralır)
+	var oppID uuid.UUID
+	hasOpp := false
+	if o, e := uuid.Parse(q.Get("opp_id")); e == nil {
+		oppID, hasOpp = o, true
+	}
+	if (method == "team_vs" || method == "team_style") && !hasOpp {
+		method = "team"
+	}
 
 	type cl struct {
 		ClusterID int16           `json:"cluster_id"`
@@ -196,6 +206,24 @@ func (s *server) predictHandler(w http.ResponseWriter, r *http.Request) {
 		return rows.Err()
 	}
 
+	switch method {
+	case "team_vs", "team_style":
+		kind := "vs"
+		if method == "team_style" {
+			kind = "style"
+		}
+		err = scan(`
+			SELECT tv.cluster_id, sc.label, sc.top_places, tv.prob, tv.h2h_rounds
+			FROM team_tendencies_vs tv
+			LEFT JOIN strategy_clusters sc ON sc.map_name = tv.map_name
+			     AND sc.side = tv.side AND sc.cluster_id = tv.cluster_id
+			WHERE tv.team_id = $1 AND tv.opp_team_id = $2 AND tv.map_name = $3
+			  AND tv.side = $4 AND tv.kind = $5
+			ORDER BY tv.prob DESC`, teamID, oppID, mapName, side, kind)
+		if err == nil && len(clusters) == 0 {
+			method = "team" // bu rakip için kalibre satır yok
+		}
+	}
 	switch method {
 	case "team_buy":
 		err = scan(`
@@ -236,7 +264,12 @@ func (s *server) predictHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	note := "league-wide distribution (team data didn't beat the baseline)"
-	if method != "league" {
+	switch method {
+	case "team_vs":
+		note = fmt.Sprintf("%d head-to-head rounds vs this opponent — opponent-calibrated", sampleSize)
+	case "team_style":
+		note = "calibrated to opponents with a similar style profile"
+	case "team", "team_buy":
 		switch {
 		case sampleSize < 15:
 			note = fmt.Sprintf("%d rounds observed — low confidence", sampleSize)
@@ -292,4 +325,67 @@ func (s *server) playerFlags(w http.ResponseWriter, r *http.Request) {
 		out = append(out, f)
 	}
 	writeJSON(w, 200, out)
+}
+
+// GET /api/v1/mlstatus — ML sayfası: yöntem yarışı sonuçları + model envanteri.
+// prediction_meta'nın tamamı + tablo sayımları tek yanıtta; sayfa tek istekle dolar.
+func (s *server) mlStatus(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	type metaRow struct {
+		Map        string   `json:"map_name"`
+		Side       string   `json:"side"`
+		Best       string   `json:"best_method"`
+		League     *float32 `json:"logloss_league"`
+		Team       *float32 `json:"logloss_team"`
+		TeamBuy    *float32 `json:"logloss_team_buy"`
+		TeamVs     *float32 `json:"logloss_team_vs"`
+		TeamStyle  *float32 `json:"logloss_team_style"`
+		TestRounds *int     `json:"test_rounds"`
+	}
+	meta := []metaRow{}
+	rows, err := s.pg.Query(ctx, `
+		SELECT map_name, side, best_method, logloss_league, logloss_team,
+		       logloss_team_buy, logloss_team_vs, logloss_team_style, test_rounds
+		FROM prediction_meta ORDER BY map_name, side`)
+	if err != nil {
+		writeErr(w, 500, err)
+		return
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var m metaRow
+		if rows.Scan(&m.Map, &m.Side, &m.Best, &m.League, &m.Team,
+			&m.TeamBuy, &m.TeamVs, &m.TeamStyle, &m.TestRounds) == nil {
+			meta = append(meta, m)
+		}
+	}
+	var inv struct {
+		Matches   int `json:"matches"`
+		Rounds    int `json:"rounds"`
+		Clusters  int `json:"clusters"`
+		Tendency  int `json:"tendency_rows"`
+		CondRows  int `json:"cond_rows"`
+		VsRows    int `json:"vs_rows"`
+		Anomalies int `json:"anomaly_flags"`
+		WinCells  int `json:"winprob_cells"`
+		ExecTpl   int `json:"exec_templates"`
+		Clutches  int `json:"clutches"`
+	}
+	if err := s.pg.QueryRow(ctx, `SELECT
+		(SELECT count(*) FROM matches WHERE status='ready'),
+		(SELECT count(*) FROM rounds),
+		(SELECT count(*) FROM strategy_clusters),
+		(SELECT count(*) FROM team_tendencies),
+		(SELECT count(*) FROM team_tendencies_cond),
+		(SELECT count(*) FROM team_tendencies_vs),
+		(SELECT count(*) FROM anomaly_flags),
+		(SELECT count(*) FROM winprob_table),
+		(SELECT count(*) FROM team_exec_templates),
+		(SELECT count(*) FROM clutches)`).Scan(
+		&inv.Matches, &inv.Rounds, &inv.Clusters, &inv.Tendency, &inv.CondRows,
+		&inv.VsRows, &inv.Anomalies, &inv.WinCells, &inv.ExecTpl, &inv.Clutches); err != nil {
+		writeErr(w, 500, err)
+		return
+	}
+	writeJSON(w, 200, map[string]any{"evaluation": meta, "inventory": inv})
 }

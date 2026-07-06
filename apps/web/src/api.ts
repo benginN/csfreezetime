@@ -403,8 +403,22 @@ export interface ClusterInfo {
   representatives: { match_id: string; round_number: number }[];
 }
 
+export interface MlStatus {
+  evaluation: {
+    map_name: string; side: string; best_method: string;
+    logloss_league: number | null; logloss_team: number | null;
+    logloss_team_buy: number | null; logloss_team_vs: number | null;
+    logloss_team_style: number | null; test_rounds: number | null;
+  }[];
+  inventory: {
+    matches: number; rounds: number; clusters: number; tendency_rows: number;
+    cond_rows: number; vs_rows: number; anomaly_flags: number;
+    winprob_cells: number; exec_templates: number; clutches: number;
+  };
+}
+
 export interface Prediction {
-  method: 'league' | 'team' | 'team_buy';
+  method: 'league' | 'team' | 'team_buy' | 'team_vs' | 'team_style';
   clusters: {
     cluster_id: number;
     label: string | null;
@@ -457,6 +471,7 @@ export const api = {
   teams: () => get<Team[]>('/api/v1/teams'),
   tendencies: (teamId: string) => get<Tendency[]>(`/api/v1/teams/${teamId}/tendencies`),
   clusters: (map: string, side: string) => get<ClusterInfo[]>(`/api/v1/clusters?map=${map}&side=${side}`),
+  mlStatus: () => get<MlStatus>('/api/v1/mlstatus'),
   renameCluster: (map: string, side: string, id: number, label: string) =>
     fetch(`/api/v1/clusters/${map}/${side}/${id}`, {
       method: 'PATCH',

@@ -64,11 +64,17 @@ def cli() -> None:
     nc = evaluate.write_conditional(pgconn)
     print(f"  {nc} koşullu satır")
 
+    print("— rakip-kalibre eğilimler (vs + style) —")
+    nv = evaluate.write_vs(pgconn)
+    print(f"  {nv} rakip-kalibre satır")
+
     print("— tahmin değerlendirmesi (zamansal, log-loss; düşük iyi) —")
-    print(f"  {'harita/taraf':<16} {'lig':>7} {'takım':>7} {'t+buy':>7}  kazanan (n_test)")
+    print(f"  {'harita/taraf':<16} {'lig':>7} {'takım':>7} {'t+buy':>7} "
+          f"{'t+vs':>7} {'t+stil':>7}  kazanan (n_test)")
     for r in evaluate.run(pgconn):
         print(f"  {r['map'] + '/' + r['side']:<16} {r['league']:>7.3f} "
-              f"{r['team']:>7.3f} {r['team_buy']:>7.3f}  {r['best']} ({r['n_test']})")
+              f"{r['team']:>7.3f} {r['team_buy']:>7.3f} {r['team_vs']:>7.3f} "
+              f"{r['team_style']:>7.3f}  {r['best']} ({r['n_test']})")
 
     print("— utility istihbaratı —")
     nu = utility.run(pgconn, chc)

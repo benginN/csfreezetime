@@ -51,7 +51,86 @@ def team_buy_dist(rows: list[Row], map_name: str, side: str, team_id, buy: str) 
 
 def counts_by_team_buy(rows: list[Row]) -> dict[tuple, Counter]:
     out: dict[tuple, Counter] = defaultdict(Counter)
-    for map_name, side, team_id, buy, cluster in rows:
+    for row in rows:
+        map_name, side, team_id, buy, cluster = row[:5]
         if buy is not None:
             out[(team_id, map_name, side, buy)][cluster] += 1
     return out
+
+
+# ---- Rakip-özel kalibrasyon (B1) ---------------------------------------
+# VsRow = (map_name, side, team_id, buy_type, cluster_id, opp_team_id)
+# İki yeni katman; ikisi de takım dağılımının ÜSTÜNE büzülür:
+#   team_vs    : yalnız bu rakibe karşı oynanan rauntlar (head-to-head).
+#   team_style : rakip Y'ye "benzer savunan/hücum eden" rakiplere karşı
+#                rauntlar, benzerlik ağırlığıyla havuzlanır. Benzerlik =
+#                rakiplerin KARŞI taraftaki kendi küme profillerinin
+#                kosinüs benzerliği (γ üssüyle keskinleştirilir).
+
+K_VS = 12      # head-to-head → takım büzülmesi (az veri, temkinli)
+K_STYLE = 25   # stil havuzu → takım büzülmesi
+STYLE_GAMMA = 3.0  # benzerlik keskinliği (1=yumuşak, büyük=sadece çok benzeyenler)
+
+
+def team_vs_dist(rows: list, map_name: str, side: str, team_id, opp_id) -> dict[int, float]:
+    base = team_dist(rows, map_name, side, team_id)
+    c = Counter(
+        r[4] for r in rows
+        if r[0] == map_name and r[1] == side and r[2] == team_id
+        and len(r) > 5 and r[5] == opp_id
+    )
+    n = sum(c.values())
+    return {
+        k: (n * (c.get(k, 0) / n if n else 0.0) + K_VS * p) / (n + K_VS)
+        for k, p in base.items()
+    }
+
+
+def opponent_profiles(rows: list, map_name: str, side: str) -> dict:
+    """Rakip profili: verilen tarafa KARŞI oynayan takımların, o karşı
+    taraftaki kendi küme dağılımları. (T tahmini için CT'lerin profili.)"""
+    other = "CT" if side == "T" else "T"
+    counts: dict = defaultdict(Counter)
+    for r in rows:
+        if r[0] == map_name and r[1] == other and r[2] is not None:
+            counts[r[2]][r[4]] += 1
+    out = {}
+    for team, c in counts.items():
+        total = sum(c.values())
+        if total >= 12:  # çok az veriyle profil çıkmaz
+            out[team] = {k: v / total for k, v in c.items()}
+    return out
+
+
+def _cosine(a: dict, b: dict) -> float:
+    keys = set(a) | set(b)
+    dot = sum(a.get(k, 0.0) * b.get(k, 0.0) for k in keys)
+    na = sum(v * v for v in a.values()) ** 0.5
+    nb = sum(v * v for v in b.values()) ** 0.5
+    return dot / (na * nb) if na and nb else 0.0
+
+
+def team_style_dist(rows: list, map_name: str, side: str, team_id, opp_id,
+                    profiles: dict | None = None) -> dict[int, float]:
+    base = team_dist(rows, map_name, side, team_id)
+    profs = profiles if profiles is not None else opponent_profiles(rows, map_name, side)
+    target = profs.get(opp_id)
+    if not target:
+        return base  # rakip profili yoksa dürüstçe takım dağılımı
+    wsum: dict[int, float] = defaultdict(float)
+    n_eff = 0.0
+    for r in rows:
+        if r[0] != map_name or r[1] != side or r[2] != team_id or len(r) < 6:
+            continue
+        prof = profs.get(r[5])
+        if not prof:
+            continue
+        w = _cosine(prof, target) ** STYLE_GAMMA
+        if w <= 0:
+            continue
+        wsum[r[4]] += w
+        n_eff += w
+    return {
+        k: (n_eff * (wsum.get(k, 0.0) / n_eff if n_eff else 0.0) + K_STYLE * p) / (n_eff + K_STYLE)
+        for k, p in base.items()
+    }

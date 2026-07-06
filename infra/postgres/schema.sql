@@ -211,3 +211,37 @@ CREATE TABLE IF NOT EXISTS team_exec_templates (
     site_mix    JSONB NOT NULL,
     computed_at TIMESTAMPTZ DEFAULT now()
 );
+
+-- Tahmin değerlendirme meta'sı (evaluate.py): harita+taraf başına yöntem
+-- yarışının sonucu. (DDL buraya sonradan eklendi — tablo canlıda elle
+-- yaratılmıştı; IF NOT EXISTS + ALTER'lar idempotent tutar.)
+CREATE TABLE IF NOT EXISTS prediction_meta (
+    map_name          TEXT NOT NULL,
+    side              TEXT NOT NULL,
+    best_method       TEXT NOT NULL,
+    logloss_league    REAL,
+    logloss_team      REAL,
+    logloss_team_buy  REAL,
+    test_rounds       INT,
+    PRIMARY KEY (map_name, side)
+);
+-- B1 rakip-özel kalibrasyon yöntemleri (2026-07-06)
+ALTER TABLE prediction_meta ADD COLUMN IF NOT EXISTS logloss_team_vs    REAL;
+ALTER TABLE prediction_meta ADD COLUMN IF NOT EXISTS logloss_team_style REAL;
+
+-- Rakip-kalibre eğilim sunum tablosu (evaluate.write_vs):
+-- kind='vs'    → yalnız head-to-head rauntlardan (h2h_rounds ≥ 6)
+-- kind='style' → hedef rakibe benzer profilli rakiplere karşı rauntların
+--                benzerlik-ağırlıklı havuzundan
+CREATE TABLE IF NOT EXISTS team_tendencies_vs (
+    team_id     UUID NOT NULL REFERENCES teams(team_id) ON DELETE CASCADE,
+    opp_team_id UUID NOT NULL REFERENCES teams(team_id) ON DELETE CASCADE,
+    map_name    TEXT NOT NULL,
+    side        TEXT NOT NULL,
+    kind        TEXT NOT NULL CHECK (kind IN ('vs','style')),
+    cluster_id  INT  NOT NULL,
+    h2h_rounds  INT  NOT NULL DEFAULT 0,
+    prob        REAL NOT NULL,
+    PRIMARY KEY (team_id, opp_team_id, map_name, side, kind, cluster_id)
+);
+CREATE INDEX IF NOT EXISTS ttv_lookup ON team_tendencies_vs (team_id, map_name, side, opp_team_id);

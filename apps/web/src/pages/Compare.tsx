@@ -151,6 +151,8 @@ function CompareBody({
         </div>
       ))}
 
+      <CalibratedNext aId={aId} bId={bId} aName={A.team} bName={B.team} mapName={mapName} />
+
       <SetupsCompare A={A} B={B} mapName={mapName} />
 
       <UtilityCompare A={A} B={B} mapName={mapName} />
@@ -314,6 +316,71 @@ function MiniBar({ prob, label }: { prob: number; label: string }) {
       </div>
       <div className="meta" style={{ flex: '0 0 55%' }}>{label}</div>
     </div>
+  );
+}
+
+// Rakip-kalibre sonraki raunt tahmini (B1): her takımın dağılımı ÖTEKİ
+// takıma karşı kalibre edilir (opp_id) — yöntem rozetinde h2h/style görünür.
+function CalibratedNext({ aId, bId, aName, bName, mapName }: {
+  aId: string; bId: string; aName: string; bName: string; mapName: string;
+}) {
+  const [side, setSide] = useState<'T' | 'CT'>('T');
+  const mk = (team: string, opp: string) =>
+    new URLSearchParams({ team_id: team, map: mapName, side, opp_id: opp });
+  const pA = useQuery({
+    queryKey: ['predict', aId, bId, mapName, side],
+    queryFn: () => api.predict(mk(aId, bId)),
+    enabled: !!mapName,
+  });
+  const pB = useQuery({
+    queryKey: ['predict', bId, aId, mapName, side],
+    queryFn: () => api.predict(mk(bId, aId)),
+    enabled: !!mapName,
+  });
+  const METHOD: Record<string, string> = {
+    league: 'league', team: 'team', team_buy: 'team+buy',
+    team_vs: '⚔ head-to-head', team_style: '🎭 opponent style',
+  };
+  const card = (name: string, q: typeof pA) => (
+    <div className="card">
+      <div className="teams">
+        <span>{name}</span>
+        {q.data && <span className="badge gray">{METHOD[q.data.method] ?? q.data.method}</span>}
+      </div>
+      {q.data && <div className="meta" style={{ margin: '4px 0' }}>{q.data.evidence.note}</div>}
+      {(q.data?.clusters ?? []).slice(0, 4).map((c) => (
+        <div key={c.cluster_id} style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4 }}>
+          <div style={{ flex: '0 0 40px', fontVariantNumeric: 'tabular-nums' }}>%{Math.round(100 * c.prob)}</div>
+          <div style={{ flex: 1, background: '#232a26', borderRadius: 3, height: 8 }}>
+            <div style={{ width: `${100 * c.prob}%`, height: '100%', background: '#4c8f52', borderRadius: 3 }} />
+          </div>
+          <div className="meta" style={{ flex: '0 0 50%' }} title={c.top_places.map((p) => p.place).join(' → ')}>
+            {c.label ?? c.top_places.slice(0, 3).map((p) => p.place).join(' → ')}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+  return (
+    <>
+      <h2>
+        Next round, calibrated to this matchup{' '}
+        <span className="hlpick noprint" style={{ fontWeight: 400 }}>
+          <select value={side} onChange={(e) => setSide(e.target.value as 'T' | 'CT')}>
+            <option value="T">both on T-view</option>
+            <option value="CT">both on CT-view</option>
+          </select>
+        </span>
+      </h2>
+      <p className="meta" style={{ maxWidth: 720 }}>
+        each side&apos;s distribution is adjusted for the specific opponent when the
+        temporal test favours it — badge shows which calibration is active
+      </p>
+      <div className="grid cards two">
+        {card(`${aName} (${side})`, pA)}
+        {card(`${bName} (${side})`, pB)}
+      </div>
+    </>
   );
 }
 

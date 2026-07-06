@@ -115,6 +115,7 @@ func main() {
 	r.Get("/api/v1/teams/{id}/summary", srv.teamSummary)
 	r.Get("/api/v1/players/{id}/profile", srv.playerProfile)
 	r.Get("/api/v1/winprob", srv.winprobTable)
+	r.Get("/api/v1/mlstatus", srv.mlStatus)
 	r.Get("/api/v1/leaderboards", srv.leaderboards)
 	r.Get("/api/v1/veto", srv.vetoSim)
 	r.Get("/api/v1/playlists", srv.playlistsList)

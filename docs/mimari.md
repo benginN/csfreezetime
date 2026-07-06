@@ -456,6 +456,15 @@ p_takım(küme) = (n · f_takım + k · p_lig) / (n + k)      k ≈ 15-30 (doğr
 
 Böylece 5 rauntluk kanıtla model lig ortalamasına yakın ve temkinli konuşur; 80 rauntluk kanıtla takıma özgüleşir. Maç sırasında ayrıca **çevrimiçi güncelleme** çalışır: rakip o maçta bir kümeyi beklenenden sık oynuyorsa dağılım her raunt sonunda yeniden harmanlanır ve tahmin < 100 ms'de WebSocket ile koç paneline itilir. Değerlendirme log-loss/Brier skoru + top-1/top-2 isabet ile, zamansal bölünmüş doğrulama setinde (geleceğe sızıntı yok) yapılır; taban çizgisi, takımın basit küme frekansıdır — model bunu geçemiyorsa gösterilmez.
 
+**Rakip-özel kalibrasyon (v0.3, 2026-07-06).** Büzülme zincirine iki rakip-farkındalı katman eklendi; ikisi de takım dağılımının üstüne büzülür ve `evaluate.py` zamansal yarışına aday olarak girer:
+
+```
+p_vs(küme)    = (n_h2h · f_h2h  + K_VS · p_takım)    / (n_h2h + K_VS)      K_VS = 12
+p_style(küme) = (n_eff · f_stil + K_STYLE · p_takım) / (n_eff + K_STYLE)   K_STYLE = 25
+```
+
+`f_h2h` yalnız o rakibe karşı oynanan rauntlardan; `f_stil` ise hedef rakibe **stil olarak benzeyen** rakiplere karşı rauntların benzerlik-ağırlıklı havuzundan gelir (benzerlik = rakiplerin karşı taraftaki kendi küme profillerinin kosinüs benzerliği^γ, γ=3; `n_eff` = ağırlık toplamı). Sunum tablosu `team_tendencies_vs` (kind='vs'|'style'; vs satırı için h2h ≥ 6 raunt şartı), yöntem yarışı sonuçları `prediction_meta`'nın yeni `logloss_team_vs`/`logloss_team_style` kolonlarında. API: `/predict?...&opp_id=` — rakip verilmemişse veya kalibre satır yoksa zincir dürüstçe takım katmanına düşer. Sunum yüzeyi: `/insights` (ML Lab) sayfası — envanter, yöntem yarışı panosu, tahmin laboratuvarı, küme gezgini.
+
 ### 6.3 Otomatik Anomali ve Mikro Hata Tespiti
 
 Temel içgörü (§1'de belirtildiği gibi): demo verisi her tick'te kesin bakış açıları içerdiğinden bu modül CV değil, **geometri + istatistik** modülüdür. Üç metrik ailesi:
