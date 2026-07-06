@@ -291,7 +291,21 @@ func (s *server) backfillFile(path string) ([]map[string]any, error) {
 	}
 	switch {
 	case strings.HasSuffix(lower, ".rar"):
-		return s.backfillRar(path, playedAt)
+		out, err := s.backfillRar(path, playedAt)
+		if err != nil {
+			// rardecode bazı HLTV RAR5'lerinde sahte "decoded file too
+			// short" verir (arşiv sağlamdır, unar sorunsuz açar) — elle
+			// kurtarma yerine otomatik fallback. Dedup, rardecode'un hata
+			// öncesi ingest ettiklerini ikinci kez işlemez.
+			log.Printf("backfill: rardecode hatası (%v), unar fallback deneniyor: %s",
+				err, filepath.Base(path))
+			if out2, err2 := s.backfillRarUnar(path, playedAt); err2 == nil {
+				return out2, nil
+			} else {
+				return out, fmt.Errorf("%v (unar fallback: %v)", err, err2)
+			}
+		}
+		return out, nil
 	case strings.HasSuffix(lower, ".zip"):
 		return s.backfillZip(path, playedAt)
 	case strings.HasSuffix(lower, ".dem.gz"):
@@ -362,6 +376,44 @@ func (s *server) backfillRar(path, playedAt string) ([]map[string]any, error) {
 		out = append(out, r)
 	}
 	return out, nil
+}
+
+// backfillRarUnar: arşivi unar ile geçici dizine açıp .dem'leri ingest eder.
+// unar dosya tarihlerini korur → played_at doğru kalır.
+func (s *server) backfillRarUnar(path, playedAt string) ([]map[string]any, error) {
+	if _, err := exec.LookPath("unar"); err != nil {
+		return nil, fmt.Errorf("unar PATH'te yok: %w", err)
+	}
+	tmp, err := os.MkdirTemp("", "backfill-unar-")
+	if err != nil {
+		return nil, err
+	}
+	defer os.RemoveAll(tmp)
+	if raw, err := exec.Command("unar", "-f", "-D", "-o", tmp, path).CombinedOutput(); err != nil {
+		return nil, fmt.Errorf("unar: %v: %s", err, tailStr(string(raw), 200))
+	}
+	var out []map[string]any
+	walkErr := filepath.Walk(tmp, func(p string, info os.FileInfo, err error) error {
+		if err != nil || info.IsDir() || !strings.HasSuffix(strings.ToLower(p), ".dem") {
+			return err
+		}
+		entryPlayed := playedAt
+		if !info.ModTime().IsZero() {
+			entryPlayed = info.ModTime().UTC().Format(time.RFC3339)
+		}
+		f, err := os.Open(p)
+		if err != nil {
+			return err
+		}
+		r, err := s.ingestStream(f, demBase(p), entryPlayed, tournamentSlug(path))
+		f.Close()
+		if err != nil {
+			return fmt.Errorf("%s: %w", filepath.Base(p), err)
+		}
+		out = append(out, r)
+		return nil
+	})
+	return out, walkErr
 }
 
 func (s *server) backfillZip(path, playedAt string) ([]map[string]any, error) {
