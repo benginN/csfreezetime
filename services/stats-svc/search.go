@@ -174,8 +174,14 @@ func (s *server) search(w http.ResponseWriter, r *http.Request) {
 		}
 		matches = append(matches, m)
 	}
+	// p1/p2 demo parçaları ayrı satırdır; toplamda tek maç sayılır
+	// (parça birleştirme yol haritasında — o gelince FILTER'lar sadeleşir)
 	var total int
-	_ = s.pg.QueryRow(ctx, "SELECT count(*) FROM matches WHERE status = 'ready'").Scan(&total)
+	_ = s.pg.QueryRow(ctx, `
+		SELECT count(*) FILTER (WHERE event_name !~ '-p[0-9]+$')
+		     + count(DISTINCT (tournament, regexp_replace(event_name, '-p[0-9]+$', '')))
+		         FILTER (WHERE event_name ~ '-p[0-9]+$')
+		FROM matches WHERE status = 'ready'`).Scan(&total)
 	writeJSON(w, 200, map[string]any{
 		"teams": teams, "players": players, "tournaments": tours,
 		"matches": matches, "total": total,

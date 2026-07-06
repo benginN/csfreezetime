@@ -242,6 +242,9 @@ func (s *server) backfillRun(files []string, dir string) {
 		results, err := s.backfillFile(f)
 		bfState.mu.Lock()
 		if err != nil {
+			// dosya yerinde kalır ve her taramada yeniden denenir (bilinçli:
+			// kullanıcı fark etsin) — ama sessiz döngüye karşı log şart
+			log.Printf("backfill HATA %s: %v", filepath.Base(f), err)
 			bfState.Errors = append(bfState.Errors,
 				fmt.Sprintf("%s: %v", filepath.Base(f), err))
 		} else {
