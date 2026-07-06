@@ -47,6 +47,23 @@ func (s *server) search(w http.ResponseWriter, r *http.Request) {
 		Matches int    `json:"matches"`
 	}
 	tours := []tourHit{}
+	if q == "" {
+		// boş sorgu = ana sayfa: turnuva şeridi için tüm etiketler,
+		// en güncel etkinlik önde
+		xrows, err := s.pg.Query(ctx,
+			`SELECT tournament, count(*) FROM matches
+			 WHERE status = 'ready' AND tournament IS NOT NULL
+			 GROUP BY tournament ORDER BY max(played_at) DESC NULLS LAST`)
+		if err == nil {
+			for xrows.Next() {
+				var t tourHit
+				if xrows.Scan(&t.Name, &t.Matches) == nil {
+					tours = append(tours, t)
+				}
+			}
+			xrows.Close()
+		}
+	}
 	if q != "" {
 		// turnuva önerileri: kullanıcı boşlukla yazar ("iem cologne"),
 		// etiket tireli — iki taraf da boşluk-normalize edilerek eşlenir

@@ -23,6 +23,7 @@ export default function Home() {
   return (
     <>
       {!q.trim() && <TeamStrip />}
+      {!q.trim() && <TournamentStrip list={res.data?.tournaments ?? []} />}
       {(res.data?.teams ?? []).length > 0 && q.trim() && (
         <div className="toolbar">
           <span className="meta">teams:</span>
@@ -82,6 +83,36 @@ export default function Home() {
 // Ana sayfa takım şeridi: monogram "logo" + ad; tıklayınca takım anasayfası.
 // Ana sayfa takım şeridi: alfabetik, tek satır, yatay kaydırmalı
 // (dikey teker de yatay kaydırır; kenar solmaları devamı ima eder).
+// Yatay turnuva şeridi (TeamStrip ile aynı desen) — en güncel etkinlik önde,
+// tıklayınca arama tam etikete kilitlenir
+function TournamentStrip({ list }: { list: { name: string; matches: number }[] }) {
+  const ref = useRef<HTMLDivElement>(null);
+  if (!list.length) return null;
+  return (
+    <div className="stripwrap">
+      <div
+        ref={ref}
+        className="teamstrip scrollrow"
+        onWheel={(e) => {
+          if (Math.abs(e.deltaY) > Math.abs(e.deltaX) && ref.current) {
+            ref.current.scrollLeft += e.deltaY;
+          }
+        }}
+      >
+        {list.map((t) => (
+          <Link key={t.name} to={`/?q=${encodeURIComponent(t.name)}`} className="teamcard">
+            <span className="monogram" style={{ background: 'hsl(42,45%,32%)' }}>🏆</span>
+            <span>
+              <span className="tname">{t.name.replace(/-/g, ' ')}</span>
+              <span className="meta">{t.matches} matches</span>
+            </span>
+          </Link>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function TeamStrip() {
   const teams = useQuery({ queryKey: ['teams'], queryFn: () => api.teams() });
   const ref = useRef<HTMLDivElement>(null);
