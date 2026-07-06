@@ -84,6 +84,9 @@ function SearchBar() {
   useEffect(() => {
     if (!typed.current) return;
     const t = setTimeout(() => {
+      // bayrak zamanlayıcı beklerken düşmüş olabilir (rota değişimi
+      // kutuyu programatik boşaltır) — ateşlerken yeniden kontrol et
+      if (!typed.current) return;
       nav('/?q=' + encodeURIComponent(text), { replace: true });
     }, 250);
     return () => clearTimeout(t);
@@ -91,10 +94,15 @@ function SearchBar() {
   }, [text]);
 
   // dışarıdan gelen aramalar (turnuva çipi gibi) kutuya yansısın —
-  // yalnız kutu odaklı DEĞİLKEN (yazmayı bölmesin)
+  // yalnız kutu odaklı DEĞİLKEN (yazmayı bölmesin). Bu programatik bir
+  // değişimdir: typed bayrağı DÜŞMELİ, yoksa maça tıklayıp q düşünce
+  // debounce etkisi kullanıcıyı ana sayfaya geri fırlatır.
   const pq = params.get('q') ?? '';
   useEffect(() => {
-    if (document.activeElement !== inputRef.current) setText(pq);
+    if (document.activeElement !== inputRef.current) {
+      typed.current = false;
+      setText(pq);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pq]);
 
