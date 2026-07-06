@@ -4,6 +4,7 @@ package main
 
 import (
 	"net/http"
+	"regexp"
 	"strconv"
 	"strings"
 
@@ -92,6 +93,23 @@ func (s *server) search(w http.ResponseWriter, r *http.Request) {
 	WHERE m.status = 'ready'`
 	args := []any{}
 	for _, tok := range tokens {
+		// 1-2 harflik token alt-dize aramasında her şeyle eşleşir (dosya
+		// adlarındaki m1/m2 bile) ve yazdıkça sonuç "donmuş" görünürdü.
+		// Kısa token: yalnız takım adı + oyuncu adında KELİME BAŞI eşleşir
+		// ("g2" → G2 Esports, "b8" → B8; regex \m = kelime başı, girdi
+		// regex-metakarakterlerine karşı QuoteMeta'lanır).
+		if len([]rune(tok)) <= 2 {
+			args = append(args, regexp.QuoteMeta(tok))
+			n := itoa(len(args))
+			sql += ` AND (
+			    coalesce(ta.name,'') ~* ('\m'||$` + n + `)
+			 OR coalesce(tb.name,'') ~* ('\m'||$` + n + `)
+			 OR EXISTS (SELECT 1 FROM player_round_states s
+			            JOIN players p ON p.player_id = s.player_id
+			            WHERE s.match_id = m.match_id
+			              AND p.nickname ~* ('\m'||$` + n + `)))`
+			continue
+		}
 		args = append(args, tok)
 		n := len(args)
 		sql += ` AND (
