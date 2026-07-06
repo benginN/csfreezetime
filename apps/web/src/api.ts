@@ -72,6 +72,7 @@ export interface SearchResult {
   total: number;
   teams: { id: string; name: string }[];
   players: { id: string; name: string }[];
+  tournaments: { name: string; matches: number }[];
   matches: {
     match_id: string;
     map_name: string | null;

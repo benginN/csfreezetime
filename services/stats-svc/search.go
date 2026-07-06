@@ -42,7 +42,28 @@ func (s *server) search(w http.ResponseWriter, r *http.Request) {
 	}
 	// boş dilimler JSON'da null değil [] olmalı — istemci .length okuyor
 	teams, players := []hit{}, []hit{}
+	type tourHit struct {
+		Name    string `json:"name"`
+		Matches int    `json:"matches"`
+	}
+	tours := []tourHit{}
 	if q != "" {
+		// turnuva önerileri: kullanıcı boşlukla yazar ("iem cologne"),
+		// etiket tireli — iki taraf da boşluk-normalize edilerek eşlenir
+		xrows, err := s.pg.Query(ctx,
+			`SELECT tournament, count(*) FROM matches
+			 WHERE status = 'ready' AND tournament IS NOT NULL
+			   AND replace(lower(tournament),'-',' ') LIKE '%'||replace(lower($1),'-',' ')||'%'
+			 GROUP BY tournament ORDER BY count(*) DESC LIMIT 6`, q)
+		if err == nil {
+			for xrows.Next() {
+				var t tourHit
+				if xrows.Scan(&t.Name, &t.Matches) == nil {
+					tours = append(tours, t)
+				}
+			}
+			xrows.Close()
+		}
 		trows, err := s.pg.Query(ctx,
 			`SELECT t.team_id, t.name FROM teams t
 			 WHERE lower(t.name) LIKE '%'||$1||'%'
@@ -93,17 +114,26 @@ func (s *server) search(w http.ResponseWriter, r *http.Request) {
 	WHERE m.status = 'ready'`
 	args := []any{}
 	for _, tok := range tokens {
-		// 1-2 harflik token alt-dize aramasında her şeyle eşleşir (dosya
-		// adlarındaki m1/m2 bile) ve yazdıkça sonuç "donmuş" görünürdü.
-		// Kısa token: yalnız takım adı + oyuncu adında KELİME BAŞI eşleşir
-		// ("g2" → G2 Esports, "b8" → B8; regex \m = kelime başı, girdi
-		// regex-metakarakterlerine karşı QuoteMeta'lanır).
+		// 1-2 harflik token alt-dize aramasında her şeyle eşleşir ve yazdıkça
+		// sonuç "donmuş" görünürdü. Kısa token: TÜM alanlarda KELİME BAŞI
+		// eşleşir (regex \m; tire kelime ayıracıdır) — "g2" → G2 Esports,
+		// "stage 1"deki "1" → turnuva adındaki "stage-1". Girdi regex-
+		// metakarakterlerine karşı QuoteMeta'lanır.
 		if len([]rune(tok)) <= 2 {
-			args = append(args, regexp.QuoteMeta(tok))
+			// salt sayısal token TAM kelime eşleşir (arg regex parçasıdır:
+			// "2\M" → \m2\M) — "2", stage-2'deki "2"yi bulur, "2026"ya takılmaz
+			if _, err := strconv.Atoi(tok); err == nil {
+				args = append(args, regexp.QuoteMeta(tok)+`\M`)
+			} else {
+				args = append(args, regexp.QuoteMeta(tok))
+			}
 			n := itoa(len(args))
 			sql += ` AND (
 			    coalesce(ta.name,'') ~* ('\m'||$` + n + `)
 			 OR coalesce(tb.name,'') ~* ('\m'||$` + n + `)
+			 OR coalesce(m.map_name,'') ~* ('\m'||$` + n + `)
+			 OR coalesce(m.event_name,'') ~* ('\m'||$` + n + `)
+			 OR coalesce(m.tournament,'') ~* ('\m'||$` + n + `)
 			 OR EXISTS (SELECT 1 FROM player_round_states s
 			            JOIN players p ON p.player_id = s.player_id
 			            WHERE s.match_id = m.match_id
@@ -147,7 +177,8 @@ func (s *server) search(w http.ResponseWriter, r *http.Request) {
 	var total int
 	_ = s.pg.QueryRow(ctx, "SELECT count(*) FROM matches WHERE status = 'ready'").Scan(&total)
 	writeJSON(w, 200, map[string]any{
-		"teams": teams, "players": players, "matches": matches, "total": total,
+		"teams": teams, "players": players, "tournaments": tours,
+		"matches": matches, "total": total,
 	})
 }
 

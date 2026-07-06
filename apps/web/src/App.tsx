@@ -79,6 +79,7 @@ function SearchBar() {
   const [params] = useSearchParams();
   const [text, setText] = useState(params.get('q') ?? '');
   const typed = useRef(false);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (!typed.current) return;
@@ -89,10 +90,19 @@ function SearchBar() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [text]);
 
+  // dışarıdan gelen aramalar (turnuva çipi gibi) kutuya yansısın —
+  // yalnız kutu odaklı DEĞİLKEN (yazmayı bölmesin)
+  const pq = params.get('q') ?? '';
+  useEffect(() => {
+    if (document.activeElement !== inputRef.current) setText(pq);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pq]);
+
   return (
     <div className="searchbar">
       <span>🔍</span>
       <input
+        ref={inputRef}
         value={text}
         onChange={(e) => { typed.current = true; setText(e.target.value); }}
         placeholder="Search team, player or map… (e.g. 'spirit g2' for head-to-head)"

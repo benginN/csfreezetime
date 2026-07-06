@@ -48,6 +48,17 @@ export default function Home() {
           ))}
         </div>
       )}
+      {(res.data?.tournaments ?? []).length > 0 && q.trim() && (
+        <div className="toolbar">
+          <span className="meta">tournaments:</span>
+          {(res.data?.tournaments ?? []).map((t) => (
+            // tıklayınca arama tam etikete kilitlenir → o turnuvanın maçları
+            <Link key={t.name} to={`/?q=${encodeURIComponent(t.name)}`}>
+              <button className="ghost">🏆 {t.name.replace(/-/g, ' ')} <span className="meta">({t.matches})</span></button>
+            </Link>
+          ))}
+        </div>
+      )}
       <div className="meta" style={{ margin: '4px 0 12px' }}>
         {res.isLoading ? 'searching…'
           : q ? `${matches.length} matches · “${q}”`
