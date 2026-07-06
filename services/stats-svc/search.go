@@ -101,7 +101,9 @@ func (s *server) search(w http.ResponseWriter, r *http.Request) {
 	// Maçlar: her token en az bir alanda geçmeli (takım adları, oyuncular,
 	// harita, dosya adı). Oyuncu eşleşmesi PRS üzerinden maça bağlanır.
 	sql := `
-	SELECT m.match_id, m.map_name, m.event_name, m.tournament, ta.name, tb.name,
+	WITH q AS (
+	SELECT m.match_id, m.map_name, m.event_name, m.tournament,
+	       ta.name AS name_a, tb.name AS name_b,
 	       count(*) FILTER (WHERE (r.winner_side='T'  AND r.t_team_id  = m.team_a_id)
 	                            OR (r.winner_side='CT' AND r.ct_team_id = m.team_a_id)) AS score_a,
 	       count(*) FILTER (WHERE (r.winner_side='T'  AND r.t_team_id  = m.team_b_id)
@@ -153,10 +155,30 @@ func (s *server) search(w http.ResponseWriter, r *http.Request) {
 		            WHERE s.match_id = m.match_id
 		              AND lower(p.nickname) LIKE '%'||$` + itoa(n) + `||'%'))`
 	}
+	// Sınır harita satırına değil KARŞILAŞMAYA (seri) uygulanır — aynı
+	// gruplamayı Home.tsx groupSeries yapar: taban ad ("a-vs-b", -mN
+	// öncesi) + turnuva + gün. Desene uymayan satır kendi başına bir
+	// karşılaşmadır. Böylece son seri listenin dibinde ortadan kesilmez.
 	sql += `
 	GROUP BY m.match_id, m.map_name, m.event_name, m.tournament, ta.name, tb.name, m.played_at
-	ORDER BY m.played_at DESC NULLS LAST, m.event_name
-	LIMIT 100`
+	),
+	k AS (
+	    SELECT q.*, COALESCE(
+	        substring(q.event_name from '^(.+-vs-.+)-m[0-9]+-')
+	          || '|' || coalesce(q.tournament, '') || '|' || coalesce(q.played, ''),
+	        q.match_id::text) AS skey
+	    FROM q
+	),
+	w AS (
+	    SELECT k.*, max(k.played) OVER (PARTITION BY k.skey) AS skey_played FROM k
+	),
+	r AS (
+	    SELECT w.*, dense_rank() OVER (ORDER BY w.skey_played DESC NULLS LAST, w.skey) AS rnk FROM w
+	)
+	SELECT match_id, map_name, event_name, tournament, name_a, name_b,
+	       score_a, score_b, played
+	FROM r WHERE rnk <= 100
+	ORDER BY played DESC NULLS LAST, event_name`
 
 	rows, err := s.pg.Query(ctx, sql, args...)
 	if err != nil {
