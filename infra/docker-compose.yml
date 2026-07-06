@@ -3,6 +3,9 @@ name: cs2-platform
 services:
   postgres:
     image: postgres:16
+    # paralel sorgular /dev/shm kullanır; Docker varsayılanı 64MB, arşiv
+    # büyüyünce ml roles sorgusunda DiskFull verdi (2026-07-06, ~1500 maç)
+    shm_size: 1gb
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-cs2}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-cs2dev}
