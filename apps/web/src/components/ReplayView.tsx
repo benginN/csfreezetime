@@ -1148,31 +1148,35 @@ export default function ReplayView({
           let dropLblIdx = 0;
           for (const k of (d.kills ?? [])) {
             if (k.tick > tick || k.victim_rx == null || k.victim_ry == null) continue;
-            // ölüm noktası hover bilgisi: kim öldü, kaçıncı saniyede, kim vurdu
-            {
-              const dsec = Math.max(0, Math.round((k.tick - fe0) / d.tick_rate));
-              const dpos = place(k.victim_rx, k.victim_ry, k.lower);
-              dropDotsRef.current.push({
-                x: dpos.x, y: dpos.y,
-                name: `✕ ${k.victim ?? '?'} · ${Math.floor(dsec / 60)}:${String(dsec % 60).padStart(2, '0')}`
-                  + ` · by ${k.attacker ?? '?'}${k.weapon ? ` (${k.weapon})` : ''}`,
-              });
-            }
-            const vt = d.players.find((p) => p.nickname === k.victim);
-            if (!vt) continue;
-            const ki = Math.min(lowerBound(d.ticks, k.tick), d.ticks.length - 1);
-            // ölüm örneğinde silah '' gelir → bir önceki örneğe düş
-            const wep = vt.weapon[ki] || vt.weapon[Math.max(0, ki - 1)] || '';
-            if (!wep) continue;
-            const wl = wep.toLowerCase();
-            if (wl.includes('knife') || wl.includes('c4') || wl.includes('karambit') ||
-                wl.includes('bayonet') || wl.includes('grenade') || wl.includes('molotov') ||
-                wl.includes('flash')) continue;
+            const dsec = Math.max(0, Math.round((k.tick - fe0) / d.tick_rate));
             const { x, y, s: ds } = place(k.victim_rx, k.victim_ry, k.lower);
+            const deathInfo = `✕ ${k.victim ?? '?'} · ${Math.floor(dsec / 60)}:${String(dsec % 60).padStart(2, '0')}`
+              + ` · by ${k.attacker ?? '?'}${k.weapon ? ` (${k.weapon})` : ''}`;
+
+            // kurbanın ölüm anındaki silahı (öldüren silahtan farklı olabilir —
+            // örn. AWP'yle vurulan biri elindeki tüfeği bırakır)
+            const vt = d.players.find((p) => p.nickname === k.victim);
+            const ki = vt ? Math.min(lowerBound(d.ticks, k.tick), d.ticks.length - 1) : -1;
+            // ölüm örneğinde silah '' gelir → bir önceki örneğe düş
+            const wep = vt ? (vt.weapon[ki] || vt.weapon[Math.max(0, ki - 1)] || '') : '';
+            const wl = wep.toLowerCase();
+            const dropsWeapon = wep && !(
+              wl.includes('knife') || wl.includes('c4') || wl.includes('karambit') ||
+              wl.includes('bayonet') || wl.includes('grenade') || wl.includes('molotov') ||
+              wl.includes('flash')
+            );
+
+            // tek nokta: ölüm bilgisi + (varsa) düşen silah adı — aynı koordinata
+            // iki ayrı hover noktası eklemek eşit-mesafede ilk pushlananın
+            // kazanmasına yol açıyordu (silah adı hiç görünmüyordu)
+            dropDotsRef.current.push({
+              x, y, name: dropsWeapon ? `${deathInfo} · dropped: ${wep}` : deathInfo,
+            });
+
+            if (!dropsWeapon) continue;
             gDrops.rect(x - 2.6 * ds, y - 2.6 * ds, 5.2 * ds, 5.2 * ds)
               .fill({ color: 0xe8d27a, alpha: 0.95 })
               .stroke({ width: 1, color: 0x0b0e0c });
-            dropDotsRef.current.push({ x, y, name: wep });
             const age = (tick - k.tick) / 64;
             if (age <= 3 && dropLblIdx < dropLabels.length) {
               const lt = dropLabels[dropLblIdx++];
