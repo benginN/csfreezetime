@@ -4,6 +4,9 @@ Kümeleme: açgözlü yarıçap kümeleme — deterministik, k seçimi yok.
 Noktalar kronolojik gezilir; mevcut bir merkezin R yarıçapına düşen nokta
 o kümeye atanır (merkez koşan ortalamayla güncellenir), düşmeyen yeni küme
 açar. n >= MIN_COUNT kümeler saklanır; adlandırma en yakın yerleşim merkezi.
+
+Zaman ağırlığı (recency.py): MIN_COUNT eşiği ham üye sayısına bakar; yazılan
+`share` ve kümelerin sıralaması zaman-ağırlıklı toplama göre hesaplanır.
 """
 
 from __future__ import annotations
@@ -13,7 +16,7 @@ import math
 import statistics
 from collections import Counter, defaultdict
 
-from . import places
+from . import places, recency
 
 RADIUS = {"smoke": 48.0, "molotov": 48.0, "flash": 72.0, "he": 72.0}  # radar birimi
 MIN_COUNT = 3
@@ -32,7 +35,8 @@ def _fetch(pgconn) -> list[tuple]:
                    g.det_x, g.det_y, g.throw_x, g.throw_y,
                    g.match_id::text, g.round_number,
                    CASE WHEN g.side = 'T' THEN r.t_strategy_cluster
-                        ELSE r.ct_strategy_cluster END AS strat
+                        ELSE r.ct_strategy_cluster END AS strat,
+                   m.played_at
             FROM grenades g
             JOIN rounds  r ON r.match_id = g.match_id AND r.round_number = g.round_number
             JOIN matches m ON m.match_id = g.match_id AND m.status = 'ready'
@@ -47,12 +51,13 @@ def _fetch(pgconn) -> list[tuple]:
 
 def run(pgconn, chc) -> int:
     rows = _fetch(pgconn)
+    ref = recency.reference_date(pgconn)
 
     cals: dict[str, tuple[float, float, float]] = {}
     namers: dict[str, places.PlaceNamer] = {}
 
     groups: dict[tuple, list[dict]] = defaultdict(list)
-    for (map_name, side, team, gtype, t_throw, dx, dy, tx, ty, mid, rn, strat) in rows:
+    for (map_name, side, team, gtype, t_throw, dx, dy, tx, ty, mid, rn, strat, played_at) in rows:
         if team is None:
             continue
         if map_name not in cals:
@@ -63,6 +68,7 @@ def run(pgconn, chc) -> int:
             "trx": (tx - px) / sc if tx is not None else None,
             "try": (py - ty) / sc if ty is not None else None,
             "t": t_throw, "mid": mid, "rn": rn, "strat": strat,
+            "w": recency.weight(played_at, ref),
         }
         groups[(team, map_name, side, gtype)].append(g)
 
@@ -72,7 +78,7 @@ def run(pgconn, chc) -> int:
         for (team, map_name, side, gtype), items in sorted(
             groups.items(), key=lambda kv: (str(kv[0][0]), kv[0][1], kv[0][2], kv[0][3])
         ):
-            total = len(items)
+            total_w = sum(it["w"] for it in items)
             radius = RADIUS[gtype]
             clusters: list[dict] = []
             for it in items:
@@ -91,7 +97,7 @@ def run(pgconn, chc) -> int:
                     best["members"].append(it)
 
             keep = [c for c in clusters if len(c["members"]) >= MIN_COUNT]
-            keep.sort(key=lambda c: -len(c["members"]))
+            keep.sort(key=lambda c: -sum(m["w"] for m in c["members"]))
             if not keep:
                 continue
             if map_name not in namers:
@@ -116,7 +122,7 @@ def run(pgconn, chc) -> int:
                         c["rx"], c["ry"],
                         (sum(t[0] for t in throws) / len(throws)) if throws else None,
                         (sum(t[1] for t in throws) / len(throws)) if throws else None,
-                        len(ms), len(ms) / total,
+                        len(ms), (sum(m["w"] for m in ms) / total_w) if total_w else 0.0,
                         statistics.mean(ts) if ts else None,
                         statistics.pstdev(ts) if len(ts) > 1 else None,
                         json.dumps({str(k): v for k, v in strat_mix.most_common(3)}),

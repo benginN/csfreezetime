@@ -316,7 +316,7 @@ func (s *server) report(w http.ResponseWriter, r *http.Request) {
 		           share, avg_hold_sec, representatives
 		    FROM team_setups WHERE team_id = $1 AND map_name = $2
 		    ORDER BY side, t_offset, share DESC
-		) x`, teamID, mapName, elig)
+		) x`, teamID, mapName)
 	// Flash→kill senkronu: kör kurbana atılan kill payı + flash-kill arası
 	// medyan süre + "iyi flash dönüşümü" (düşman körleyen flash'ın 4 sn içinde
 	// takım kill'ine dönüşme oranı)
@@ -400,11 +400,11 @@ func (s *server) report(w http.ResponseWriter, r *http.Request) {
 
 	// Execute şablonları (ml/templates.py; arşiv geneli)
 	out["exec_templates"] = s.jsonQuery(ctx, `
-		SELECT COALESCE(json_agg(x ORDER BY x.n DESC), '[]'::json) FROM (
-		    SELECT pattern, n, wins, site_mix
+		SELECT COALESCE(json_agg(x ORDER BY x.recency_score DESC), '[]'::json) FROM (
+		    SELECT pattern, n, wins, site_mix, recency_score
 		    FROM team_exec_templates
 		    WHERE team_id = $1 AND map_name = $2
-		    ORDER BY n DESC LIMIT 8
+		    ORDER BY recency_score DESC LIMIT 8
 		) x`, teamID, mapName)
 
 	// Trade ikilileri: kim kimin ölümünü trade ediyor (5 sn penceresi)
@@ -438,14 +438,14 @@ func (s *server) report(w http.ResponseWriter, r *http.Request) {
 		           med_delay_sec, dest_mix
 		    FROM setup_rotations WHERE team_id = $1 AND map_name = $2
 		    ORDER BY side, pattern_id, rotate_rate DESC
-		) x`, teamID, mapName, elig)
+		) x`, teamID, mapName)
 	out["utility"] = s.jsonQuery(ctx, `
 		SELECT COALESCE(json_agg(x), '[]'::json) FROM (
 		    SELECT side, type, cluster_id, label, det_rx, det_ry, throw_rx, throw_ry,
 		           count, share, t_avg, t_std, strat_mix, representatives
 		    FROM utility_spots WHERE team_id = $1 AND map_name = $2
-		    ORDER BY side, type, count DESC
-		) x`, teamID, mapName, elig)
+		    ORDER BY side, type, share DESC
+		) x`, teamID, mapName)
 	// Atılan rauntlar: takımın zirvede ≥%75 olasılığa ulaşıp kaybettiği
 	// rauntlar (throw tespiti; her satır replay'e link olur)
 	out["thrown"] = s.jsonQuery(ctx, `

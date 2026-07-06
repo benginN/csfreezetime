@@ -8,6 +8,11 @@ ve kazanma oranıyla birlikte team_exec_templates'a yazılır.
 
 Tamamen deterministik: en yakın merkez ataması (tip başına yarıçap
 utility.py ile aynı), sıralı anahtar, sabit eşikler. Her şablon n taşır.
+
+Zaman ağırlığı (recency.py): n/wins ham (ağırlıksız) kalır — bunlar
+"kaç kez oynandı/kazanıldı" sorusuna dürüst cevap vermeli. recency_score
+ayrı bir sütun olarak zaman-ağırlıklı toplamı taşır; sunum sorgusu (report.go)
+top-N şablonu bununla sıralar, ham hacim değil son eğilim öne çıksın diye.
 """
 
 from __future__ import annotations
@@ -15,6 +20,7 @@ from __future__ import annotations
 import json
 from collections import defaultdict
 
+from . import recency
 from .utility import RADIUS
 
 WINDOW_SEC = 25.0  # rauntun ilk N saniyesi (execute penceresi)
@@ -23,6 +29,7 @@ MIN_NADES = 2      # tek bombalık "şablon" sayılmaz
 
 
 def run(pgconn) -> int:
+    ref = recency.reference_date(pgconn)
     with pgconn.cursor() as cur:
         # takımın utility nokta merkezleri (T tarafı)
         cur.execute(
@@ -39,14 +46,17 @@ def run(pgconn) -> int:
         cur.execute(
             """
             SELECT r.match_id, r.round_number, r.t_team_id, m.map_name,
-                   (r.winner_side = 'T') AS won, r.bomb_site
+                   (r.winner_side = 'T') AS won, r.bomb_site, m.played_at
             FROM rounds r JOIN matches m ON m.match_id = r.match_id
             WHERE m.status = 'ready' AND r.t_team_id IS NOT NULL
               AND r.winner_side IS NOT NULL
             """
         )
         rounds = cur.fetchall()
-        rkey = {(mid, rn): (team, mp, won, site) for mid, rn, team, mp, won, site in rounds}
+        rkey = {
+            (mid, rn): (team, mp, won, site, recency.weight(played_at, ref))
+            for mid, rn, team, mp, won, site, played_at in rounds
+        }
 
         # ilk 25 sn T bombaları (radar uzayında)
         cur.execute(
@@ -71,7 +81,7 @@ def run(pgconn) -> int:
             info = rkey.get((mid, rn))
             if not info:
                 continue
-            team, mp, _, _ = info
+            team, mp, _, _, _ = info
             best, bd = None, RADIUS.get(typ, 60.0) ** 2
             for cid, label, cx, cy in spots.get((team, mp, typ), ()):
                 d = (rx - cx) ** 2 + (ry - cy) ** 2
@@ -81,33 +91,34 @@ def run(pgconn) -> int:
                 per_round[(mid, rn)].append(best)
 
     # şablon sayımı
-    agg = defaultdict(lambda: [0, 0, defaultdict(int)])  # (team,map,key) -> [n,wins,sites]
+    agg = defaultdict(lambda: [0, 0, 0.0, defaultdict(int)])  # (team,map,key) -> [n,wins,recency_score,sites]
     for (mid, rn), labels in per_round.items():
         if len(labels) < MIN_NADES:
             continue
-        team, mp, won, site = rkey[(mid, rn)]
+        team, mp, won, site, w = rkey[(mid, rn)]
         key = tuple(sorted(set(labels)))
         if len(key) < MIN_NADES:
             continue
         a = agg[(team, mp, key)]
         a[0] += 1
         a[1] += 1 if won else 0
-        a[2][site or "no plant"] += 1
+        a[2] += w
+        a[3][site or "no plant"] += 1
 
     with pgconn.cursor() as cur:
         cur.execute("DELETE FROM team_exec_templates")
         n_written = 0
-        for (team, mp, key), (n, wins, sites) in agg.items():
+        for (team, mp, key), (n, wins, recency_score, sites) in agg.items():
             if n < MIN_N:
                 continue
             cur.execute(
                 """
                 INSERT INTO team_exec_templates
-                    (team_id, map_name, pattern, n, wins, site_mix)
-                VALUES (%s, %s, %s, %s, %s, %s)
+                    (team_id, map_name, pattern, n, wins, site_mix, recency_score)
+                VALUES (%s, %s, %s, %s, %s, %s, %s)
                 """,
                 (team, mp, json.dumps(list(key)), n, wins,
-                 json.dumps(dict(sites))),
+                 json.dumps(dict(sites)), recency_score),
             )
             n_written += 1
     pgconn.commit()

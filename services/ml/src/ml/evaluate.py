@@ -11,19 +11,19 @@ from __future__ import annotations
 import math
 from collections import defaultdict
 
-from . import predict
+from . import predict, recency
 
 EPS = 1e-9
 METHODS = ("league", "team", "team_buy", "team_vs", "team_style")
 
 
 def _fetch_rounds(pgconn) -> list[tuple]:
-    """(map, side, team, buy, cluster, OPP, match_id, round_number) — sıralı."""
+    """(map, side, team, buy, cluster, OPP, match_id, round_number, played_at) — sıralı."""
     with pgconn.cursor() as cur:
         cur.execute(
             """
             SELECT m.map_name, s.side, s.team_id, s.buy_type, s.cluster_id,
-                   s.opp_id, r.match_id::text, r.round_number
+                   s.opp_id, r.match_id::text, r.round_number, m.played_at
             FROM rounds r
             JOIN matches m ON m.match_id = r.match_id AND m.status = 'ready'
             CROSS JOIN LATERAL (VALUES
@@ -51,9 +51,9 @@ def _split(rows: list[tuple]) -> tuple[list, list]:
     return train, test
 
 
-def _logloss(train: list, test: list, method: str) -> float:
-    # rakip-farkındalı yöntemler için 6'lı satır (VsRow); eskiler ilk 5'i okur
-    tr = [(r[0], r[1], r[2], r[3], r[4], r[5]) for r in train]
+def _logloss(train: list, test: list, method: str, ref) -> float:
+    # rakip-farkındalı yöntemler için 6'lı satır (VsRow) + zaman ağırlığı
+    tr = [(r[0], r[1], r[2], r[3], r[4], r[5], recency.weight(r[8], ref)) for r in train]
     # stil profilleri (map, side) başına bir kez — test grubu tek çift zaten
     prof_cache: dict[tuple, dict] = {}
     total, n = 0.0, 0
@@ -82,6 +82,7 @@ def _logloss(train: list, test: list, method: str) -> float:
 
 def run(pgconn) -> list[dict]:
     rows = _fetch_rounds(pgconn)
+    ref = recency.reference_date(pgconn)
     train, test = _split(rows)
 
     # (harita, taraf) başına değerlendirme
@@ -91,7 +92,7 @@ def run(pgconn) -> list[dict]:
         cur.execute("DELETE FROM prediction_meta")
         for map_name, side in pairs:
             te = [r for r in test if r[0] == map_name and r[1] == side]
-            losses = {m: _logloss(train, te, m) for m in METHODS}
+            losses = {m: _logloss(train, te, m, ref) for m in METHODS}
             # en iyi: log-loss en düşük; eşitlikte basit olan kazanır
             best = min(METHODS, key=lambda m: losses[m])
             results.append({"map": map_name, "side": side, "best": best,
@@ -120,7 +121,11 @@ def write_vs(pgconn) -> int:
     head-to-head ≥6 raunt (daha azı takım dağılımından ayırt edilemez),
     'style' satırı rakip profili olan her rakip için yazılır.
     """
-    rows = [(r[0], r[1], r[2], r[3], r[4], r[5]) for r in _fetch_rounds(pgconn)]
+    ref = recency.reference_date(pgconn)
+    rows = [
+        (r[0], r[1], r[2], r[3], r[4], r[5], recency.weight(r[8], ref))
+        for r in _fetch_rounds(pgconn)
+    ]
     by_ms: dict[tuple, list] = defaultdict(list)
     for r in rows:
         by_ms[(r[0], r[1])].append(r)
@@ -167,7 +172,11 @@ def write_vs(pgconn) -> int:
 
 def write_conditional(pgconn) -> int:
     """team_tendencies_cond: TÜM veriden (sunum tablosu; değerlendirme ayrı)."""
-    rows = [(r[0], r[1], r[2], r[3], r[4]) for r in _fetch_rounds(pgconn)]
+    ref = recency.reference_date(pgconn)
+    rows = [
+        (r[0], r[1], r[2], r[3], r[4], recency.weight(r[8], ref))
+        for r in _fetch_rounds(pgconn)
+    ]
     combos = predict.counts_by_team_buy(rows)
     inserted = 0
     with pgconn.cursor() as cur:

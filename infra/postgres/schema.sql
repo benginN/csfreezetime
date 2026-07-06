@@ -201,16 +201,21 @@ INSERT INTO maps (map_name, radar_pos_x, radar_pos_y, radar_scale, has_lower_lev
 ON CONFLICT (map_name) DO NOTHING;
 
 -- Execute şablonları (ml/templates.py): ilk 25 sn utility kümesi → site/kazanç
+-- recency_score: zaman-azalımlı ağırlık toplamı (ml/recency.py, 90 gün yarı
+-- ömür) — sunum sorgusu (report.go) top-N'i n yerine bununla sıralar, ham
+-- hacim değil son eğilim öne çıksın diye. n/wins ham (ağırlıksız) kalır.
 CREATE TABLE IF NOT EXISTS team_exec_templates (
-    template_id SERIAL PRIMARY KEY,
-    team_id     UUID REFERENCES teams(team_id) ON DELETE CASCADE,
-    map_name    TEXT NOT NULL,
-    pattern     JSONB NOT NULL,
-    n           INT NOT NULL,
-    wins        INT NOT NULL,
-    site_mix    JSONB NOT NULL,
-    computed_at TIMESTAMPTZ DEFAULT now()
+    template_id    SERIAL PRIMARY KEY,
+    team_id        UUID REFERENCES teams(team_id) ON DELETE CASCADE,
+    map_name       TEXT NOT NULL,
+    pattern        JSONB NOT NULL,
+    n              INT NOT NULL,
+    wins           INT NOT NULL,
+    site_mix       JSONB NOT NULL,
+    recency_score  REAL NOT NULL DEFAULT 0,
+    computed_at    TIMESTAMPTZ DEFAULT now()
 );
+ALTER TABLE team_exec_templates ADD COLUMN IF NOT EXISTS recency_score REAL NOT NULL DEFAULT 0;
 
 -- Tahmin değerlendirme meta'sı (evaluate.py): harita+taraf başına yöntem
 -- yarışının sonucu. (DDL buraya sonradan eklendi — tablo canlıda elle

@@ -4,6 +4,11 @@
 
 avg_hold_sec: desen rauntlarında oyuncuların t anındaki yerinde ilk yer
 değişimine kadar kalma medyanı — "default'u ne kadar tutuyorlar".
+
+Zaman ağırlığı (recency.py): MIN_ROUNDS/MIN_OBSERVED/MIN_SHARE eşikleri ham
+(ağırlıksız) raunt sayısına bakar; top-N sıralaması ve yazılan `share` ise
+zaman-ağırlıklı toplama göre hesaplanır — son maçlarda sık görülen bir desen,
+toplam hacimde geride kalsa bile öne çıkar.
 """
 
 from __future__ import annotations
@@ -11,6 +16,8 @@ from __future__ import annotations
 import json
 import statistics
 from collections import Counter, defaultdict
+
+from . import recency
 
 OFFSETS = (15, 30)     # raunt başından saniye
 MIN_ROUNDS = 8         # taraf başına bu kadar raunt yoksa desen yazılmaz
@@ -20,21 +27,21 @@ TOP_PATTERNS = 4
 HOLD_HORIZON = 75      # saniye; bu ufka kadar yer değişimi aranır
 
 
-def _round_teams(pgconn) -> dict[tuple[str, int, str], str]:
-    """(match_id, round_number, side) → team_id ve harita eşlemesi."""
+def _round_teams(pgconn) -> dict[tuple[str, int, str], tuple]:
+    """(match_id, round_number, side) → (map_name, team_id, played_at)."""
     with pgconn.cursor() as cur:
         cur.execute(
             """
             SELECT r.match_id::text, r.round_number, m.map_name,
-                   r.t_team_id::text, r.ct_team_id::text
+                   r.t_team_id::text, r.ct_team_id::text, m.played_at
             FROM rounds r JOIN matches m ON m.match_id = r.match_id
             WHERE m.status = 'ready' AND r.t_team_id IS NOT NULL
             """
         )
         out = {}
-        for mid, rn, map_name, t_team, ct_team in cur.fetchall():
-            out[(mid, rn, "T")] = (map_name, t_team)
-            out[(mid, rn, "CT")] = (map_name, ct_team)
+        for mid, rn, map_name, t_team, ct_team, played_at in cur.fetchall():
+            out[(mid, rn, "T")] = (map_name, t_team, played_at)
+            out[(mid, rn, "CT")] = (map_name, ct_team, played_at)
         return out
 
 
@@ -93,6 +100,7 @@ def _hold_seconds(chc, map_name: str, side: str, sec: int) -> dict[tuple[str, in
 
 def run(pgconn, chc) -> int:
     rteams = _round_teams(pgconn)
+    ref = recency.reference_date(pgconn)
     maps = sorted({v[0] for v in rteams.values()})
 
     inserted = 0
@@ -101,30 +109,36 @@ def run(pgconn, chc) -> int:
         for map_name in maps:
             for off in OFFSETS:
                 pos = _positions_at(chc, map_name, off)
-                # (team, side) → [(pattern_key, mid, rn)]
+                # (team, side) → [(pattern_key, mid, rn, weight)]
                 per_team: dict[tuple, list[tuple]] = defaultdict(list)
                 for (mid, rn, side), plist in pos.items():
                     meta = rteams.get((mid, rn, side))
                     if not meta or meta[0] != map_name or len(plist) < 4:
                         continue
                     key = tuple(sorted(plist))
-                    per_team[(meta[1], side)].append((key, mid, rn))
+                    w = recency.weight(meta[2], ref)
+                    per_team[(meta[1], side)].append((key, mid, rn, w))
 
                 hold_cache: dict[str, dict] = {}
                 for (team, side), entries in sorted(per_team.items()):
                     n = len(entries)
                     if n < MIN_ROUNDS:
                         continue
-                    freq = Counter(e[0] for e in entries)
+                    freq = Counter(e[0] for e in entries)  # ham sayı: eşik/gating
+                    wfreq: dict = defaultdict(float)
+                    for pat, _mid, _rn, w in entries:
+                        wfreq[pat] += w
+                    w_total = sum(wfreq.values())
+                    ranked = sorted(wfreq.items(), key=lambda kv: -kv[1])[:TOP_PATTERNS]
                     top = [
-                        (pat, c) for pat, c in freq.most_common(TOP_PATTERNS)
-                        if c >= MIN_OBSERVED or c / n >= MIN_SHARE
+                        (pat, freq[pat]) for pat, _w in ranked
+                        if freq[pat] >= MIN_OBSERVED or freq[pat] / n >= MIN_SHARE
                     ]
                     if side not in hold_cache:
                         hold_cache[side] = _hold_seconds(chc, map_name, side, off)
                     holds = hold_cache[side]
                     for pid_i, (pat, c) in enumerate(top):
-                        rounds_in = [(mid, rn) for key, mid, rn in entries if key == pat]
+                        rounds_in = [(mid, rn) for key, mid, rn, _w in entries if key == pat]
                         hs = [
                             h for (mid, rn, _p), h in holds.items()
                             if (mid, rn) in set(rounds_in)
@@ -143,7 +157,8 @@ def run(pgconn, chc) -> int:
                             """,
                             (
                                 team, map_name, side, off, pid_i,
-                                json.dumps(pattern), c, n, c / n,
+                                json.dumps(pattern), c, n,
+                                wfreq[pat] / w_total if w_total else 0.0,
                                 statistics.median(hs) if hs else None,
                                 json.dumps([
                                     {"match_id": mid, "round_number": rn}
