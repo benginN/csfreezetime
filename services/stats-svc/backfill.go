@@ -480,12 +480,14 @@ func wrapResult(r map[string]any, err error) ([]map[string]any, error) {
 	return []map[string]any{r}, nil
 }
 
-// retentionLoop: saklama politikası (güncel karar 2026-07-06: 18 ay —
-// SSD/sunucu ile yer sorunu kalmadı) — eşikten eski maçların HAM demosu
-// (MinIO) ve tick verisi (CH) silinir; PG meta süresiz kalır
-// (leaderboard/kariyer bozulmaz). Günde bir koşar.
+// retentionLoop: saklama politikası (güncel karar 2026-07-06 akşamı:
+// 12 ay — arşiv kapsamı "son 1 yılın S+A tier maçları"; 90 günlük
+// zaman-azalımıyla 12+ ay öncesi zaten ~0.06 ağırlık taşır, ara karar
+// olan 18 ay iptal) — eşikten eski maçların HAM demosu (MinIO) ve tick
+// verisi (CH) silinir; PG meta süresiz kalır (leaderboard/kariyer
+// bozulmaz). Günde bir koşar.
 func (s *server) retentionLoop() {
-	months := 18
+	months := 12
 	if v := os.Getenv("RETENTION_MONTHS"); v != "" {
 		if n, err := strconv.Atoi(v); err == nil {
 			months = n

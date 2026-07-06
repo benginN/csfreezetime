@@ -591,7 +591,7 @@ saklanır; sonrasında otomatik silinir (matches.tick_purged=true). PG meta
 ve istatistikler SÜRESİZ kalır — leaderboard/kariyer geriye dönük bozulmaz.
 Sonuç: >12 ay maçlarda replay/heatmap kapalı ("archived"); CH okuyan ml
 işleri (setups/roles/rotations/flash) o maçları doğal olarak dışarıda
-bırakır. RETENTION_MONTHS env (varsayılan 12; 0=kapalı). 2026-07-05: 24→12 ay (ürün kararı — 1 yıldan eski meta analitik değer taşımıyor, depolama yarıya iner).
+bırakır. RETENTION_MONTHS env (varsayılan 12; 0=kapalı). 2026-07-05: 24→12 ay (ürün kararı — 1 yıldan eski meta analitik değer taşımıyor, depolama yarıya iner). 2026-07-06: arşiv kapsamı kararı "son 1 yılın S+A tier maçları" — 12 ay pencere kesinleşti (aynı gün denenen 18 ay ara kararı iptal; zaman-azalımı 12+ ay öncesine zaten ~0.06 ağırlık verir).
 
 ### Kişisel veritabanı (create your own database)
 Kullanıcı demoları is_private=true ile işlenir; enrichment sonunda status
