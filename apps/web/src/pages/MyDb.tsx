@@ -2,8 +2,9 @@ import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api, type SearchResult } from '../api';
 import {
-  deleteLocal, getDirHandle, importBundle, listMatches, loadRegistry,
-  localIds, saveDirHandle, type Bundle, type LocalMatchMeta,
+  deleteLocal, deleteVoice, getDirHandle, importBundle, listMatches,
+  listVoiceIds, loadRegistry, localIds, putVoice, saveDirHandle,
+  type Bundle, type LocalMatchMeta,
 } from '../lib/localdb';
 import {
   BUNDLE_DIR, gunzipJson, importPublicMatch, processDem, scoreOf,
@@ -15,6 +16,9 @@ import {
 // arşivin bu tarayıcıda yaşar. Tekil hızlı analiz için Analyze sekmesi.
 export default function MyDb() {
   const [items, setItems] = useState<LocalMatchMeta[]>([]);
+  const [voiceIds, setVoiceIds] = useState<Set<string>>(new Set());
+  const voiceTargetRef = useRef<LocalMatchMeta | null>(null);
+  const voiceInputRef = useRef<HTMLInputElement>(null);
   const [q, setQ] = useState('');
   const [dirName, setDirName] = useState('');
   const [queue, setQueue] = useState<{ total: number; done: number; current: string } | null>(null);
@@ -24,9 +28,30 @@ export default function MyDb() {
   const stopRef = useRef(false);
   const fsSupported = 'showDirectoryPicker' in window;
 
-  const refresh = () => listMatches().then((l) =>
+  const refresh = () => Promise.all([listMatches(), listVoiceIds()]).then(([l, v]) => {
     setItems(l.filter((m) => ['folder', 'archive'].includes(m.origin ?? 'folder'))
-      .sort((a, b) => b.saved_at.localeCompare(a.saved_at))));
+      .sort((a, b) => b.saved_at.localeCompare(a.saved_at)));
+    setVoiceIds(v);
+  });
+
+  // 🎙 telsiz kaydı ekle: IndexedDB'ye + (klasör varsa) taşınabilir kopya
+  async function attachVoice(f: File) {
+    const m = voiceTargetRef.current;
+    if (!m) return;
+    await putVoice(m.match_id, f);
+    const dir = dirRef.current;
+    if (dir && m.name) {
+      try {
+        const bd = await dir.getDirectoryHandle(BUNDLE_DIR, { create: true });
+        const ext = (f.name.split('.').pop() ?? 'ogg').toLowerCase();
+        const out = await bd.getFileHandle(`${m.name}.comms.${ext}`, { create: true });
+        const w = await out.createWritable();
+        await w.write(f);
+        await w.close();
+      } catch { /* klasör kopyası isteğe bağlı */ }
+    }
+    await refresh();
+  }
   useEffect(() => {
     loadRegistry().then(refresh);
     getDirHandle().then(async (h) => {
@@ -74,6 +99,7 @@ export default function MyDb() {
 
     const dems: FileHandle[] = [];
     const bundles = new Map<string, FileHandle>();
+    const commsFiles = new Map<string, FileHandle>();
     for await (const e of dir.values()) {
       if (e.kind === 'file' && e.name.toLowerCase().endsWith('.dem')) dems.push(e);
     }
@@ -82,6 +108,9 @@ export default function MyDb() {
       for await (const e of bd.values()) {
         if (e.kind === 'file' && e.name.endsWith('.json.gz')) {
           bundles.set(e.name.replace(/\.json\.gz$/, ''), e);
+        }
+        if (e.kind === 'file' && /\.comms\.\w+$/.test(e.name)) {
+          commsFiles.set(e.name.replace(/\.comms\.\w+$/, ''), e);
         }
       }
     } catch { /* paket klasörü henüz yok */ }
@@ -97,6 +126,19 @@ export default function MyDb() {
     }
     setPhase('');
     await refresh();
+
+    // 🎙 klasördeki telsiz kayıtlarını geri yükle (<demo adı>.comms.<uzantı>)
+    if (commsFiles.size) {
+      const all = await listMatches();
+      const have = await listVoiceIds();
+      for (const [base, fh] of commsFiles) {
+        const m = all.find((x) => x.name === base);
+        if (m && !have.has(m.match_id)) {
+          try { await putVoice(m.match_id, await fh.getFile()); } catch { /* bozuk dosya: atla */ }
+        }
+      }
+      await refresh();
+    }
 
     const pending = dems.filter((d) => !bundles.has(d.name.replace(/\.dem$/i, '')));
     setQueue({ total: pending.length, done: 0, current: '' });
@@ -237,6 +279,23 @@ export default function MyDb() {
             {(g.parts.reduce((a, p) => a + p.bytes, 0) / 1e6).toFixed(1)} MB · {g.head.saved_at.slice(0, 10)}
           </span>
           <button
+            className="ghost"
+            title={voiceIds.has(g.head.match_id)
+              ? 'voice comms attached — click to remove the recording'
+              : 'attach team voice comms (mp3/ogg/wav) — plays synced inside the replay'}
+            onClick={async () => {
+              if (voiceIds.has(g.head.match_id)) {
+                await deleteVoice(g.head.match_id);
+                refresh();
+              } else {
+                voiceTargetRef.current = g.head;
+                voiceInputRef.current?.click();
+              }
+            }}
+          >
+            {voiceIds.has(g.head.match_id) ? '🎙✓' : '🎙'}
+          </button>
+          <button
             className="ghost" title="remove from this browser (bundles in your folder stay)"
             onClick={async () => {
               for (const p of g.parts) await deleteLocal(p.match_id);
@@ -248,6 +307,14 @@ export default function MyDb() {
         </div>
       ))}
       {items.length === 0 && !queue && <p className="meta">No local matches yet — pick your folder.</p>}
+      <input
+        ref={voiceInputRef} type="file" accept="audio/*" style={{ display: 'none' }}
+        onChange={(e) => {
+          const f = e.target.files?.[0];
+          e.target.value = '';
+          if (f) attachVoice(f);
+        }}
+      />
     </>
   );
 }

@@ -68,8 +68,22 @@ export async function deleteLocal(id: string): Promise<void> {
   for (let i = 1; i <= n; i++) {
     await tx('rounds', 'readwrite', (s) => s.delete(`${id}:${i}`));
   }
+  await deleteVoice(id).catch(() => {});
   localIds.delete(id);
 }
+
+// takım telsizi (voice comms) kaydı: maç başına bir ses dosyası — yalnız
+// yerelde yaşar (gizlilik), replay'de zamana kilitli çalınır (ReplayView)
+export const putVoice = (id: string, f: Blob) =>
+  tx('misc', 'readwrite', (s) => s.put(f, `voice:${id}`));
+export const getVoice = (id: string) =>
+  tx<Blob | undefined>('misc', 'readonly', (s) => s.get(`voice:${id}`));
+export const deleteVoice = (id: string) =>
+  tx('misc', 'readwrite', (s) => s.delete(`voice:${id}`));
+export const listVoiceIds = () =>
+  tx<IDBValidKey[]>('misc', 'readonly', (s) => s.getAllKeys())
+    .then((ks) => new Set(ks.map(String)
+      .filter((k) => k.startsWith('voice:')).map((k) => k.slice(6))));
 
 // klasör tutamacı (File System Access API) — IndexedDB tutamaç saklayabilir
 export const saveDirHandle = (h: unknown) =>

@@ -472,6 +472,43 @@ export default function ReplayView({
   replayOnRef.current = showReplay;
   ghostsOnRef.current = ghostsOn;
 
+  // 🎙 takım telsizi (yalnız yerel maçlar): IndexedDB'deki ses kaydı replay
+  // zamanına kilitli çalınır. Çapa = 1. rauntun start_tick'i (maç başı);
+  // kayıt farklı anda başladıysa kullanıcı ofsetle hizalar (localStorage).
+  const [voiceUrl, setVoiceUrl] = useState<string | null>(null);
+  const [commsOn, setCommsOn] = useState(false);
+  const [commsOffset, setCommsOffset] = useState(() =>
+    Number(localStorage.getItem(`comms-offset:${matchId}`) ?? 0));
+  const voiceAudioRef = useRef<HTMLAudioElement | null>(null);
+  const commsOnRef = useRef(false);
+  const commsOffsetRef = useRef(0);
+  commsOnRef.current = commsOn;
+  commsOffsetRef.current = commsOffset;
+  const matchT0 = rounds[0]?.start_tick ?? rounds[0]?.freeze_end_tick ?? 0;
+  const matchT0Ref = useRef(0);
+  matchT0Ref.current = matchT0;
+  useEffect(() => {
+    if (!localMode) return;
+    let url: string | null = null;
+    import('../lib/localdb').then(({ getVoice }) => getVoice(matchId)).then((b) => {
+      if (!b) return;
+      url = URL.createObjectURL(b);
+      const a = new Audio(url);
+      a.preload = 'auto';
+      voiceAudioRef.current = a;
+      setVoiceUrl(url);
+    }).catch(() => {});
+    return () => {
+      voiceAudioRef.current?.pause();
+      voiceAudioRef.current = null;
+      if (url) URL.revokeObjectURL(url);
+      setVoiceUrl(null);
+    };
+  }, [matchId, localMode]);
+  useEffect(() => {
+    localStorage.setItem(`comms-offset:${matchId}`, String(commsOffset));
+  }, [commsOffset, matchId]);
+
   // Bölge adı düğmesi yalnızca arka plan dokusunu tazeler — oynatma sıfırlanmaz
   useEffect(() => {
     const sp = baseSpriteRef.current;
@@ -1344,6 +1381,20 @@ export default function ReplayView({
           setGhostClock(`${Math.floor(gs / 60)}:${String(gs % 60).padStart(2, '0')}`);
           if (ghostSliderRef.current) ghostSliderRef.current.value = String(gs);
         }
+        // 🎙 telsiz senkronu: hedef = (küresel tick - maç başı) / tickrate + ofset.
+        // Küçük kaymalar bırakılır (çıtırtı olmasın), >0.35 sn'de yeniden hizala.
+        const va = voiceAudioRef.current;
+        if (va) {
+          const gTick = d.ticks[Math.min(Math.floor(fIdxRef.current), d.ticks.length - 1)];
+          const want = (gTick - matchT0Ref.current) / d.tick_rate + commsOffsetRef.current;
+          if (playingRef.current && commsOnRef.current && want >= 0 && want < (va.duration || Infinity)) {
+            if (Math.abs(va.currentTime - want) > 0.35) va.currentTime = want;
+            va.playbackRate = Math.min(4, Math.max(0.25, speedRef.current));
+            if (va.paused) va.play().catch(() => {});
+          } else if (!va.paused) {
+            va.pause();
+          }
+        }
         draw();
       });
       draw();
@@ -1599,6 +1650,21 @@ export default function ReplayView({
               </span>
               {ticksQ.isFetching && <span className="meta">…</span>}
             </div>
+            {voiceUrl && (
+              <div className="row" title="team voice comms — synced to the replay clock; nudge the offset until the calls match the action">
+                <button className={commsOn ? '' : 'ghost'} onClick={() => setCommsOn(!commsOn)}>
+                  🎙 {commsOn ? 'comms on' : 'comms off'}
+                </button>
+                <span className="meta">offset</span>
+                <button className="ghost" onClick={() => setCommsOffset((o) => Math.round((o - 1) * 10) / 10)}>−1s</button>
+                <button className="ghost" onClick={() => setCommsOffset((o) => Math.round((o - 0.1) * 10) / 10)}>−.1</button>
+                <span className="meta" style={{ fontVariantNumeric: 'tabular-nums', minWidth: 44, textAlign: 'center' }}>
+                  {commsOffset >= 0 ? '+' : ''}{commsOffset.toFixed(1)}s
+                </span>
+                <button className="ghost" onClick={() => setCommsOffset((o) => Math.round((o + 0.1) * 10) / 10)}>+.1</button>
+                <button className="ghost" onClick={() => setCommsOffset((o) => Math.round((o + 1) * 10) / 10)}>+1s</button>
+              </div>
+            )}
             <div className="chiplegend" style={{ marginBottom: 2 }}>
               <span><i style={{ background: '#86d8e8' }} />{teams.a ?? 'Team A'}</span>
               <span><i style={{ background: '#dcaaea' }} />{teams.b ?? 'Team B'}</span>
