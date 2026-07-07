@@ -188,7 +188,7 @@ export default function Report() {
         arrangements, with exact player positions from a real round. “after
         first contact” below each shows where they rotate once the fight starts.
       </p>
-      <div className="grid cards">
+      <div className="grid cards" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(460px, 1fr))' }}>
         {(['CT', 'T'] as const).map((side) => (
           <SetupCard key={side} d={d} side={side} mapName={mapName} />
         ))}

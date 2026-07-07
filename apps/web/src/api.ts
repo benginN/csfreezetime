@@ -231,7 +231,7 @@ export interface TeamSummary {
   players: {
     player_id: string; nickname: string; rounds: number; matches: number;
     adr: number; kills: number; deaths: number; flash_assists: number;
-    survival_pct: number;
+    survival_pct: number; current: boolean; last_played: string | null;
   }[];
   map_strats: {
     map_name: string; side: 'T' | 'CT'; label: string | null;

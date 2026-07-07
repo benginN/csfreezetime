@@ -537,9 +537,15 @@ func (s *server) teamSummary(w http.ResponseWriter, r *http.Request) {
 		"pistol_rounds": pisN, "pistol_wins": pisW,
 	}
 	// oyuncu tablosu: takım formasıyla oynanan rauntlardan (pencere/kadro
-	// filtresine uyar); satırlar oyuncu sayfasına link olur
+	// filtresine uyar). current = takımın EN SON maçında sahaya çıkan beşli
+	// (kadro filtresiyle aynı tanım); eskiler last_played ile işaretlenir.
 	out["players"] = s.jsonQuery(ctx, `
-		SELECT COALESCE(json_agg(x ORDER BY x.rounds DESC), '[]'::json) FROM (
+		WITH last_m AS (
+		    SELECT m.match_id FROM matches m
+		    WHERE m.status = 'ready' AND (m.team_a_id = $1 OR m.team_b_id = $1)
+		    ORDER BY m.played_at DESC NULLS LAST LIMIT 1
+		)
+		SELECT COALESCE(json_agg(x ORDER BY x.current DESC, x.rounds DESC), '[]'::json) FROM (
 		    SELECT p.player_id, p.nickname,
 		           count(*) AS rounds,
 		           count(DISTINCT s.match_id) AS matches,
@@ -547,7 +553,9 @@ func (s *server) teamSummary(w http.ResponseWriter, r *http.Request) {
 		           COALESCE(sum(s.kills), 0) AS kills,
 		           COALESCE(sum(s.deaths), 0) AS deaths,
 		           COALESCE(sum(s.flash_assists), 0) AS flash_assists,
-		           round(100.0 * count(*) FILTER (WHERE s.survived) / count(*), 0) AS survival_pct
+		           round(100.0 * count(*) FILTER (WHERE s.survived) / count(*), 0) AS survival_pct,
+		           bool_or(s.match_id = (SELECT match_id FROM last_m)) AS current,
+		           max(m.played_at)::date AS last_played
 		    FROM player_round_states s
 		    JOIN rounds r ON (r.match_id, r.round_number) = (s.match_id, s.round_number)
 		    JOIN matches m ON m.match_id = s.match_id AND m.status = 'ready'

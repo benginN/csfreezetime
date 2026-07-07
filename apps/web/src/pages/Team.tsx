@@ -83,7 +83,7 @@ export default function Team() {
         ))}
       </div>
 
-      <h2>Players <span className="meta">— rounds played for this team{since ? ` since ${since}` : ''}; click a name for the full player page</span></h2>
+      <h2>Players <span className="meta">— everyone who played rounds for this team{since ? ` since ${since}` : ''}; the current five (from the most recent match) sit on top, former players are dimmed</span></h2>
       <div style={{ overflowX: 'auto' }}>
         <table>
           <thead>
@@ -95,8 +95,15 @@ export default function Team() {
           </thead>
           <tbody>
             {(d.players ?? []).map((p) => (
-              <tr key={p.player_id}>
-                <td><Link to={`/player/${p.player_id}`}>👤 {p.nickname}</Link></td>
+              <tr key={p.player_id} style={p.current ? undefined : { opacity: 0.55 }}>
+                <td>
+                  <Link to={`/player/${p.player_id}`}>👤 {p.nickname}</Link>{' '}
+                  {!p.current && (
+                    <span className="badge gray" title={`not in the most recent lineup — last played ${p.last_played ?? '?'}`}>
+                      former · {p.last_played ?? '?'}
+                    </span>
+                  )}
+                </td>
                 <td>{p.matches}</td>
                 <td>{p.rounds}</td>
                 <td>{p.adr}</td>
