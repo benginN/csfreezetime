@@ -83,6 +83,7 @@ func (s *server) mlAutoRun() {
 			time.Since(lastIngest).Seconds())
 		// --reinstall-package: uv wheel önbelleği kaynak değişimini her zaman
 		// görmüyor; bayat kod koşmasın (bir kez takım verisini bozdu)
+		start := time.Now()
 		cmd := exec.Command("uv", "run", "--no-editable", "--reinstall-package", "ml", "ml-jobs")
 		cmd.Dir = dir
 		out, err := cmd.CombinedOutput()
@@ -91,8 +92,11 @@ func (s *server) mlAutoRun() {
 		} else {
 			log.Printf("ml-auto tamam:\n%s", tailStr(string(out), 400))
 		}
+		// damga koşunun BAŞLANGICI: koşu sürerken ingest edilen maçlar
+		// (ör. uzun koşu + eşzamanlı backfill) bir sonraki turu hak eder;
+		// bitiş damgası onları süresiz görünmez bırakıyordu
 		mlMu.Lock()
-		lastMLRun = time.Now()
+		lastMLRun = start
 		mlMu.Unlock()
 	}
 }
