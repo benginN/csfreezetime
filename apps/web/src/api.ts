@@ -523,6 +523,12 @@ export const api = {
       none_share: number; lift_a: number; lift_b: number }[];
       rounds: number; base_a: number; base_b: number }>(
       `/api/v1/teams/${id}/control?map=${encodeURIComponent(map)}&since=${since}&roster_min=${roster}`),
+  scenario: (p: URLSearchParams) =>
+    get<{ n: number; reps: { match_id: string; round_number: number }[];
+      rows: { cluster_id: number; label: string | null;
+        top_places: { place: string; weight: number }[];
+        n: number; share: number; base_share: number; lift: number }[] }>(
+      '/api/v1/scenario?' + p),
   patterns: (p: URLSearchParams) =>
     get<{ nades: PatternNade[]; truncated: boolean }>('/api/v1/patterns?' + p),
   matches: (teamId?: string, since = '', roster = 0) =>

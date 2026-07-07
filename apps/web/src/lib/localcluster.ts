@@ -238,7 +238,7 @@ export async function localClusters(
       for (let p = 0; p < P; p++) avg[p] += center[w * P + p] / WINDOWS;
     }
     return [...avg.keys()].sort((a, b) => avg[b] - avg[a]).slice(0, 3)
-      .filter((i) => avg[i] > 0.02).map((i) => places[i]).join(' → ') || `cluster ${c}`;
+      .filter((i) => avg[i] > 0.02).map((i) => places[i]).join(' + ') || `cluster ${c}`;
   };
 
   // eğilimler: benim rauntlarım vs lokal lig payı (büzülme k=20)

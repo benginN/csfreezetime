@@ -5,6 +5,7 @@ import { useRoster, useWindow, WindowPicker } from '../lib/window';
 import { api, type ReportResp, type RoundTendencyRow, type StackResp } from '../api';
 import { drawMapBase, hidpiCtx, loadMapBase, RADAR, type MapBase } from '../lib/mapbase';
 import { paintHeat } from '../lib/heatpaint';
+import { mixLabel, mixTitle } from '../lib/rounds';
 import { MlMark } from '../lib/MlMark';
 
 // Rakip Hazırlık Raporu (Faz 5): koçun maç öncesi tek sayfası.
@@ -184,7 +185,7 @@ export default function Report() {
                 <tr key={i}>
                   <td><span className={`badge ${c.side}`}>{c.side}</span></td>
                   <td>{c.buy_type}</td>
-                  <td>{c.label ?? c.top_places.slice(0, 3).map((p) => p.place).join(' → ')}</td>
+                  <td title={mixTitle(c.top_places)}>{c.label ?? mixLabel(c.top_places)}</td>
                   <td>{Math.round(100 * c.prob)}%</td>
                   <td className="meta">{c.sample_size}</td>
                 </tr>
@@ -206,7 +207,7 @@ export default function Report() {
                   if (!rows2.length) return null;
                   const [first, second] = rows2;
                   const nm = (x: RoundTendencyRow) =>
-                    x.label ?? x.top_places.slice(0, 3).map((p2) => p2.place).join(' → ');
+                    x.label ?? mixLabel(x.top_places);
                   return (
                     <tr key={side + rc} style={first.total < 10 ? { opacity: 0.5 } : undefined}>
                       <td>{rc}</td>
@@ -434,7 +435,7 @@ function NamableBar({
   const qc = useQueryClient();
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState('');
-  const label = t.label ?? t.top_places.slice(0, 3).map((p) => p.place).join(' → ');
+  const label = t.label ?? mixLabel(t.top_places);
 
   async function save() {
     await api.renameCluster(mapName, side, t.cluster_id, draft.trim());
@@ -485,14 +486,14 @@ function NamableBar({
   );
 }
 
-function Bar({ prob, label }: { prob: number; label: string }) {
+function Bar({ prob, label, title }: { prob: number; label: string; title?: string }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4 }}>
       <div style={{ flex: '0 0 42px', fontVariantNumeric: 'tabular-nums' }}>{Math.round(100 * prob)}%</div>
       <div style={{ flex: 1, background: '#232a26', borderRadius: 3, height: 9 }}>
         <div style={{ width: `${100 * prob}%`, height: '100%', background: '#4c8f52', borderRadius: 3 }} />
       </div>
-      <div className="meta" style={{ flex: '0 0 55%' }}>{label}</div>
+      <div className="meta" style={{ flex: '0 0 55%' }} title={title}>{label}</div>
     </div>
   );
 }
@@ -778,7 +779,7 @@ function PredictionSection({ teamId, mapName }: { teamId: string; mapName: strin
                   <div style={{ width: `${100 * c.prob}%`, height: '100%', background: '#4c8f52', borderRadius: 3 }} />
                 </div>
                 <div className="meta" style={{ flex: '0 0 55%' }}>
-                  {c.label ?? c.top_places.slice(0, 3).map((p) => p.place).join(' → ')}
+                  <span title={mixTitle(c.top_places)}>{c.label ?? mixLabel(c.top_places)}</span>
                 </div>
               </div>
             ))}

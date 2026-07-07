@@ -2,7 +2,7 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { api, type SearchResult, type Tendency } from '../api';
 import { useMemo, useRef, useState } from 'react';
-import { teamHue, teamInitials } from '../lib/rounds';
+import { mixLabel, mixTitle, teamHue, teamInitials } from '../lib/rounds';
 
 export default function Home() {
   const [params] = useSearchParams();
@@ -209,7 +209,7 @@ function TeamPanels({ teamId, name }: { teamId: string; name: string }) {
         </div>
         {(predict.data?.clusters ?? []).slice(0, 4).map((c) => (
           <Bar key={c.cluster_id} prob={c.prob}
-            label={c.label ?? c.top_places.slice(0, 3).map((p) => p.place).join(' → ')} />
+            label={c.label ?? mixLabel(c.top_places)} title={mixTitle(c.top_places)} />
         ))}
       </div>
 
@@ -227,7 +227,7 @@ function TeamPanels({ teamId, name }: { teamId: string; name: string }) {
                   <span className="meta">{top[0].sample_size} rounds observed</span>
                   {top.map((r) => (
                     <Bar key={r.cluster_id} prob={r.prob}
-                      label={r.label ?? r.top_places.slice(0, 3).map((p) => p.place).join(' → ')} />
+                      label={r.label ?? mixLabel(r.top_places)} title={mixTitle(r.top_places)} />
                   ))}
                 </div>
               );
@@ -239,14 +239,14 @@ function TeamPanels({ teamId, name }: { teamId: string; name: string }) {
   );
 }
 
-function Bar({ prob, label }: { prob: number; label: string }) {
+function Bar({ prob, label, title }: { prob: number; label: string; title?: string }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4 }}>
       <div style={{ flex: '0 0 42px', fontVariantNumeric: 'tabular-nums' }}>%{Math.round(100 * prob)}</div>
       <div style={{ flex: 1, background: '#232a26', borderRadius: 3, height: 9 }}>
         <div style={{ width: `${100 * prob}%`, height: '100%', background: '#4c8f52', borderRadius: 3 }} />
       </div>
-      <div className="meta" style={{ flex: '0 0 55%' }}>{label}</div>
+      <div className="meta" style={{ flex: '0 0 55%' }} title={title}>{label}</div>
     </div>
   );
 }

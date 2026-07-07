@@ -15,6 +15,7 @@ import MyDb from './pages/MyDb';
 import Analyze from './pages/Analyze';
 import Insights from './pages/Insights';
 import Patterns from './pages/Patterns';
+import Scenarios from './pages/Scenarios';
 import LocalReportPage from './pages/LocalReport';
 
 // ?admin=TOKEN ile bir kez tanıtılır; sonrasında admin panelleri görünür
@@ -42,6 +43,7 @@ export default function App() {
         <a href="/analyze" style={{ whiteSpace: 'nowrap' }}>⚡ Analyze</a>
         <a href="/insights" style={{ whiteSpace: 'nowrap' }}>🧠 ML Lab</a>
         <a href="/patterns" style={{ whiteSpace: 'nowrap' }}>🧭 Patterns</a>
+        <a href="/scenarios" style={{ whiteSpace: 'nowrap' }}>🔬 Scenarios</a>
         <a href="/mydb" style={{ whiteSpace: 'nowrap' }}>🗄 Create DB</a>
         {localStorage.getItem('tm_admin') && (
           <a href="/upload" style={{ whiteSpace: 'nowrap' }}>⬆ Upload</a>
@@ -66,6 +68,7 @@ export default function App() {
           <Route path="/analyze" element={<Analyze />} />
           <Route path="/insights" element={<Insights />} />
           <Route path="/patterns" element={<Patterns />} />
+          <Route path="/scenarios" element={<Scenarios />} />
           <Route path="/mydb" element={<MyDb />} />
           <Route path="/mydb/report" element={<LocalReportPage />} />
         </Routes>

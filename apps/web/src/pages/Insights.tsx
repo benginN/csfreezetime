@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../api';
+import { mixLabel, mixTitle } from '../lib/rounds';
 
 // ML Lab: modellerin ne bildiğini, ne kadar iyi bildiğini ve nasıl
 // sınandığını TEK sayfada gösterir. Beş panel:
@@ -133,7 +134,7 @@ export default function Insights() {
             </div>
             {(predict.data.clusters ?? []).slice(0, 6).map((c) => (
               <Bar key={c.cluster_id} prob={c.prob}
-                label={c.label ?? c.top_places.slice(0, 3).map((p) => p.place).join(' → ')} />
+                label={c.label ?? mixLabel(c.top_places)} title={mixTitle(c.top_places)} />
             ))}
           </>
         )}
@@ -312,7 +313,7 @@ export default function Insights() {
                 <span className="meta">{c.size} rounds</span>
               </div>
               <div className="meta" style={{ marginTop: 6 }}>
-                {c.top_places.slice(0, 4).map((p) => p.place).join(' → ') || 'no dominant route'}
+                <span title={mixTitle(c.top_places)}>{mixLabel(c.top_places, 4)}</span>
               </div>
               {(c.representatives ?? []).slice(0, 2).map((r2) => (
                 <div key={r2.match_id + r2.round_number} style={{ marginTop: 4 }}>
@@ -330,14 +331,14 @@ export default function Insights() {
   );
 }
 
-function Bar({ prob, label }: { prob: number; label: string }) {
+function Bar({ prob, label, title }: { prob: number; label: string; title?: string }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4 }}>
       <div style={{ flex: '0 0 42px', fontVariantNumeric: 'tabular-nums' }}>%{Math.round(100 * prob)}</div>
       <div style={{ flex: 1, background: '#232a26', borderRadius: 3, height: 9 }}>
         <div style={{ width: `${100 * prob}%`, height: '100%', background: '#4c8f52', borderRadius: 3 }} />
       </div>
-      <div className="meta" style={{ flex: '0 0 55%' }}>{label}</div>
+      <div className="meta" style={{ flex: '0 0 55%' }} title={title}>{label}</div>
     </div>
   );
 }

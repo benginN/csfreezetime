@@ -89,6 +89,7 @@ func main() {
 	r.Get("/api/v1/players/{id}/flags", srv.playerFlags)
 	r.Get("/api/v1/predict", srv.predictHandler)
 	r.Get("/api/v1/patterns", srv.patterns)
+	r.Get("/api/v1/scenario", srv.scenario)
 	r.Get("/api/v1/clusters", srv.clusters)
 	r.Patch("/api/v1/clusters/{map}/{side}/{id}", srv.renameCluster)
 	r.Get("/api/v1/matches", srv.matches)

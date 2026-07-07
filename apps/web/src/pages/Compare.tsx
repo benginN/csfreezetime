@@ -5,7 +5,7 @@ import { useRoster, useWindow, WindowPicker } from '../lib/window';
 import { api, type ReportResp } from '../api';
 import { drawMapBase, hidpiCtx, loadMapBase, RADAR, type MapBase } from '../lib/mapbase';
 import { paintHeat } from '../lib/heatpaint';
-import { teamHue, teamInitials } from '../lib/rounds';
+import { mixLabel, mixTitle, teamHue, teamInitials } from '../lib/rounds';
 
 // Takım karşılaştırma: iki rakip raporu yan yana. Maç hazırlığının
 // "biz vs onlar" ekranı — tüm veriler mevcut /report ve /teams/{id}/heatmap
@@ -307,14 +307,14 @@ function BuyMini({ title, dist }: { title: string; dist: Record<string, number> 
   );
 }
 
-function MiniBar({ prob, label }: { prob: number; label: string }) {
+function MiniBar({ prob, label, title }: { prob: number; label: string; title?: string }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4 }}>
       <div style={{ flex: '0 0 42px', fontVariantNumeric: 'tabular-nums' }}>{Math.round(100 * prob)}%</div>
       <div style={{ flex: 1, background: '#232a26', borderRadius: 3, height: 9 }}>
         <div style={{ width: `${100 * prob}%`, height: '100%', background: '#4c8f52', borderRadius: 3 }} />
       </div>
-      <div className="meta" style={{ flex: '0 0 55%' }}>{label}</div>
+      <div className="meta" style={{ flex: '0 0 55%' }} title={title}>{label}</div>
     </div>
   );
 }
@@ -354,8 +354,8 @@ function CalibratedNext({ aId, bId, aName, bName, mapName }: {
           <div style={{ flex: 1, background: '#232a26', borderRadius: 3, height: 8 }}>
             <div style={{ width: `${100 * c.prob}%`, height: '100%', background: '#4c8f52', borderRadius: 3 }} />
           </div>
-          <div className="meta" style={{ flex: '0 0 50%' }} title={c.top_places.map((p) => p.place).join(' → ')}>
-            {c.label ?? c.top_places.slice(0, 3).map((p) => p.place).join(' → ')}
+          <div className="meta" style={{ flex: '0 0 50%' }} title={c.top_places.map((p) => p.place).join(' + ')}>
+            {c.label ?? mixLabel(c.top_places)}
           </div>
         </div>
       ))}
@@ -394,7 +394,7 @@ function TendCard({ rep, side }: { rep: ReportResp; side: 'T' | 'CT' }) {
       </div>
       {rows.map((t) => (
         <MiniBar key={t.cluster_id} prob={t.prob}
-          label={t.label ?? t.top_places.slice(0, 3).map((p) => p.place).join(' → ')} />
+          label={t.label ?? mixLabel(t.top_places)} title={mixTitle(t.top_places)} />
       ))}
       {!rows.length && <p className="meta">no data</p>}
     </div>

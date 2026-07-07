@@ -83,3 +83,21 @@ export function chipTitle(
   }
   return bits.join(' · ');
 }
+
+
+// Küme etiketi: bölge KARIŞIMI — oyuncular bu bölgelere DAĞILIR, tek sıra
+// rota değildir. '→' bu yüzden terk edildi (kullanıcı geri bildirimi:
+// "sanki bütün takım aynı şeyi yapıyor"). Tooltip yüzdeleri merkez
+// profilinden gelir ve gösterilenler arasında normalize edilir.
+export function mixLabel(
+  tp: { place: string; weight: number }[] | undefined,
+  k = 3,
+): string {
+  return (tp ?? []).slice(0, k).map((p) => p.place).join(' + ') || 'no dominant areas';
+}
+export function mixTitle(tp: { place: string; weight: number }[] | undefined): string {
+  const list = tp ?? [];
+  const tot = list.reduce((a, p) => a + p.weight, 0) || 1;
+  return 'area mix — players split across these (not a single-file route): '
+    + list.map((p) => `${p.place} ${Math.round((100 * p.weight) / tot)}%`).join(' · ');
+}
