@@ -10,7 +10,7 @@ from __future__ import annotations
 import time
 
 from . import (
-    anomaly, clustering, clutch, db, evaluate, features, flashstats,
+    anomaly, boost, clustering, clutch, db, evaluate, features, flashstats, recency,
     aliases, integrity, roles, rotations, setups, templates, tendencies, tournaments, utility, winprob,
 )
 
@@ -70,11 +70,16 @@ def cli() -> None:
 
     print("— tahmin değerlendirmesi (zamansal, log-loss; düşük iyi) —")
     print(f"  {'harita/taraf':<16} {'lig':>7} {'takım':>7} {'t+buy':>7} "
-          f"{'t+vs':>7} {'t+stil':>7}  kazanan (n_test)")
+          f"{'t+vs':>7} {'t+stil':>7} {'lgbm':>7}  kazanan (n_test)")
     for r in evaluate.run(pgconn):
+        lg = f"{r['lgbm']:>7.3f}" if r["lgbm"] != float("inf") else f"{'—':>7}"
         print(f"  {r['map'] + '/' + r['side']:<16} {r['league']:>7.3f} "
               f"{r['team']:>7.3f} {r['team_buy']:>7.3f} {r['team_vs']:>7.3f} "
-              f"{r['team_style']:>7.3f}  {r['best']} ({r['n_test']})")
+              f"{r['team_style']:>7.3f} {lg}  {r['best']} ({r['n_test']})")
+
+    print("— lgbm sunum tablosu (yalnız kazandığı çiftler) —")
+    nl = boost.write_predictions(pgconn, recency.reference_date(pgconn))
+    print(f"  {nl} lgbm tahmin satırı")
 
     print("— utility istihbaratı —")
     nu = utility.run(pgconn, chc)

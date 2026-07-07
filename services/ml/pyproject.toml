@@ -8,6 +8,7 @@ dependencies = [
     "scikit-learn>=1.5",
     "psycopg[binary]>=3.2",
     "clickhouse-connect>=0.8",
+    "lightgbm>=4.6.0",
 ]
 
 [project.scripts]

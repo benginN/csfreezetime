@@ -11,10 +11,11 @@ from __future__ import annotations
 import math
 from collections import defaultdict
 
-from . import predict, recency
+from . import boost, predict, recency
 
 EPS = 1e-9
 METHODS = ("league", "team", "team_buy", "team_vs", "team_style")
+ALL_METHODS = METHODS + ("lgbm",)  # lgbm ayrı yoldan değerlendirilir
 
 
 def _fetch_rounds(pgconn) -> list[tuple]:
@@ -93,8 +94,11 @@ def run(pgconn) -> list[dict]:
         for map_name, side in pairs:
             te = [r for r in test if r[0] == map_name and r[1] == side]
             losses = {m: _logloss(train, te, m, ref) for m in METHODS}
+            # lgbm kendi eğitim döngüsüyle ama AYNI bölünme ve metrikle yarışır
+            tr_pair = [r for r in train if r[0] == map_name and r[1] == side]
+            losses["lgbm"] = boost.evaluate_pair(tr_pair, te, ref)
             # en iyi: log-loss en düşük; eşitlikte basit olan kazanır
-            best = min(METHODS, key=lambda m: losses[m])
+            best = min(ALL_METHODS, key=lambda m: losses[m])
             results.append({"map": map_name, "side": side, "best": best,
                             "n_test": len(te), **losses})
             cur.execute(
@@ -102,11 +106,12 @@ def run(pgconn) -> list[dict]:
                 INSERT INTO prediction_meta
                     (map_name, side, best_method, logloss_league, logloss_team,
                      logloss_team_buy, logloss_team_vs, logloss_team_style,
-                     test_rounds)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                     logloss_lgbm, test_rounds)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 """,
                 (map_name, side, best, losses["league"], losses["team"],
                  losses["team_buy"], losses["team_vs"], losses["team_style"],
+                 None if losses["lgbm"] == float("inf") else losses["lgbm"],
                  len(te)),
             )
     pgconn.commit()

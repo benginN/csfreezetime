@@ -233,6 +233,24 @@ CREATE TABLE IF NOT EXISTS prediction_meta (
 -- B1 rakip-özel kalibrasyon yöntemleri (2026-07-06)
 ALTER TABLE prediction_meta ADD COLUMN IF NOT EXISTS logloss_team_vs    REAL;
 ALTER TABLE prediction_meta ADD COLUMN IF NOT EXISTS logloss_team_style REAL;
+-- LightGBM v2 adayı (2026-07-07, Faz D): yöntem yarışına lgbm sütunu +
+-- kazandığı çiftlerde özellik önemleri (ML Lab şeffaflık paneli)
+ALTER TABLE prediction_meta ADD COLUMN IF NOT EXISTS logloss_lgbm    REAL;
+ALTER TABLE prediction_meta ADD COLUMN IF NOT EXISTS lgbm_importance JSONB;
+
+-- LightGBM sunum tablosu: yalnız modelin zamansal sınavı KAZANDIĞI
+-- (harita, taraf) çiftleri doldurulur; API best_method='lgbm' ise buradan
+-- servis eder, yoksa büzülme zincirine düşer (ml/boost.py).
+CREATE TABLE IF NOT EXISTS lgbm_predictions (
+    team_id    UUID NOT NULL,
+    map_name   TEXT NOT NULL,
+    side       TEXT NOT NULL,
+    buy_type   TEXT NOT NULL,
+    cluster_id INT  NOT NULL,
+    prob       REAL NOT NULL,
+    n_eff      REAL NOT NULL,
+    PRIMARY KEY (team_id, map_name, side, buy_type, cluster_id)
+);
 
 -- Rakip-kalibre eğilim sunum tablosu (evaluate.write_vs):
 -- kind='vs'    → yalnız head-to-head rauntlardan (h2h_rounds ≥ 6)

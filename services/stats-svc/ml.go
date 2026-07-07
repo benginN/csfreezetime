@@ -156,7 +156,7 @@ func (s *server) predictHandler(w http.ResponseWriter, r *http.Request) {
 		best = "league" // değerlendirme yoksa en temkinli yöntem
 	}
 	method := best
-	if method == "team_buy" && buy == "" {
+	if (method == "team_buy" || method == "lgbm") && buy == "" {
 		method = "team" // buy bilinmiyorsa bir seviye genele düş
 	}
 	// rakip-kalibre yöntemler (B1): opp_id verilmişse ve satır varsa;
@@ -224,6 +224,20 @@ func (s *server) predictHandler(w http.ResponseWriter, r *http.Request) {
 			method = "team" // bu rakip için kalibre satır yok
 		}
 	}
+	// lgbm yalnız zamansal sınavı kazandığı çiftlerde tablo doldurur;
+	// satır yoksa dürüstçe team_buy'a düşülür
+	if method == "lgbm" {
+		err = scan(`
+			SELECT lp.cluster_id, sc.label, sc.top_places, lp.prob, round(lp.n_eff)::int
+			FROM lgbm_predictions lp
+			LEFT JOIN strategy_clusters sc ON sc.map_name = lp.map_name
+			     AND sc.side = lp.side AND sc.cluster_id = lp.cluster_id
+			WHERE lp.team_id = $1 AND lp.map_name = $2 AND lp.side = $3 AND lp.buy_type = $4
+			ORDER BY lp.prob DESC`, teamID, mapName, side, buy)
+		if err == nil && len(clusters) == 0 {
+			method = "team_buy"
+		}
+	}
 	switch method {
 	case "team_buy":
 		err = scan(`
@@ -265,6 +279,8 @@ func (s *server) predictHandler(w http.ResponseWriter, r *http.Request) {
 
 	note := "league-wide distribution (team data didn't beat the baseline)"
 	switch method {
+	case "lgbm":
+		note = fmt.Sprintf("gradient-boosted model (LightGBM), trained on ~%d weighted rounds — won the temporal test for this map/side", sampleSize)
 	case "team_vs":
 		note = fmt.Sprintf("%d head-to-head rounds vs this opponent — opponent-calibrated", sampleSize)
 	case "team_style":
@@ -332,20 +348,23 @@ func (s *server) playerFlags(w http.ResponseWriter, r *http.Request) {
 func (s *server) mlStatus(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	type metaRow struct {
-		Map        string   `json:"map_name"`
-		Side       string   `json:"side"`
-		Best       string   `json:"best_method"`
-		League     *float32 `json:"logloss_league"`
-		Team       *float32 `json:"logloss_team"`
-		TeamBuy    *float32 `json:"logloss_team_buy"`
-		TeamVs     *float32 `json:"logloss_team_vs"`
-		TeamStyle  *float32 `json:"logloss_team_style"`
-		TestRounds *int     `json:"test_rounds"`
+		Map        string          `json:"map_name"`
+		Side       string          `json:"side"`
+		Best       string          `json:"best_method"`
+		League     *float32        `json:"logloss_league"`
+		Team       *float32        `json:"logloss_team"`
+		TeamBuy    *float32        `json:"logloss_team_buy"`
+		TeamVs     *float32        `json:"logloss_team_vs"`
+		TeamStyle  *float32        `json:"logloss_team_style"`
+		Lgbm       *float32        `json:"logloss_lgbm"`
+		Importance json.RawMessage `json:"lgbm_importance,omitempty"`
+		TestRounds *int            `json:"test_rounds"`
 	}
 	meta := []metaRow{}
 	rows, err := s.pg.Query(ctx, `
 		SELECT map_name, side, best_method, logloss_league, logloss_team,
-		       logloss_team_buy, logloss_team_vs, logloss_team_style, test_rounds
+		       logloss_team_buy, logloss_team_vs, logloss_team_style,
+		       logloss_lgbm, lgbm_importance, test_rounds
 		FROM prediction_meta ORDER BY map_name, side`)
 	if err != nil {
 		writeErr(w, 500, err)
@@ -354,8 +373,12 @@ func (s *server) mlStatus(w http.ResponseWriter, r *http.Request) {
 	defer rows.Close()
 	for rows.Next() {
 		var m metaRow
+		var imp *[]byte
 		if rows.Scan(&m.Map, &m.Side, &m.Best, &m.League, &m.Team,
-			&m.TeamBuy, &m.TeamVs, &m.TeamStyle, &m.TestRounds) == nil {
+			&m.TeamBuy, &m.TeamVs, &m.TeamStyle, &m.Lgbm, &imp, &m.TestRounds) == nil {
+			if imp != nil {
+				m.Importance = json.RawMessage(*imp)
+			}
 			meta = append(meta, m)
 		}
 	}
