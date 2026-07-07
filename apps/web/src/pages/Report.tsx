@@ -95,6 +95,22 @@ export default function Report() {
           v={ov.conv_after_pistol_win_n ? `${Math.round(100 * ov.conv_after_pistol_win)}%` : '—'}
           n={`n=${ov.conv_after_pistol_win_n}`}
         />
+        {d.playbook && d.playbook.rush_total > 0 && (
+          <Stat
+            label="Rush rate (T)"
+            title="share of T rounds with first contact (first kill or plant) within 22s — 0% means you can save your utility early"
+            v={`${Math.round(100 * d.playbook.rush_n / d.playbook.rush_total)}%`}
+            n={`${d.playbook.rush_n}/${d.playbook.rush_total} rounds`}
+          />
+        )}
+        {d.playbook && d.playbook.t_rounds_all > 0 && (
+          <Stat
+            label="Set strats (T)"
+            title="share of T rounds opened with a rehearsed utility combination (an execute template repeated 3+ times) — the rest is defaults and mid-round calls · full archive"
+            v={`${Math.round(100 * d.playbook.setstrat_rounds / d.playbook.t_rounds_all)}%`}
+            n={`${d.playbook.setstrat_rounds}/${d.playbook.t_rounds_all} T rounds`}
+          />
+        )}
       </div>
 
       {/* 2 — Economy */}
@@ -211,6 +227,9 @@ export default function Report() {
 
       {/* 3b — Sonraki raunt tahmini (ML Lab'in kalibre dağılımı, raporda) */}
       <PredictionSection teamId={teamId} mapName={mapName} />
+
+      {/* 3c — Harita kontrolü → sonuç */}
+      <ControlSection teamId={teamId} mapName={mapName} since={since} roster={roster} />
 
       {/* 4 — Setups */}
       <h2>Default setups <MlMark note="Setup patterns are mined automatically from player positions 15s into every round; shown positions come from a real example round." /> <span className="meta">(positions 15 s into the round)</span>{d.archive_wide && <span className="meta"> · full archive (window n/a)</span>}</h2>
@@ -478,6 +497,31 @@ function SetupCard({ d, side, mapName }: { d: ReportResp; side: 'T' | 'CT'; mapN
   useEffect(() => { loadMapBase(mapName).then(setBase); }, [mapName]);
 
   const cur = setups[Math.min(sel, setups.length - 1)];
+  // site notasyonu (3A–2B): desen bölgeleri iki bombsite'a geometrik yakınlıkla
+  // sınıflanır; arada kalanlar Mid sayılır. Yalnız CT için anlamlı.
+  const siteTag = (() => {
+    if (!base || !cur || side !== 'CT') return '';
+    const P = base.layout.places;
+    const A = P.find((p2) => p2.name.toLowerCase().includes('bombsitea'))
+      ?? P.find((p2) => p2.name.toLowerCase() === 'a');
+    const B = P.find((p2) => p2.name.toLowerCase().includes('bombsiteb'))
+      ?? P.find((p2) => p2.name.toLowerCase() === 'b');
+    if (!A || !B) return '';
+    let a = 0, b = 0, mid = 0;
+    for (const pp of cur.pattern) {
+      const pl = P.find((p2) => p2.name === pp.place);
+      if (!pl) continue;
+      const da = Math.hypot(pl.rx - A.rx, pl.ry - A.ry);
+      const db = Math.hypot(pl.rx - B.rx, pl.ry - B.ry);
+      const ratio = da / Math.max(db, 1);
+      if (ratio < 0.75) a += pp.n; else if (ratio > 1.33) b += pp.n; else mid += pp.n;
+    }
+    const parts = [] as string[];
+    if (a) parts.push(`${a}A`);
+    if (mid) parts.push(`${mid}Mid`);
+    if (b) parts.push(`${b}B`);
+    return parts.join('–');
+  })();
   const rep = cur?.representatives[0];
   const repTicks = useQuery({
     queryKey: ['setupticks', rep?.match_id, rep?.round_number],
@@ -538,7 +582,15 @@ function SetupCard({ d, side, mapName }: { d: ReportResp; side: 'T' | 'CT'; mapN
   return (
     <div className="card">
       <div className="teams">
-        <span><span className={`badge ${side}`}>{side}</span> setups</span>
+        <span>
+          <span className={`badge ${side}`}>{side}</span> setups
+          {siteTag && (
+            <span className="badge gray" style={{ marginLeft: 6 }}
+              title="players split by geometric closeness to each bombsite (Mid = in between)">
+              {siteTag}
+            </span>
+          )}
+        </span>
         <span className="meta">{cur.sample_size} rounds</span>
       </div>
       <div className="toolbar" style={{ margin: '6px 0' }}>
@@ -587,6 +639,55 @@ function SetupCard({ d, side, mapName }: { d: ReportResp; side: 'T' | 'CT'; mapN
 const UTIL_CSS: Record<string, string> = {
   smoke: '#b4b9be', molotov: '#eb781e', flash: '#ffffff', he: '#ff8c3c',
 };
+
+// Harita kontrolü → raunt sonucu: "şu bölgeye girdiler → raunt nerede
+// bitiyor" korelasyonu, takımın kendi ortalamasına göre kat (lift) ile.
+function ControlSection({ teamId, mapName, since, roster }: {
+  teamId: string; mapName: string; since: string; roster: number;
+}) {
+  const q = useQuery({
+    queryKey: ['control', teamId, mapName, since, roster],
+    queryFn: () => api.teamControl(teamId, mapName, since, roster),
+    enabled: !!mapName,
+  });
+  const rows = q.data?.rows ?? [];
+  if (!rows.length) return null;
+  const strong = rows.filter((r) => Math.max(Math.abs(r.lift_a - 1), Math.abs(r.lift_b - 1)) >= 0.35);
+  if (!strong.length) return null;
+  return (
+    <>
+      <h2>
+        Map control → outcome{' '}
+        <span className="meta">— when they take an area, where does the round end?</span>
+      </h2>
+      <p className="meta" style={{ maxWidth: 720 }}>
+        Reads T rounds where 2+ players entered an area between 0:12–0:35, then
+        looks at which bombsite the round ended on. <b>×N</b> = compared to this
+        team&apos;s own average site split ({Math.round(100 * (q.data?.base_a ?? 0))}% A /
+        {' '}{Math.round(100 * (q.data?.base_b ?? 0))}% B) — “they took X, expect B”
+        in one line. Straight counting, no model; n is shown for every row.
+      </p>
+      <table className="cond">
+        <thead><tr><th>Area taken</th><th>→ A</th><th>→ B</th><th>no plant</th><th className="meta">n</th></tr></thead>
+        <tbody>
+          {strong.slice(0, 8).map((r) => (
+            <tr key={r.place}>
+              <td>{r.place}</td>
+              <td style={r.lift_a >= 1.35 ? { color: '#8fd39a', fontWeight: 700 } : undefined}>
+                {Math.round(100 * r.a_share)}%{r.lift_a >= 1.35 ? ` (×${r.lift_a.toFixed(1)})` : ''}
+              </td>
+              <td style={r.lift_b >= 1.35 ? { color: '#8fd39a', fontWeight: 700 } : undefined}>
+                {Math.round(100 * r.b_share)}%{r.lift_b >= 1.35 ? ` (×${r.lift_b.toFixed(1)})` : ''}
+              </td>
+              <td className="meta">{Math.round(100 * r.none_share)}%</td>
+              <td className="meta">{r.n}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </>
+  );
+}
 
 // Sonraki raunt tahmini: /predict'in kalibre dağılımı rapor bağlamında.
 // ML Lab'deki laboratuvarın rapora gömülü hâli — yöntem + kanıt notu aynen

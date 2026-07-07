@@ -319,6 +319,7 @@ export interface ReportResp {
   };
   tendencies: (Tendency & { side: 'T' | 'CT' })[];
   round_tendencies: RoundTendencyRow[];
+  playbook?: { rush_n: number; rush_total: number; setstrat_rounds: number; t_rounds_all: number };
   conditional: {
     side: 'T' | 'CT'; buy_type: string; cluster_id: number;
     label: string | null; top_places: { place: string; weight: number }[];
@@ -513,6 +514,11 @@ export const api = {
       body: JSON.stringify({ label }),
     }).then((r) => r.json()),
   predict: (p: URLSearchParams) => get<Prediction>('/api/v1/predict?' + p),
+  teamControl: (id: string, map: string, since = '', roster = 0) =>
+    get<{ rows: { place: string; n: number; a_share: number; b_share: number;
+      none_share: number; lift_a: number; lift_b: number }[];
+      rounds: number; base_a: number; base_b: number }>(
+      `/api/v1/teams/${id}/control?map=${encodeURIComponent(map)}&since=${since}&roster_min=${roster}`),
   patterns: (p: URLSearchParams) =>
     get<{ nades: PatternNade[]; truncated: boolean }>('/api/v1/patterns?' + p),
   matches: (teamId?: string, since = '', roster = 0) =>

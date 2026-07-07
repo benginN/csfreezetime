@@ -165,6 +165,38 @@ func (s *server) report(w http.ResponseWriter, r *http.Request) {
 		out["insufficient"] = true
 	}
 
+	// ---- playbook metrikleri (Skybox Playbook dengi) ----
+	// rush oranı: T raundunda ilk temas (ilk kill YA DA plant) ≤22 sn
+	var rushN, rushTot int
+	_ = s.pg.QueryRow(ctx, `
+		WITH tr AS (
+		    SELECT LEAST(
+		        COALESCE((SELECT min(k.round_time) FROM kills k
+		                  WHERE (k.match_id, k.round_number) = (r.match_id, r.round_number)), 999),
+		        COALESCE(CASE WHEN r.bomb_plant_tick IS NOT NULL AND r.freeze_end_tick IS NOT NULL
+		                 THEN (r.bomb_plant_tick - r.freeze_end_tick) / 64.0 END, 999)
+		    ) AS first_contact
+		    FROM rounds r JOIN matches m ON m.match_id = r.match_id AND m.status = 'ready'
+		    WHERE m.map_name = $2 AND r.t_team_id = $1
+		      AND ($3::text[] IS NULL OR m.match_id::text = ANY($3::text[]))
+		)
+		SELECT count(*) FILTER (WHERE first_contact <= 22), count(*) FROM tr`,
+		teamID, mapName, elig).Scan(&rushN, &rushTot)
+	// set-strat payı: prova edilmiş utility setiyle (execute template, ≥3
+	// tekrar) açılan T raundu oranı — kalanı default/mid-round (arşiv geneli)
+	var tplRounds, tRoundsAll int
+	_ = s.pg.QueryRow(ctx, `
+		SELECT COALESCE(sum(n), 0) FROM team_exec_templates
+		WHERE team_id = $1 AND map_name = $2`, teamID, mapName).Scan(&tplRounds)
+	_ = s.pg.QueryRow(ctx, `
+		SELECT count(*) FROM rounds r
+		JOIN matches m ON m.match_id = r.match_id AND m.status = 'ready'
+		WHERE m.map_name = $2 AND r.t_team_id = $1`, teamID, mapName).Scan(&tRoundsAll)
+	out["playbook"] = map[string]any{
+		"rush_n": rushN, "rush_total": rushTot,
+		"setstrat_rounds": tplRounds, "t_rounds_all": tRoundsAll,
+	}
+
 	// ---- economy: buy dağılımı + pistol kaybı sonrası tepki ----
 	type buyRow struct {
 		Side string         `json:"side"`
