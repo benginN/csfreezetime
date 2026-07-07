@@ -77,12 +77,17 @@ func (s *server) matchDetail(w http.ResponseWriter, r *http.Request) {
 		CTCluster     *int16     `json:"ct_cluster"`
 		TTeamID       *uuid.UUID `json:"t_team_id"`
 		CTTeamID      *uuid.UUID `json:"ct_team_id"`
+		MaxTProb      *float32   `json:"max_t_prob"`  // winprob zirvesi (thrown tespiti)
+		MaxCTProb     *float32   `json:"max_ct_prob"`
 	}
 	rows, err := s.pg.Query(ctx, `
-		SELECT round_number, start_tick, freeze_end_tick, end_tick, winner_side,
-		       end_reason, bomb_site, bomb_plant_tick, t_buy_type, ct_buy_type,
-		       t_strategy_cluster, ct_strategy_cluster, t_team_id, ct_team_id
-		FROM rounds WHERE match_id = $1 ORDER BY round_number`, matchID)
+		SELECT r.round_number, r.start_tick, r.freeze_end_tick, r.end_tick, r.winner_side,
+		       r.end_reason, r.bomb_site, r.bomb_plant_tick, r.t_buy_type, r.ct_buy_type,
+		       r.t_strategy_cluster, r.ct_strategy_cluster, r.t_team_id, r.ct_team_id,
+		       w.max_t_prob, w.max_ct_prob
+		FROM rounds r
+		LEFT JOIN round_winprob w ON (w.match_id, w.round_number) = (r.match_id, r.round_number)
+		WHERE r.match_id = $1 ORDER BY r.round_number`, matchID)
 	if err != nil {
 		writeErr(w, 500, err)
 		return
@@ -92,7 +97,8 @@ func (s *server) matchDetail(w http.ResponseWriter, r *http.Request) {
 		var x roundRow
 		if err := rows.Scan(&x.RoundNumber, &x.StartTick, &x.FreezeEndTick, &x.EndTick,
 			&x.WinnerSide, &x.EndReason, &x.BombSite, &x.BombPlantTick, &x.TBuy, &x.CTBuy,
-			&x.TCluster, &x.CTCluster, &x.TTeamID, &x.CTTeamID); err != nil {
+			&x.TCluster, &x.CTCluster, &x.TTeamID, &x.CTTeamID,
+			&x.MaxTProb, &x.MaxCTProb); err != nil {
 			rows.Close()
 			writeErr(w, 500, err)
 			return

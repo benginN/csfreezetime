@@ -86,6 +86,17 @@ const bombClass = (r: RoundRow): string =>
 
 const hlClass = (r: RoundRow, v: string, aId: string | null): string => {
   if (!v) return '';
+  // strateji vurgusu: "st:<id>" = T kümesi, "sc:<id>" = CT kümesi
+  if (v.startsWith('st:') || v.startsWith('sc:')) {
+    const id = Number(v.slice(3));
+    if (v[1] === 't' && r.t_cluster === id) {
+      return r.t_team_id && r.t_team_id === aId ? ' hlA' : ' hlB';
+    }
+    if (v[1] === 'c' && r.ct_cluster === id) {
+      return r.ct_team_id && r.ct_team_id === aId ? ' hlA' : ' hlB';
+    }
+    return '';
+  }
   let cls = '';
   if (r.t_buy_type === v) cls += r.t_team_id && r.t_team_id === aId ? ' hlA' : ' hlB';
   if (r.ct_buy_type === v) cls += r.ct_team_id && r.ct_team_id === aId ? ' hlA' : ' hlB';
@@ -118,6 +129,32 @@ export default function ReplayView({
   useEffect(() => {
     if (ticksQ.data) loadMapBase(ticksQ.data.map_name).then(setBase);
   }, [ticksQ.data]);
+
+  // ML strateji etiketleri: raunt çip tooltip'leri + strateji highlight'ı.
+  // Yalnız bu maçta gerçekten görülen kümeler seçenek olur.
+  const mapNm = ticksQ.data?.map_name ?? '';
+  const clT = useQuery({
+    queryKey: ['clusters', mapNm, 'T'],
+    queryFn: () => api.clusters(mapNm, 'T'),
+    enabled: !!mapNm && !localMode,
+  });
+  const clCT = useQuery({
+    queryKey: ['clusters', mapNm, 'CT'],
+    queryFn: () => api.clusters(mapNm, 'CT'),
+    enabled: !!mapNm && !localMode,
+  });
+  const stratNames = useMemo(() => {
+    const nameOf = (c: { label: string | null; top_places: { place: string }[] }) =>
+      c.label ?? c.top_places.slice(0, 2).map((pp) => pp.place).join('→');
+    const seenT = new Set(rounds.map((r) => r.t_cluster).filter((x) => x != null));
+    const seenCT = new Set(rounds.map((r) => r.ct_cluster).filter((x) => x != null));
+    return {
+      t: new Map((clT.data ?? []).filter((c) => seenT.has(c.cluster_id))
+        .map((c) => [c.cluster_id, nameOf(c)])),
+      ct: new Map((clCT.data ?? []).filter((c) => seenCT.has(c.cluster_id))
+        .map((c) => [c.cluster_id, nameOf(c)])),
+    };
+  }, [clT.data, clCT.data, rounds]);
 
   const [playing, setPlaying] = useState(false);
   const [speed, setSpeed] = useState(2);
@@ -1633,6 +1670,12 @@ export default function ReplayView({
                 {['pistol', 'eco', 'force', 'semi', 'full'].map((b) => (
                   <option key={b} value={b}>{b}</option>
                 ))}
+                {[...stratNames.t.entries()].map(([id, nm]) => (
+                  <option key={'st' + id} value={'st:' + id}>T strat: {nm}</option>
+                ))}
+                {[...stratNames.ct.entries()].map(([id, nm]) => (
+                  <option key={'sc' + id} value={'sc:' + id}>CT setup: {nm}</option>
+                ))}
               </select>
             </span>
           </div>
@@ -1678,7 +1721,7 @@ export default function ReplayView({
                   <button
                     className={`${winnerTeamClass(r, teams.aId)} win${r.winner_side ?? ''} ${r.round_number === round ? 'sel' : ''} ${hlClass(r, hlReplay, teams.aId)}${bombClass(r)}`}
                     onClick={() => onRound(r.round_number)}
-                    title={chipTitle(r, teams)}
+                    title={chipTitle(r, teams, stratNames)}
                   >
                     {r.round_number + roundOffset}
                   </button>
@@ -1757,7 +1800,7 @@ export default function ReplayView({
                     {dividers.has(i) && <span className="halfdiv" title="side swap / OT half" />}
                     <button
                       className={`${winnerTeamClass(r, teams.aId)} win${r.winner_side ?? ''} ${heatRounds.has(r.round_number) ? 'sel' : ''} ${hlClass(r, hlHeat, teams.aId)}${bombClass(r)}`}
-                      title={chipTitle(r, teams)}
+                      title={chipTitle(r, teams, stratNames)}
                       onClick={() => {
                         const s = new Set(heatRounds);
                         if (s.has(r.round_number)) s.delete(r.round_number);
@@ -1861,7 +1904,7 @@ export default function ReplayView({
                     {dividers.has(i) && <span className="halfdiv" title="side swap / OT half" />}
                     <button
                       className={`${winnerTeamClass(r, teams.aId)} win${r.winner_side ?? ''} ${ghostRounds.has(r.round_number) ? 'sel' : ''} ${hlClass(r, hlGhost, teams.aId)}${bombClass(r)}`}
-                      title={chipTitle(r, teams)}
+                      title={chipTitle(r, teams, stratNames)}
                       onClick={() => {
                         const s = new Set(ghostRounds);
                         if (s.has(r.round_number)) s.delete(r.round_number);

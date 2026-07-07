@@ -51,6 +51,7 @@ export function roundDividers(rounds: RoundRow[], roundOffset = 0): Set<number> 
 export function chipTitle(
   r: RoundRow,
   teams: { aId: string | null; a: string | null; b: string | null },
+  strat?: { t: Map<number, string>; ct: Map<number, string> },
 ): string {
   const cls = winnerTeamClass(r, teams.aId);
   const winner = cls === 'A' ? teams.a : cls === 'B' ? teams.b : null;
@@ -59,5 +60,17 @@ export function chipTitle(
   if (r.end_reason) bits.push(r.end_reason);
   if (r.bomb_site) bits.push(`bomb ${r.bomb_site}`);
   bits.push(`T:${r.t_buy_type ?? '?'} CT:${r.ct_buy_type ?? '?'}`);
+  // strateji etiketleri (ML kümeleri — Analyze'da adlandırılır)
+  if (strat) {
+    const tl = r.t_cluster != null ? strat.t.get(r.t_cluster) : null;
+    const cl = r.ct_cluster != null ? strat.ct.get(r.ct_cluster) : null;
+    if (tl) bits.push(`T strat: ${tl}`);
+    if (cl) bits.push(`CT setup: ${cl}`);
+  }
+  // thrown: kaybeden taraf kazanma olasılığında ≥%75 zirve yaptıysa
+  if (r.winner_side && r.max_t_prob != null && r.max_ct_prob != null) {
+    const loserPeak = r.winner_side === 'T' ? r.max_ct_prob : r.max_t_prob;
+    if (loserPeak >= 0.75) bits.push(`⚠ thrown round — loser peaked at ${Math.round(100 * loserPeak)}% win chance`);
+  }
   return bits.join(' · ');
 }

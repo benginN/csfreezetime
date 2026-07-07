@@ -42,6 +42,16 @@ export default function Report() {
     queryFn: () => api.report(teamId, mapName, since, roster),
     enabled: !!mapName,
   });
+  // lig payları (kümelerin arşiv-geneli frekansı) — eğilim rozetleri için
+  const clTQ = useQuery({ queryKey: ['clusters', mapName, 'T'], queryFn: () => api.clusters(mapName, 'T'), enabled: !!mapName });
+  const clCTQ = useQuery({ queryKey: ['clusters', mapName, 'CT'], queryFn: () => api.clusters(mapName, 'CT'), enabled: !!mapName });
+  const leagueShare = (side: 'T' | 'CT', clusterId: number): number | undefined => {
+    const list = side === 'T' ? clTQ.data : clCTQ.data;
+    if (!list?.length) return undefined;
+    const tot = list.reduce((a, c) => a + c.size, 0);
+    const c = list.find((x) => x.cluster_id === clusterId);
+    return c && tot ? c.size / tot : undefined;
+  };
 
   if (!mapName && matches.isSuccess) return <p className="meta">No maps found for this team.</p>;
   if (rep.isLoading || !rep.data) return <p className="meta">building report…</p>;
@@ -129,7 +139,7 @@ export default function Report() {
                 <span className="meta">{rows[0].sample_size} rounds</span>
               </div>
               {rows.map((t) => (
-                <NamableBar key={t.cluster_id} t={t} side={side} mapName={mapName} teamId={teamId} />
+                <NamableBar key={t.cluster_id} t={t} side={side} mapName={mapName} teamId={teamId} league={leagueShare(side, t.cluster_id)} />
               ))}
             </div>
           );
@@ -315,12 +325,13 @@ function Stat({ label, v, n, title }: { label: string; v: string; n: string; tit
 
 // Eğilim çubuğu + inline küme isimlendirme (insan döngüde; ad her yerde görünür)
 function NamableBar({
-  t, side, mapName, teamId,
+  t, side, mapName, teamId, league,
 }: {
   t: ReportResp['tendencies'][number];
   side: 'T' | 'CT';
   mapName: string;
   teamId: string;
+  league?: number; // kümenin lig-geneli payı (strategy_clusters.size'dan)
 }) {
   const qc = useQueryClient();
   const [editing, setEditing] = useState(false);
@@ -349,9 +360,21 @@ function NamableBar({
       </div>
     );
   }
+  // lig kıyası: takım payı / lig payı — ×1.5 üstü ve ×0.6 altı işaretlenir
+  // (Skybox'ın "çift yeşil"inin dürüst hali: oran + iki taban sayı tooltip'te)
+  const ratio = league && league > 0.01 ? t.prob / league : null;
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
       <div style={{ flex: 1 }}><Bar prob={t.prob} label={label} /></div>
+      {ratio != null && (ratio >= 1.5 || ratio <= 0.6) && (
+        <span
+          className="badge gray"
+          style={{ color: ratio >= 1.5 ? '#8fd39a' : '#e0a585', whiteSpace: 'nowrap' }}
+          title={`league average plays this ${Math.round(100 * (league ?? 0))}% of rounds — this team ${Math.round(100 * t.prob)}%`}
+        >
+          {ratio >= 1.5 ? `×${ratio.toFixed(1)} league` : `${ratio.toFixed(1)}× league`}
+        </span>
+      )}
       <button
         className="ghost noprint"
         title="name this strategy"
