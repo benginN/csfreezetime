@@ -89,6 +89,52 @@ export async function processDem(
   return id;
 }
 
+// Kamu arşivinden maç indir (My DB kompozisyonu): kullanıcı, kendi
+// veritabanına sitedeki maçlardan seçtiklerini katar (ör. scrimlerinin
+// yanına sıradaki rakibinin resmî haritaları). Sunucudan bir kez indirilir,
+// tamamen tarayıcıda (+ pakette) yaşar; sunucuda hiçbir şey değişmez.
+export async function importPublicMatch(
+  dir: DirHandle | null,
+  matchId: string,
+  name: string,
+  onPhase: (p: string) => void,
+): Promise<string> {
+  onPhase('downloading');
+  const detail = await api.matchDetail(matchId);
+  const players = await api.matchPlayers(matchId);
+  const roundsData: Record<number, unknown> = {};
+  let bytes = 0;
+  for (const r of detail.rounds) {
+    let t;
+    try {
+      t = await api.roundTicks(matchId, r.round_number);
+    } catch {
+      throw new Error('this match is archived (older than 12 months) — its replay data is no longer available');
+    }
+    roundsData[r.round_number] = t;
+    bytes += JSON.stringify(t).length;
+    await putRound(matchId, r.round_number, t);
+  }
+  await putMatch({
+    match_id: matchId, detail, players,
+    saved_at: new Date().toISOString(),
+    rounds: detail.rounds.length, bytes,
+    name, origin: 'archive',
+  });
+
+  if (dir) {
+    onPhase('writing bundle');
+    const bd = await dir.getDirectoryHandle(BUNDLE_DIR, { create: true });
+    const out = await bd.getFileHandle(name + '.json.gz', { create: true });
+    const w = await out.createWritable();
+    await w.write(await gzipJson({
+      match_id: matchId, name, detail, players, rounds: roundsData, origin: 'archive',
+    }));
+    await w.close();
+  }
+  return matchId;
+}
+
 // puan hesabı: raunt kazananlarından (görüntü için)
 export function scoreOf(detail: { rounds: RoundRowLite[]; team_a_id: string | null }): [number, number] {
   let a = 0, b = 0;

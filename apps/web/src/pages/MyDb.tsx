@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { api, type SearchResult } from '../api';
 import {
   deleteLocal, getDirHandle, importBundle, listMatches, loadRegistry,
   localIds, saveDirHandle, type Bundle, type LocalMatchMeta,
 } from '../lib/localdb';
 import {
-  BUNDLE_DIR, gunzipJson, processDem, scoreOf,
+  BUNDLE_DIR, gunzipJson, importPublicMatch, processDem, scoreOf,
   type DirHandle, type FileHandle,
 } from '../lib/localingest';
 
@@ -24,7 +25,7 @@ export default function MyDb() {
   const fsSupported = 'showDirectoryPicker' in window;
 
   const refresh = () => listMatches().then((l) =>
-    setItems(l.filter((m) => (m.origin ?? 'folder') === 'folder')
+    setItems(l.filter((m) => ['folder', 'archive'].includes(m.origin ?? 'folder'))
       .sort((a, b) => b.saved_at.localeCompare(a.saved_at))));
   useEffect(() => {
     loadRegistry().then(refresh);
@@ -168,6 +169,13 @@ export default function MyDb() {
       {!queue && phase && <p className="meta">{phase}…</p>}
       {err && <p className="error">{err}</p>}
 
+      <ArchivePicker
+        dirRef={dirRef}
+        items={items}
+        busy={!!queue}
+        onImported={refresh}
+      />
+
       <h2>
         Matches <span className="meta">({items.length} · {totalMB.toFixed(0)} MB in this browser)</span>
         {items.length > 0 && (
@@ -214,6 +222,11 @@ export default function MyDb() {
             </span>
           </Link>
           <span className="badge gray">{g.head.detail.map_name}</span>
+          {g.head.origin === 'archive' && (
+            <span className="badge gray" title="copied from the public Freezetime archive — remove it like any other local match; the public site is unaffected">
+              🌐 archive
+            </span>
+          )}
           {g.parts.length > 1 && (
             <span className="badge gray" title="split recording: parts play separately, score here is combined">
               {g.parts.length} parts
@@ -236,6 +249,115 @@ export default function MyDb() {
       ))}
       {items.length === 0 && !queue && <p className="meta">No local matches yet — pick your folder.</p>}
     </>
+  );
+}
+
+// Kamu arşivinden maç seçip yerel veritabanına katma (kompozisyon):
+// arama sunucuda koşar, seçilen maç indirildikten sonra tamamen yerelde
+// yaşar. Rapor/kümeleme yerel maçların TÜMÜNÜ kullandığı için indirilen
+// maçlar analize kendiliğinden dahil olur.
+function ArchivePicker({ dirRef, items, busy, onImported }: {
+  dirRef: React.MutableRefObject<DirHandle | null>;
+  items: LocalMatchMeta[];
+  busy: boolean;
+  onImported: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [aq, setAq] = useState('');
+  const [results, setResults] = useState<SearchResult['matches']>([]);
+  const [searching, setSearching] = useState(false);
+  const [adding, setAdding] = useState<string | null>(null);
+  const [phase, setPhase] = useState('');
+  const [err, setErr] = useState('');
+
+  // yazdıkça sunucu araması (300 ms debounce)
+  useEffect(() => {
+    if (!open) return;
+    const t = setTimeout(async () => {
+      setSearching(true);
+      try {
+        const r = await api.search(aq);
+        setResults((r.matches ?? []).slice(0, 12));
+      } catch (e) {
+        setErr(String(e));
+      } finally {
+        setSearching(false);
+      }
+    }, 300);
+    return () => clearTimeout(t);
+  }, [aq, open]);
+
+  const inDb = (id: string) => items.some((m) => m.match_id === id);
+
+  async function add(m: SearchResult['matches'][number]) {
+    setErr('');
+    setAdding(m.match_id);
+    try {
+      // paket adı arşiv önekli: kendi demolarınla çakışmasın
+      await importPublicMatch(dirRef.current, m.match_id,
+        `archive-${m.name ?? m.match_id}`, setPhase);
+      onImported();
+    } catch (e) {
+      setErr(`${m.name ?? m.match_id}: ${String(e)}`);
+    } finally {
+      setAdding(null);
+      setPhase('');
+    }
+  }
+
+  return (
+    <div className="panel" style={{ marginTop: 16 }}>
+      <h2 style={{ marginTop: 0, cursor: 'pointer' }} onClick={() => setOpen(!open)}>
+        {open ? '▾' : '▸'} 🌐 Add matches from the Freezetime archive
+      </h2>
+      <p className="meta" style={{ maxWidth: 720 }}>
+        Mix public matches into your own database — for example, pull your next
+        opponent&apos;s official maps in next to your scrims. Picked matches are
+        downloaded <b>once</b> and then live entirely in your browser
+        {dirRef.current ? ' (and as a bundle in your folder, so they restore with everything else)' : ''}.
+        Your team report and strategy clustering include them automatically.
+        Removing one later only affects your local copy — never the public site.
+      </p>
+      {open && (
+        <>
+          <div className="toolbar">
+            <input
+              style={{ width: 320 }}
+              placeholder="search the archive… (team, map, tournament — e.g. 'vitality mirage')"
+              value={aq}
+              onChange={(e) => setAq(e.target.value)}
+            />
+            {searching && <span className="meta">searching…</span>}
+          </div>
+          {results.map((m) => (
+            <div key={m.match_id} className="matchrow" style={{ display: 'flex', alignItems: 'center' }}>
+              <span className="vs" style={{ flex: 1 }}>
+                <span>{m.team_a ?? 'Team A'}</span>
+                <span className="score">{m.score_a} : {m.score_b}</span>
+                <span>{m.team_b ?? 'Team B'}</span>
+              </span>
+              <span className="badge gray">{m.map_name}</span>
+              <span className="meta">{m.played_at ?? ''}{m.tournament ? ` · ${m.tournament.replace(/-/g, ' ')}` : ''}</span>
+              {inDb(m.match_id) ? (
+                <span className="badge gray">✓ in your DB</span>
+              ) : (
+                <button
+                  className="ghost"
+                  disabled={busy || adding !== null}
+                  onClick={() => add(m)}
+                >
+                  {adding === m.match_id ? `⏳ ${phase || 'adding'}…` : '+ add'}
+                </button>
+              )}
+            </div>
+          ))}
+          {!results.length && !searching && (
+            <p className="meta">no matches — try a team, map or tournament name</p>
+          )}
+          {err && <p className="error">{err}</p>}
+        </>
+      )}
+    </div>
   );
 }
 
