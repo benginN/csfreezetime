@@ -37,6 +37,8 @@ export interface RoundRow {
   ct_cluster: number | null;
   t_team_id: string | null;
   ct_team_id: string | null;
+  max_t_prob?: number | null;   // winprob zirveleri (thrown tespiti)
+  max_ct_prob?: number | null;
 }
 
 export interface Tendency {
@@ -226,6 +228,16 @@ export interface TeamSummary {
     map_name: string; matches: number; wins: number;
     round_wins: number; rounds: number;
   }[];
+  players: {
+    player_id: string; nickname: string; rounds: number; matches: number;
+    adr: number; kills: number; deaths: number; flash_assists: number;
+    survival_pct: number;
+  }[];
+  map_strats: {
+    map_name: string; side: 'T' | 'CT'; label: string | null;
+    top_places: { place: string; weight: number }[];
+    prob: number; league_prob: number;
+  }[];
 }
 
 export interface ReportSetup {
@@ -329,7 +341,7 @@ export interface PlayerProfile {
   nickname: string;
   team: string | null;
   roles: {
-    side: 'T' | 'CT'; rounds: number;
+    side: 'T' | 'CT'; map_name: string; rounds: number;
     entry_attempt_share: number | null; entry_success: number | null;
     opening_kills: number; opening_deaths: number;
     lurk_dist_avg: number | null;

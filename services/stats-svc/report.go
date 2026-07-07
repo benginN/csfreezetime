@@ -462,17 +462,20 @@ func (s *server) report(w http.ResponseWriter, r *http.Request) {
 		    LIMIT 15
 		) x`, teamID, mapName, elig)
 
+	// rapor harita bağlamındadır: o haritanın rol satırı varsa o, yoksa
+	// genel ('' harita) profil — kanıt (rounds) hangisinin geldiğini söyler
 	out["players"] = s.jsonQuery(ctx, `
-		SELECT COALESCE(json_agg(x), '[]'::json) FROM (
-		    SELECT p.nickname, pr.player_id, pr.side, pr.rounds,
+		SELECT COALESCE(json_agg(x ORDER BY x.nickname, x.side), '[]'::json) FROM (
+		    SELECT DISTINCT ON (pr.player_id, pr.side)
+		           p.nickname, pr.player_id, pr.side, pr.map_name, pr.rounds,
 		           pr.entry_attempt_share, pr.entry_success,
 		           pr.opening_kills, pr.opening_deaths, pr.lurk_dist_avg,
 		           pr.anchor_place, pr.anchor_share, pr.awp_round_share,
 		           pr.util_per_round, pr.flash_assists_pr, pr.adr, pr.tags
 		    FROM player_roles pr JOIN players p ON p.player_id = pr.player_id
-		    WHERE pr.team_id = $1
-		    ORDER BY p.nickname, pr.side
-		) x`, teamID)
+		    WHERE pr.team_id = $1 AND pr.map_name IN ($2, '')
+		    ORDER BY pr.player_id, pr.side, pr.map_name DESC
+		) x`, teamID, mapName)
 
 	if since != "" || rosterMin > 0 {
 		out["window_since"] = since
@@ -533,6 +536,46 @@ func (s *server) teamSummary(w http.ResponseWriter, r *http.Request) {
 		"t_rounds": tR, "t_wins": tW, "ct_rounds": ctR, "ct_wins": ctW,
 		"pistol_rounds": pisN, "pistol_wins": pisW,
 	}
+	// oyuncu tablosu: takım formasıyla oynanan rauntlardan (pencere/kadro
+	// filtresine uyar); satırlar oyuncu sayfasına link olur
+	out["players"] = s.jsonQuery(ctx, `
+		SELECT COALESCE(json_agg(x ORDER BY x.rounds DESC), '[]'::json) FROM (
+		    SELECT p.player_id, p.nickname,
+		           count(*) AS rounds,
+		           count(DISTINCT s.match_id) AS matches,
+		           round(COALESCE(sum(s.damage_dealt), 0)::numeric / count(*), 1) AS adr,
+		           COALESCE(sum(s.kills), 0) AS kills,
+		           COALESCE(sum(s.deaths), 0) AS deaths,
+		           COALESCE(sum(s.flash_assists), 0) AS flash_assists,
+		           round(100.0 * count(*) FILTER (WHERE s.survived) / count(*), 0) AS survival_pct
+		    FROM player_round_states s
+		    JOIN rounds r ON (r.match_id, r.round_number) = (s.match_id, s.round_number)
+		    JOIN matches m ON m.match_id = s.match_id AND m.status = 'ready'
+		    JOIN players p ON p.player_id = s.player_id
+		    WHERE ((s.side = 'T' AND r.t_team_id = $1) OR (s.side = 'CT' AND r.ct_team_id = $1))
+		      AND ($2::text[] IS NULL OR m.match_id::text = ANY($2::text[]))
+		    GROUP BY p.player_id, p.nickname
+		    HAVING count(*) >= 10
+		) x`, teamID, elig)
+
+	// harita başına baskın strateji + lig kıyası (ML'in karneye taşınması):
+	// team_tendencies'in en olası kümesi + o kümenin lig-geneli payı
+	out["map_strats"] = s.jsonQuery(ctx, `
+		SELECT COALESCE(json_agg(x), '[]'::json) FROM (
+		    SELECT DISTINCT ON (tt.map_name, tt.side)
+		           tt.map_name, tt.side, sc.label, sc.top_places,
+		           tt.shrunk_prob AS prob,
+		           round((sc.size / tot.total)::numeric, 3) AS league_prob
+		    FROM team_tendencies tt
+		    JOIN strategy_clusters sc
+		      ON (sc.map_name, sc.side, sc.cluster_id) = (tt.map_name, tt.side, tt.cluster_id)
+		    JOIN (SELECT map_name, side, sum(size)::real AS total
+		          FROM strategy_clusters GROUP BY 1, 2) tot
+		      ON (tot.map_name, tot.side) = (tt.map_name, tt.side)
+		    WHERE tt.team_id = $1 AND tot.total > 0
+		    ORDER BY tt.map_name, tt.side, tt.shrunk_prob DESC
+		) x`, teamID)
+
 	out["maps"] = s.jsonQuery(ctx, `
 		SELECT COALESCE(json_agg(x ORDER BY x.matches DESC), '[]'::json) FROM (
 		    SELECT m.map_name,

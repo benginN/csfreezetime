@@ -17,9 +17,13 @@ export default function Player() {
     queryFn: () => api.playerProfile(playerId),
   });
 
+  const [mapSel, setMapSel] = useState('');
   if (prof.isLoading || !prof.data) return <p className="meta">loading…</p>;
   const d = prof.data;
   const openByMap = new Map(d.openings.map((o) => [o.map_name, o]));
+  // harita = sayfanın ana ekseni: '' = tüm haritalar (genel profil)
+  const mapList = d.maps.map((m) => m.map_name);
+  const roleRows = d.roles.filter((r) => (r.map_name ?? '') === mapSel);
 
   return (
     <>
@@ -30,14 +34,27 @@ export default function Player() {
         {d.nickname}
         {d.team && <span className="meta">({d.team})</span>}
       </h1>
+      <div className="toolbar">
+        <span className="meta">map:</span>
+        <button className={mapSel === '' ? '' : 'ghost'} onClick={() => setMapSel('')}>all maps</button>
+        {mapList.map((m) => (
+          <button key={m} className={mapSel === m ? '' : 'ghost'} onClick={() => setMapSel(m)}>
+            {m.replace('de_', '')}
+          </button>
+        ))}
+      </div>
 
-      {/* Roller: taraf başına kart, etiketler kanıt metrikleriyle */}
+      {/* Roller: seçili harita için taraf başına kart (map_name='' = genel) */}
       <div className="grid cards two">
-        {d.roles.map((r) => (
-          <div key={r.side} className="card">
+        {roleRows.length === 0 && (
+          <p className="meta">no role data on this map yet (needs 30+ rounds per side)</p>
+        )}
+        {roleRows.map((r) => (
+          <div key={r.side + r.map_name} className="card">
             <div className="teams">
               <span>
                 <span className={`badge ${r.side}`}>{r.side}</span>{' '}
+                {mapSel && <span className="badge gray">{mapSel.replace('de_', '')}</span>}{' '}
                 {r.tags.length
                   ? r.tags.map((t) => <span key={t} className="badge gray" style={{ marginRight: 4 }}>{t}</span>)
                   : <span className="meta">no role label (threshold-based)</span>}
@@ -115,7 +132,13 @@ export default function Player() {
           {d.maps.map((m) => {
             const o = openByMap.get(m.map_name);
             return (
-              <tr key={m.map_name}>
+              <tr
+                key={m.map_name}
+                onClick={() => setMapSel(m.map_name === mapSel ? '' : m.map_name)}
+                style={{ cursor: 'pointer',
+                  background: m.map_name === mapSel ? 'rgba(76,143,82,.15)' : undefined }}
+                title="click to focus the whole page on this map"
+              >
                 <td>{m.map_name}</td>
                 <td>{m.matches}</td>
                 <td>{m.rounds}</td>
@@ -150,7 +173,9 @@ export default function Player() {
             </div>
             <div className="card">
               <div className="meta" style={{ marginBottom: 6 }}>notable moments</div>
-              {d.clutch_moments.slice(0, 8).map((m, i) => (
+              {d.clutch_moments
+                .filter((m) => !mapSel || m.map_name === mapSel)
+                .slice(0, 8).map((m, i) => (
                 <div key={i} style={{ marginBottom: 3 }}>
                   <Link to={`/match/${m.match_id}?round=${m.round_number}`}>
                     ▶ 1v{m.versus} {m.won ? '✅' : '❌'} — {m.map_name} r{m.round_number}
@@ -163,8 +188,8 @@ export default function Player() {
         </>
       )}
 
-      {/* Isı haritaları */}
-      <PlayerHeat playerId={playerId} maps={d.maps.map((m) => m.map_name)} />
+      {/* Isı haritaları — sayfa haritasıyla senkron başlar */}
+      <PlayerHeat key={mapSel} playerId={playerId} maps={mapList} initial={mapSel} />
 
       {/* Anomaliler */}
       {d.flags.length > 0 && (
@@ -190,8 +215,8 @@ export default function Player() {
   );
 }
 
-function PlayerHeat({ playerId, maps }: { playerId: string; maps: string[] }) {
-  const [mapName, setMapName] = useState('');
+function PlayerHeat({ playerId, maps, initial = '' }: { playerId: string; maps: string[]; initial?: string }) {
+  const [mapName, setMapName] = useState(initial);
   const [wnd, setWnd] = useState<'0-115' | '0-25'>('0-115');
   const effMap = mapName || maps[0] || '';
   const [t0, t1] = wnd === '0-25' ? [0, 25] : [0, 115];

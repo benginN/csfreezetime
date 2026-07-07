@@ -32,14 +32,15 @@ func (s *server) playerProfile(w http.ResponseWriter, r *http.Request) {
 
 	out := map[string]any{"player_id": playerID, "nickname": nick, "team": teamName}
 
-	// roller (Faz 5 player_roles; taraf başına bir satır)
+	// roller: (taraf, harita) başına satır; map_name='' = genel profil.
+	// İstemci harita seçiciyle süzer — "ANCHOR:B ama hangi harita?" bitti.
 	out["roles"] = s.jsonQuery(ctx, `
-		SELECT COALESCE(json_agg(x), '[]'::json) FROM (
-		    SELECT side, rounds, entry_attempt_share, entry_success,
+		SELECT COALESCE(json_agg(x ORDER BY x.map_name, x.side DESC), '[]'::json) FROM (
+		    SELECT side, map_name, rounds, entry_attempt_share, entry_success,
 		           opening_kills, opening_deaths, lurk_dist_avg,
 		           anchor_place, anchor_share, awp_round_share,
 		           util_per_round, flash_assists_pr, adr, tags
-		    FROM player_roles WHERE player_id = $1 ORDER BY side DESC
+		    FROM player_roles WHERE player_id = $1
 		) x`, playerID)
 
 	// harita bazlı performans (PRS + kills; taraftan bağımsız toplam)

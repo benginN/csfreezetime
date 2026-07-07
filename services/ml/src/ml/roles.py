@@ -2,6 +2,11 @@
 
 Tamamı deterministik metrik + açık eşikler; her etiket kanıtla birlikte
 sunulur, MIN_ROUNDS altında etiket verilmez (yalnız ham metrikler yazılır).
+
+Granülarite (2026-07-08): (oyuncu, taraf, harita) — "ANCHOR:BombsiteB"
+hangi haritada sorusunun cevabı artık satırın kendisinde. map_name='' özel
+satırı tüm-harita genel profildir (harita satırlarının toplamı); lurk
+medyanı harita başına hesaplanır (harita geometrileri karşılaştırılamaz).
 """
 
 from __future__ import annotations
@@ -9,43 +14,47 @@ from __future__ import annotations
 import statistics
 from collections import defaultdict
 
-MIN_ROUNDS = 30          # etiket için taraf başına raunt eşiği
+MIN_ROUNDS = 30          # etiket için (taraf, harita) başına raunt eşiği
 ENTRY_SHARE = 0.28       # takımın ilk düellosuna girme payı
 ANCHOR_SHARE = 0.50      # tek yerleşim işgal payı (CT)
 AWP_SHARE = 0.40         # envanterde AWP olan raunt payı
-LURK_FACTOR = 1.5        # taraf medyanının katı
+LURK_FACTOR = 1.5        # taraf+harita medyanının katı
+
+Key = tuple[str, str, str]  # (player_id, side, map_name)
 
 
-def _rounds_played(pgconn) -> dict[tuple[str, str], dict]:
-    """(player_id, side) → {rounds, dmg, fa, team_id}"""
+def _rounds_played(pgconn) -> dict[Key, dict]:
+    """(player, side, map) → {rounds, dmg, fa, team_id}"""
     with pgconn.cursor() as cur:
         cur.execute(
             """
-            SELECT s.player_id::text, s.side, count(*),
+            SELECT s.player_id::text, s.side, m.map_name, count(*),
                    COALESCE(sum(s.damage_dealt), 0),
                    COALESCE(sum(s.flash_assists), 0),
                    max(p.current_team_id::text)
             FROM player_round_states s
             JOIN matches m ON m.match_id = s.match_id AND m.status = 'ready'
+                          AND m.map_name IS NOT NULL
             JOIN players p ON p.player_id = s.player_id
-            GROUP BY s.player_id, s.side
+            GROUP BY s.player_id, s.side, m.map_name
             """
         )
         return {
-            (pid, side): {"rounds": n, "dmg": dmg, "fa": fa, "team": team}
-            for pid, side, n, dmg, fa, team in cur.fetchall()
+            (pid, side, mp): {"rounds": n, "dmg": dmg, "fa": fa, "team": team}
+            for pid, side, mp, n, dmg, fa, team in cur.fetchall()
         }
 
 
-def _openings(pgconn) -> dict[tuple[str, str], dict]:
-    """İlk düellolar: (player, side) → {ok, od} (kills.is_first_kill)."""
-    out: dict[tuple, dict] = defaultdict(lambda: {"ok": 0, "od": 0})
+def _openings(pgconn) -> dict[Key, dict]:
+    """İlk düellolar: (player, side, map) → {ok, od} (kills.is_first_kill)."""
+    out: dict[Key, dict] = defaultdict(lambda: {"ok": 0, "od": 0})
     with pgconn.cursor() as cur:
         cur.execute(
             """
-            SELECT k.attacker_id::text, sa.side, k.victim_id::text, sv.side
+            SELECT k.attacker_id::text, sa.side, k.victim_id::text, sv.side, m.map_name
             FROM kills k
             JOIN matches m ON m.match_id = k.match_id AND m.status = 'ready'
+                          AND m.map_name IS NOT NULL
             LEFT JOIN player_round_states sa
               ON (sa.match_id, sa.round_number, sa.player_id) =
                  (k.match_id, k.round_number, k.attacker_id)
@@ -55,68 +64,70 @@ def _openings(pgconn) -> dict[tuple[str, str], dict]:
             WHERE k.is_first_kill
             """
         )
-        for a, aside, v, vside in cur.fetchall():
+        for a, aside, v, vside, mp in cur.fetchall():
             if a and aside:
-                out[(a, aside)]["ok"] += 1
+                out[(a, aside, mp)]["ok"] += 1
             if v and vside:
-                out[(v, vside)]["od"] += 1
+                out[(v, vside, mp)]["od"] += 1
     return out
 
 
-def _util(pgconn) -> dict[tuple[str, str], int]:
+def _util(pgconn) -> dict[Key, int]:
     with pgconn.cursor() as cur:
         cur.execute(
             """
-            SELECT g.thrower_id::text, g.side, count(*)
+            SELECT g.thrower_id::text, g.side, m.map_name, count(*)
             FROM grenades g JOIN matches m ON m.match_id = g.match_id AND m.status='ready'
+                                          AND m.map_name IS NOT NULL
             WHERE g.thrower_id IS NOT NULL AND g.side IN ('T','CT')
-            GROUP BY g.thrower_id, g.side
+            GROUP BY g.thrower_id, g.side, m.map_name
             """
         )
-        return {(pid, side): n for pid, side, n in cur.fetchall()}
+        return {(pid, side, mp): n for pid, side, mp, n in cur.fetchall()}
 
 
-def _awp_share(chc) -> dict[tuple[str, str], float]:
+def _awp_counts(chc) -> dict[Key, tuple[int, int]]:
+    """(player, side, map) → (awp'li raunt, toplam raunt) — pay üstte türetilir."""
     rows = chc.query(
         """
-        SELECT toString(player_id), side,
+        SELECT toString(player_id), side, map_name,
                countDistinctIf((match_id, round_number), has(inventory, 'AWP')) AS awp_r,
                countDistinct((match_id, round_number)) AS total_r
         FROM player_ticks WHERE is_alive
-        GROUP BY player_id, side
+        GROUP BY player_id, side, map_name
         """
     ).result_rows
-    return {(pid, side): (awp / total if total else 0.0) for pid, side, awp, total in rows}
+    return {(pid, side, mp): (int(a), int(t)) for pid, side, mp, a, t in rows}
 
 
-def _lurk(chc) -> dict[tuple[str, str], float]:
-    """İlk 30 sn'de takım merkezine ortalama uzaklık (radar değil, world unit)."""
+def _lurk(chc) -> dict[Key, tuple[float, int]]:
+    """İlk 30 sn'de takım merkezine ortalama uzaklık (world unit) + örnek sayısı."""
     rows = chc.query(
         """
-        SELECT toString(match_id), round_number, side,
+        SELECT toString(match_id), round_number, side, map_name,
                toUInt16(floor(round_time)) AS s,
                toString(player_id), any(x), any(y)
         FROM player_ticks
         WHERE is_alive AND round_time >= 0 AND round_time < 30
-        GROUP BY match_id, round_number, side, s, player_id
+        GROUP BY match_id, round_number, side, map_name, s, player_id
         """
     ).result_rows
     bucket: dict[tuple, list[tuple[str, float, float]]] = defaultdict(list)
-    for mid, rn, side, s, pid, x, y in rows:
-        bucket[(mid, rn, side, s)].append((pid, x, y))
-    acc: dict[tuple, list[float]] = defaultdict(list)
-    for (_mid, _rn, side, _s), plist in bucket.items():
+    for mid, rn, side, mp, s, pid, x, y in rows:
+        bucket[(mid, rn, side, mp, s)].append((pid, x, y))
+    acc: dict[Key, list[float]] = defaultdict(list)
+    for (_mid, _rn, side, mp, _s), plist in bucket.items():
         if len(plist) < 3:
             continue
         cx = sum(p[1] for p in plist) / len(plist)
         cy = sum(p[2] for p in plist) / len(plist)
         for pid, x, y in plist:
-            acc[(pid, side)].append(((x - cx) ** 2 + (y - cy) ** 2) ** 0.5)
-    return {k: sum(v) / len(v) for k, v in acc.items() if v}
+            acc[(pid, side, mp)].append(((x - cx) ** 2 + (y - cy) ** 2) ** 0.5)
+    return {k: (sum(v) / len(v), len(v)) for k, v in acc.items() if v}
 
 
-def _anchor(chc) -> dict[tuple[str, str], tuple[str, float, str]]:
-    """(player, side) → (yer, işgal payı, harita) — en çok oynadığı haritada."""
+def _anchor(chc) -> dict[Key, tuple[str, float]]:
+    """(player, side, map) → (en çok işgal edilen yer, işgal payı)."""
     rows = chc.query(
         """
         SELECT toString(player_id), side, map_name, place, count() AS c
@@ -125,21 +136,14 @@ def _anchor(chc) -> dict[tuple[str, str], tuple[str, float, str]]:
         GROUP BY player_id, side, map_name, place
         """
     ).result_rows
-    per_map: dict[tuple, dict[str, int]] = defaultdict(lambda: defaultdict(int))
-    for pid, side, map_name, place, c in rows:
-        per_map[(pid, side, map_name)][place] += c
-    # oyuncu+taraf başına en çok tick'li harita
-    best_map: dict[tuple, tuple[int, str]] = {}
-    for (pid, side, map_name), places in per_map.items():
-        tot = sum(places.values())
-        k = (pid, side)
-        if k not in best_map or tot > best_map[k][0]:
-            best_map[k] = (tot, map_name)
+    per_key: dict[Key, dict[str, int]] = defaultdict(lambda: defaultdict(int))
+    for pid, side, mp, place, c in rows:
+        per_key[(pid, side, mp)][place] += c
     out = {}
-    for (pid, side), (tot, map_name) in best_map.items():
-        places = per_map[(pid, side, map_name)]
+    for key, places in per_key.items():
+        tot = sum(places.values())
         top_place, top_c = max(places.items(), key=lambda kv: kv[1])
-        out[(pid, side)] = (top_place, top_c / tot, map_name)
+        out[key] = (top_place, top_c / tot if tot else 0.0)
     return out
 
 
@@ -147,32 +151,68 @@ def run(pgconn, chc) -> int:
     base = _rounds_played(pgconn)
     opens = _openings(pgconn)
     util = _util(pgconn)
-    awp = _awp_share(chc)
+    awp = _awp_counts(chc)
     lurk = _lurk(chc)
     anchor = _anchor(chc)
 
-    # Lurk eşiği: taraf başına medyan (yeterli raunta sahip oyuncular)
-    lurk_median: dict[str, float] = {}
-    for side in ("T", "CT"):
-        vals = [
-            v for (pid, s), v in lurk.items()
-            if s == side and base.get((pid, s), {}).get("rounds", 0) >= MIN_ROUNDS
-        ]
-        lurk_median[side] = statistics.median(vals) if vals else 0.0
+    # Genel ('' harita) satırlar: harita satırlarından toplanır
+    maps_of: dict[tuple[str, str], list[str]] = defaultdict(list)
+    for (pid, side, mp) in base:
+        maps_of[(pid, side)].append(mp)
+    for (pid, side), mps in maps_of.items():
+        tot = {"rounds": 0, "dmg": 0, "fa": 0, "team": None}
+        ok = od = un = aw_r = aw_t = 0
+        lk_sum = lk_n = 0.0
+        for mp in mps:
+            b = base[(pid, side, mp)]
+            tot["rounds"] += b["rounds"]; tot["dmg"] += b["dmg"]
+            tot["fa"] += b["fa"]; tot["team"] = tot["team"] or b["team"]
+            o = opens.get((pid, side, mp))
+            if o:
+                ok += o["ok"]; od += o["od"]
+            un += util.get((pid, side, mp), 0)
+            a = awp.get((pid, side, mp))
+            if a:
+                aw_r += a[0]; aw_t += a[1]
+            l = lurk.get((pid, side, mp))
+            if l:
+                lk_sum += l[0] * l[1]; lk_n += l[1]
+        base[(pid, side, "")] = tot
+        opens[(pid, side, "")] = {"ok": ok, "od": od}
+        util[(pid, side, "")] = un
+        awp[(pid, side, "")] = (aw_r, aw_t)
+        if lk_n:
+            lurk[(pid, side, "")] = (lk_sum / lk_n, int(lk_n))
+        # genel çapa: en çok raunt oynanan haritanın çapası — etikete harita
+        # adı eklenir ("hangi haritada?" sorusu genel görünümde de cevaplı)
+        best_mp = max(mps, key=lambda m: base[(pid, side, m)]["rounds"])
+        if (pid, side, best_mp) in anchor:
+            place, share = anchor[(pid, side, best_mp)]
+            anchor[(pid, side, "")] = (f"{place} ({best_mp.replace('de_', '')})", share)
+
+    # Lurk eşiği: (taraf, harita) başına medyan — geometriler karışmaz
+    lurk_median: dict[tuple[str, str], float] = {}
+    sm_vals: dict[tuple[str, str], list[float]] = defaultdict(list)
+    for (pid, side, mp), (v, _n) in lurk.items():
+        if base.get((pid, side, mp), {}).get("rounds", 0) >= MIN_ROUNDS:
+            sm_vals[(side, mp)].append(v)
+    for k, vals in sm_vals.items():
+        lurk_median[k] = statistics.median(vals) if vals else 0.0
 
     inserted = 0
     with pgconn.cursor() as cur:
         cur.execute("DELETE FROM player_roles")
-        for (pid, side), b in sorted(base.items()):
+        for (pid, side, mp), b in sorted(base.items()):
             n = b["rounds"]
-            o = opens.get((pid, side), {"ok": 0, "od": 0})
+            o = opens.get((pid, side, mp), {"ok": 0, "od": 0})
             attempts = o["ok"] + o["od"]
             entry_share = attempts / n if n else None
             entry_success = o["ok"] / attempts if attempts else None
-            lk = lurk.get((pid, side))
-            an = anchor.get((pid, side))
-            aw = awp.get((pid, side), 0.0)
-            upr = util.get((pid, side), 0) / n if n else None
+            lk = lurk.get((pid, side, mp))
+            an = anchor.get((pid, side, mp))
+            aw_r, aw_t = awp.get((pid, side, mp), (0, 0))
+            aw = aw_r / aw_t if aw_t else 0.0
+            upr = util.get((pid, side, mp), 0) / n if n else None
             fapr = b["fa"] / n if n else None
             adr = b["dmg"] / n if n else None
 
@@ -180,8 +220,8 @@ def run(pgconn, chc) -> int:
             if n >= MIN_ROUNDS:
                 if side == "T" and entry_share is not None and entry_share > ENTRY_SHARE:
                     tags.append("ENTRY")
-                if (side == "T" and lk is not None and lurk_median["T"] > 0
-                        and lk > lurk_median["T"] * LURK_FACTOR):
+                med = lurk_median.get((side, mp), 0.0)
+                if side == "T" and lk is not None and med > 0 and lk[0] > med * LURK_FACTOR:
                     tags.append("LURKER")
                 if side == "CT" and an is not None and an[1] > ANCHOR_SHARE:
                     tags.append(f"ANCHOR:{an[0]}")
@@ -191,15 +231,15 @@ def run(pgconn, chc) -> int:
             cur.execute(
                 """
                 INSERT INTO player_roles
-                    (player_id, team_id, side, rounds, entry_attempt_share,
+                    (player_id, team_id, side, map_name, rounds, entry_attempt_share,
                      entry_success, opening_kills, opening_deaths, lurk_dist_avg,
                      anchor_place, anchor_share, awp_round_share, util_per_round,
                      flash_assists_pr, adr, tags)
-                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
                 """,
                 (
-                    pid, b["team"], side, n, entry_share, entry_success,
-                    o["ok"], o["od"], lk,
+                    pid, b["team"], side, mp, n, entry_share, entry_success,
+                    o["ok"], o["od"], lk[0] if lk else None,
                     an[0] if an else None, an[1] if an else None,
                     aw, upr, fapr, adr, tags,
                 ),
