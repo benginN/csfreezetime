@@ -7,10 +7,11 @@ grenade pattern finding, opponent playbooks, and locally-trained prediction
 models. **No external AI services**, no per-use cost: everything is
 deterministic SQL + geometry + local ML, running entirely on your own machine.
 
-> ⚠️ **You bring the demos.** The repository ships the *engine*, not any match
-> data — no demos, no database dumps. Point it at your own GOTV/FACEIT `.dem`
-> files (drop them in `backfill/`, or use the in-browser **My DB** page) and it
-> builds your archive. Everything is local and private.
+> ⚠️ **You bring the demos.** The repo ships the *engine*, not any match data —
+> no demos, no dumps. Drop your own GOTV/FACEIT `.dem` files into `backfill/`
+> and it builds your archive; the more you feed it, the sharper the stats. Just
+> want a quick look at one match? The **Analyze** page handles a single demo.
+> Everything is local and private.
 
 MIT licensed — free to use, modify and share. Turkish is the project's primary
 language; docs and UI copy are bilingual where it matters.
@@ -18,6 +19,17 @@ language; docs and UI copy are bilingual where it matters.
 📖 **New here? Read [docs/how-it-works.md](docs/how-it-works.md)** — a
 plain-language tour of what it does, what each page gives you, and how the
 pieces fit together (including how to explore and extend it with Claude Code).
+
+## See it in action
+
+<!-- WALKTHROUGH VIDEO: on github.com, open this file in the editor (pencil) and
+     drag your .mp4 right below this line — GitHub hosts it and renders an inline
+     player. No need to commit the file to the repo. -->
+
+<!-- SCREENSHOTS: PNGs live in docs/screenshots/ and are embedded here, e.g.:
+     ![2D replay](docs/screenshots/replay.png) -->
+
+*A short walkthrough video and page screenshots go here — coming shortly.*
 
 Bu, kendi kendine barındırılan bir CS2 demo analiz platformudur: demolar bir kez
 derinlemesine işlenir, koçun tüm sorguları önceden hesaplanmış tablolara düşer

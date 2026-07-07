@@ -85,9 +85,12 @@ Once you've fed it some demos, the web app (`:8090`) gives you:
   mix, how far it deviates from their normal game, and real rounds to watch.
 - **ML Lab** (`/insights`) — the transparency page for the prediction models:
   what they know, how they're tested, and which method wins (see below).
-- **My DB** — process your *own* private demos (scrims, FACEIT, POV) entirely
-  in your browser; the server never keeps a copy. You can even attach team
-  voice comms and play them synced to the replay.
+- **My DB** — a browser-based way to process private demos without touching the
+  main archive. It was built for a *hosted* scenario, where users can't reach
+  the backend, so their demos are parsed client-side and never kept on the
+  server. If you're **self-hosting, you usually just backfill instead** (it's
+  your server anyway — see below). My DB still works and can attach team voice
+  comms synced to the replay.
 
 ---
 
@@ -117,9 +120,17 @@ ones (an exponential recency weight with a ~3-month half-life).
 ## Running it & where to read the code
 
 The [README](../README.md) has the full quickstart. The short version:
-`docker compose up` the infrastructure, run the four services, drop `.dem`
-files in `backfill/` (or use My DB in the browser), run `ml-jobs`, open
-`:8090`. **You bring the demos** — the repo ships the engine, not any data.
+`docker compose up` the infrastructure, run the four services, **drop your
+`.dem` files into `backfill/`** (a watcher picks them up automatically), run
+`ml-jobs`, open `:8090`. **You bring the demos** — the repo ships the engine,
+not any data.
+
+**How much data do you need?** Team-level intelligence — tendencies,
+predictions, patterns, playbooks — gets meaningful only with a real archive;
+the more demos you feed it, the sharper and more trustworthy the numbers (thin
+data hides itself rather than guess). Backfilling a season or two of a team's
+matches is the sweet spot. That said, if you just want to look at **one match**,
+the **Analyze** page parses a single demo on its own — no archive required.
 
 Good places to start reading:
 
