@@ -87,6 +87,14 @@ const bombClass = (r: RoundRow): string =>
 const hlClass = (r: RoundRow, v: string, aId: string | null): string => {
   if (!v) return '';
   // strateji vurgusu: "st:<id>" = T kümesi, "sc:<id>" = CT kümesi
+  if (v === 'awp:T' || v === 'awp:CT') {
+    const sideAwp = v === 'awp:T' ? r.t_awps : r.ct_awps;
+    if ((sideAwp ?? 0) > 0) {
+      const tid = v === 'awp:T' ? r.t_team_id : r.ct_team_id;
+      return tid && tid === aId ? ' hlA' : ' hlB';
+    }
+    return '';
+  }
   if (v.startsWith('st:') || v.startsWith('sc:')) {
     const id = Number(v.slice(3));
     if (v[1] === 't' && r.t_cluster === id) {
@@ -512,6 +520,15 @@ export default function ReplayView({
   // 🎙 takım telsizi (yalnız yerel maçlar): IndexedDB'deki ses kaydı replay
   // zamanına kilitli çalınır. Çapa = 1. rauntun start_tick'i (maç başı);
   // kayıt farklı anda başladıysa kullanıcı ofsetle hizalar (localStorage).
+  // görsel temizlik: granat türü aç/kapat + oyuncu gizleme (Skybox paritesi)
+  const [nadeVis, setNadeVis] = useState<Set<string>>(
+    new Set(['smoke', 'flash', 'molotov', 'he', 'decoy']));
+  const nadeVisRef = useRef(nadeVis);
+  nadeVisRef.current = nadeVis;
+  const [hidden, setHidden] = useState<Set<string>>(new Set());
+  const hiddenRef = useRef(hidden);
+  hiddenRef.current = hidden;
+
   const [voiceUrl, setVoiceUrl] = useState<string | null>(null);
   const [commsOn, setCommsOn] = useState(false);
   const [commsOffset, setCommsOffset] = useState(() =>
@@ -978,6 +995,8 @@ export default function ReplayView({
 
         for (const [gi, g] of (replayOn ? (d.grenades ?? []) : []).entries()) {
           if (g.rx == null || g.ry == null) continue;
+          const vgroup = g.type === 'incendiary' ? 'molotov' : g.type;
+          if (!nadeVisRef.current.has(vgroup)) continue;
           const dt = (tick - g.tick) / d.tick_rate;
           const life = NADE_LIFE[g.type] ?? 1;
 
@@ -1092,6 +1111,10 @@ export default function ReplayView({
         d.players.forEach((p, pi) => {
           const node = nodes[pi];
           const rx0 = p.rx[i0], ry0 = p.ry[i0];
+          if (hiddenRef.current.has(p.nickname)) {
+            node.g.clear(); node.name.visible = false;
+            return;
+          }
           if (rx0 == null || ry0 == null) {
             node.g.clear(); node.name.visible = false;
             return;
@@ -1608,8 +1631,8 @@ export default function ReplayView({
               </>
             )}
           </div>
-          {showReplay && <HudPanel rows={tRows} cls="left" sel={selPlayer} onSel={setSelPlayer} team={teamNameOf('T')} coach={coachOf('T')} side="T" />}
-          {showReplay && <HudPanel rows={ctRows} cls="right" sel={selPlayer} onSel={setSelPlayer} team={teamNameOf('CT')} coach={coachOf('CT')} side="CT" />}
+          {showReplay && <HudPanel rows={tRows} cls="left" sel={selPlayer} onSel={setSelPlayer} team={teamNameOf('T')} coach={coachOf('T')} side="T" hidden={hidden} onHide={setHidden} />}
+          {showReplay && <HudPanel rows={ctRows} cls="right" sel={selPlayer} onSel={setSelPlayer} team={teamNameOf('CT')} coach={coachOf('CT')} side="CT" hidden={hidden} onHide={setHidden} />}
         </div>
         {/* Harita altı kalıcı killfeed: rauntun TÜM kill'leri; oynanmamışlar
             soluk, satıra tıklayınca o ana atlanır. Sağ üstteki canvas feed'i
@@ -1670,6 +1693,8 @@ export default function ReplayView({
                 {['pistol', 'eco', 'force', 'semi', 'full'].map((b) => (
                   <option key={b} value={b}>{b}</option>
                 ))}
+                <option value="awp:T">T has AWP</option>
+                <option value="awp:CT">CT has AWP</option>
                 {[...stratNames.t.entries()].map(([id, nm]) => (
                   <option key={'st' + id} value={'st:' + id}>T strat: {nm}</option>
                 ))}
@@ -1692,6 +1717,29 @@ export default function ReplayView({
                 </span>
               </span>
               {ticksQ.isFetching && <span className="meta">…</span>}
+            </div>
+            <div className="row" style={{ flexWrap: 'wrap', gap: 4 }}>
+              <span className="meta" title="toggle grenade types on the map — e.g. hide HE/decoy to read smokes and flashes clearly">nades:</span>
+              {(['smoke', 'flash', 'molotov', 'he', 'decoy'] as const).map((g) => (
+                <button
+                  key={g}
+                  className={nadeVis.has(g) ? '' : 'ghost'}
+                  style={{ padding: '1px 7px', fontSize: 11 }}
+                  onClick={() => {
+                    const next = new Set(nadeVis);
+                    if (next.has(g)) next.delete(g); else next.add(g);
+                    setNadeVis(next);
+                  }}
+                >
+                  {g}
+                </button>
+              ))}
+              {hidden.size > 0 && (
+                <button className="ghost" style={{ padding: '1px 7px', fontSize: 11 }}
+                  onClick={() => setHidden(new Set())}>
+                  👁 unhide {hidden.size}
+                </button>
+              )}
             </div>
             {voiceUrl && (
               <div className="row" title="team voice comms — synced to the replay clock; nudge the offset until the calls match the action">
@@ -2042,7 +2090,7 @@ export default function ReplayView({
 }
 
 function HudPanel({
-  rows, cls, sel, onSel, team, coach, side,
+  rows, cls, sel, onSel, team, coach, side, hidden, onHide,
 }: {
   rows: HudRow[];
   cls: string;
@@ -2051,6 +2099,8 @@ function HudPanel({
   team: string;
   coach: string;
   side: string;
+  hidden: Set<string>;
+  onHide: (s: Set<string>) => void;
 }) {
   // Kompakt köşe HUD'u: üst satır takım+koç; oyuncu satırı
   // İsim · ❤can · 🛡kalkan(🪖 kask) · silah · KDA. Hover'da para+envanter.
@@ -2077,10 +2127,26 @@ function HudPanel({
               <tr style={{ opacity: r.alive ? 1 : 0.4 }}>
                 <td
                   className={`cut nick ${sel === r.nick ? 'selnick' : ''}`}
-                  title="focus timeline on this player"
-                  onClick={() => onSel((cur) => (cur === r.nick ? '' : r.nick))}
+                  style={hidden.has(r.nick) ? { textDecoration: 'line-through', opacity: 0.5 } : undefined}
                 >
-                  {r.nick}
+                  <span
+                    title={hidden.has(r.nick) ? 'show on map again' : 'hide this player on the map'}
+                    style={{ cursor: 'pointer', marginRight: 3, opacity: 0.7 }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      const next = new Set(hidden);
+                      if (next.has(r.nick)) next.delete(r.nick); else next.add(r.nick);
+                      onHide(next);
+                    }}
+                  >
+                    {hidden.has(r.nick) ? '🚫' : '👁'}
+                  </span>
+                  <span
+                    title="focus timeline on this player"
+                    onClick={() => onSel((cur) => (cur === r.nick ? '' : r.nick))}
+                  >
+                    {r.nick}
+                  </span>
                 </td>
                 <td style={{ color: `hsl(${(120 * r.hp) / 100},60%,55%)` }}>❤{r.hp}</td>
                 <td title={r.helmet ? 'kevlar + helmet' : r.armor > 0 ? 'kevlar only' : ''}>

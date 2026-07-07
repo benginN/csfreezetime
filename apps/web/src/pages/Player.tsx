@@ -232,6 +232,7 @@ export default function Player() {
 function PlayerHeat({ playerId, maps, initial = '' }: { playerId: string; maps: string[]; initial?: string }) {
   const [mapName, setMapName] = useState(initial);
   const [wnd, setWnd] = useState<'0-115' | '0-25'>('0-115');
+  const [awp, setAwp] = useState(false);
   const effMap = mapName || maps[0] || '';
   const [t0, t1] = wnd === '0-25' ? [0, 25] : [0, 115];
   if (!effMap) return null;
@@ -247,11 +248,15 @@ function PlayerHeat({ playerId, maps, initial = '' }: { playerId: string; maps: 
             <option value="0-115">whole round</option>
             <option value="0-25">first 25 s</option>
           </select>
+          <button className={awp ? '' : 'ghost'} onClick={() => setAwp(!awp)}
+            title="only positions taken while carrying an AWP — where do they set up with the big gun?">
+            🎯 AWP only
+          </button>
         </span>
       </h2>
       <div className="grid cards two">
         {(['T', 'CT'] as const).map((side) => (
-          <HeatCard key={side + effMap + wnd} playerId={playerId} mapName={effMap} side={side} t0={t0} t1={t1} />
+          <HeatCard key={side + effMap + wnd + awp} playerId={playerId} mapName={effMap} side={side} t0={t0} t1={t1} awp={awp} />
         ))}
       </div>
     </>
@@ -259,17 +264,18 @@ function PlayerHeat({ playerId, maps, initial = '' }: { playerId: string; maps: 
 }
 
 function HeatCard({
-  playerId, mapName, side, t0, t1,
+  playerId, mapName, side, t0, t1, awp = false,
 }: {
-  playerId: string; mapName: string; side: 'T' | 'CT'; t0: number; t1: number;
+  playerId: string; mapName: string; side: 'T' | 'CT'; t0: number; t1: number; awp?: boolean;
 }) {
   const cvRef = useRef<HTMLCanvasElement>(null);
   const [base, setBase] = useState<MapBase | null>(null);
   useEffect(() => { loadMapBase(mapName).then(setBase); }, [mapName]);
   const heat = useQuery({
-    queryKey: ['playerHeat', playerId, mapName, side, t0, t1],
+    queryKey: ['playerHeat', playerId, mapName, side, t0, t1, awp],
     queryFn: () => api.playerHeatmap(playerId, new URLSearchParams({
       map: mapName, side, t0: String(t0), t1: String(t1),
+      ...(awp ? { awp: '1' } : {}),
     })),
   });
   useEffect(() => {

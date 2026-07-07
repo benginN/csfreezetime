@@ -313,7 +313,12 @@ func (s *server) playerHeatmap(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	prows.Close()
-	cells, cellsLower, err := s.heatCells(ctx, cal, mapName, windows, side, &playerID)
+	// ?awp=1: yalnız AWP taşırken alınan pozisyonlar (sunucu-tanımlı koşul)
+	extra := ""
+	if q.Get("awp") == "1" {
+		extra = "has(inventory, 'AWP')"
+	}
+	cells, cellsLower, err := s.heatCells(ctx, cal, mapName, windows, side, &playerID, extra)
 	if err != nil {
 		writeErr(w, 500, err)
 		return

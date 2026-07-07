@@ -41,6 +41,8 @@ export interface RoundRow {
   max_ct_prob?: number | null;
   t_pred_prob?: number | null;  // modelin raunt öncesi bu stratejiye verdiği p
   ct_pred_prob?: number | null;
+  t_awps?: number;   // 5-20 sn penceresinde AWP taşıyan oyuncu sayısı
+  ct_awps?: number;
 }
 
 export interface Tendency {

@@ -157,7 +157,7 @@ func (s *server) matchHeatmap(w http.ResponseWriter, r *http.Request) {
 		}
 		playerID = &pu
 	}
-	cells, cellsLower, err := s.heatCells(ctx, cal, mapName, windows, side, playerID)
+	cells, cellsLower, err := s.heatCells(ctx, cal, mapName, windows, side, playerID, "")
 	if err != nil {
 		writeErr(w, 500, err)
 		return
@@ -197,6 +197,7 @@ func makeWindow(matchID uuid.UUID, rn int16, freezeEnd int32, end *int32, t0, t1
 func (s *server) heatCells(
 	ctx context.Context, cal *radarCal, mapName string,
 	windows []heatWindow, side string, playerID *uuid.UUID,
+	extraCond string, // sunucu-tanımlı ek CH koşulu (ör. envanter filtresi)
 ) (cells, cellsLower [][3]int32, err error) {
 	cells, cellsLower = [][3]int32{}, [][3]int32{}
 	if len(windows) == 0 {
@@ -217,6 +218,9 @@ func (s *server) heatCells(
 	if playerID != nil {
 		cond += " AND player_id = ?"
 		args = append(args, *playerID)
+	}
+	if extraCond != "" {
+		cond += " AND " + extraCond
 	}
 	lvlExpr := "0"
 	if cal.HasLower && cal.SplitZ != nil {
@@ -311,7 +315,7 @@ func (s *server) teamHeatmap(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	prows.Close()
-	cells, cellsLower, err := s.heatCells(ctx, cal, mapName, windows, side, nil)
+	cells, cellsLower, err := s.heatCells(ctx, cal, mapName, windows, side, nil, "")
 	if err != nil {
 		writeErr(w, 500, err)
 		return

@@ -81,6 +81,8 @@ func (s *server) matchDetail(w http.ResponseWriter, r *http.Request) {
 		MaxCTProb     *float32   `json:"max_ct_prob"`
 		TPredProb     *float32   `json:"t_pred_prob"`  // modelin bu stratejiye raunt
 		CTPredProb    *float32   `json:"ct_pred_prob"` // öncesi verdiği olasılık (sürpriz)
+		TAwps         int        `json:"t_awps"`  // 5-20 sn penceresinde AWP taşıyan oyuncu
+		CTAwps        int        `json:"ct_awps"` // sayısı (silah bazlı vurgu filtresi)
 	}
 	rows, err := s.pg.Query(ctx, `
 		SELECT r.round_number, r.start_tick, r.freeze_end_tick, r.end_tick, r.winner_side,
@@ -115,6 +117,33 @@ func (s *server) matchDetail(w http.ResponseWriter, r *http.Request) {
 		rounds = append(rounds, x)
 	}
 	rows.Close()
+
+	// AWP sayıları (CH): raunt başına tarafların AWP'li oyuncu sayısı —
+	// "AWP'ye karşı nasıl oynuyorlar" vurgusunun verisi
+	if chRows, err := s.ch.Query(ctx, `
+		SELECT round_number, side, uniqExactIf(player_id, has(inventory, 'AWP'))
+		FROM player_ticks
+		WHERE match_id = $1 AND round_time >= 5 AND round_time <= 20
+		GROUP BY round_number, side`, matchID); err == nil {
+		type k struct {
+			rn   uint8
+			side string
+		}
+		awps := map[k]uint64{}
+		for chRows.Next() {
+			var rn uint8
+			var side string
+			var n uint64
+			if chRows.Scan(&rn, &side, &n) == nil {
+				awps[k{rn, side}] = n
+			}
+		}
+		chRows.Close()
+		for i := range rounds {
+			rounds[i].TAwps = int(awps[k{uint8(rounds[i].RoundNumber), "T"}])
+			rounds[i].CTAwps = int(awps[k{uint8(rounds[i].RoundNumber), "CT"}])
+		}
+	}
 
 	type killRow struct {
 		RoundNumber int16   `json:"round_number"`
