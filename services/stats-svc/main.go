@@ -109,6 +109,7 @@ func main() {
 	r.Get("/api/v1/backfill/status", adminOnly(srv.backfillStatus))
 	r.Get("/api/v1/coverage", adminOnly(srv.coverage))
 	r.Get("/api/v1/matches/{id}/status", srv.matchStatus)
+	r.Get("/api/v1/matches/{id}/demo", srv.demoDownload)
 	r.Get("/api/v1/matches/{id}/players", srv.matchPlayers)
 	r.Get("/api/v1/matches/{id}/heatmap", srv.matchHeatmap)
 	r.Get("/api/v1/teams/{id}/heatmap", srv.teamHeatmap)

@@ -25,6 +25,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"github.com/klauspost/compress/zstd"
 	"github.com/minio/minio-go/v7"
@@ -482,6 +483,60 @@ func wrapResult(r map[string]any, err error) ([]map[string]any, error) {
 		return nil, err
 	}
 	return []map[string]any{r}, nil
+}
+
+// GET /api/v1/matches/{id}/demo — ham GOTV demosunu indirir. Depoda .zst
+// sıkıştırılmış durur; kullanıcıya açılmış .dem akıtılır (CS2'de doğrudan
+// izlenebilir). Arşivlenmiş (tick_purged) maçların ham demosu retention
+// tarafından silinmiştir → 410.
+func (s *server) demoDownload(w http.ResponseWriter, r *http.Request) {
+	if s.up == nil {
+		writeErr(w, 503, fmt.Errorf("storage unavailable"))
+		return
+	}
+	id, err := uuid.Parse(chi.URLParam(r, "id"))
+	if err != nil {
+		writeErr(w, 400, fmt.Errorf("invalid match id"))
+		return
+	}
+	var key, name string
+	var purged bool
+	if err := s.pg.QueryRow(r.Context(), `
+		SELECT demo_object_key, COALESCE(event_name, match_id::text), tick_purged
+		FROM matches WHERE match_id = $1 AND status = 'ready'`, id).
+		Scan(&key, &name, &purged); err != nil {
+		writeErr(w, 404, fmt.Errorf("match not found"))
+		return
+	}
+	if purged {
+		writeErr(w, 410, fmt.Errorf("archived match — the raw demo was removed by the retention policy"))
+		return
+	}
+	if _, err := s.up.mc.StatObject(r.Context(), s.up.bucket, key, minio.StatObjectOptions{}); err != nil {
+		writeErr(w, 404, fmt.Errorf("demo file missing from storage"))
+		return
+	}
+	obj, err := s.up.mc.GetObject(r.Context(), s.up.bucket, key, minio.GetObjectOptions{})
+	if err != nil {
+		writeErr(w, 500, err)
+		return
+	}
+	defer obj.Close()
+	var src io.Reader = obj
+	if strings.HasSuffix(key, ".zst") {
+		zr, err := zstd.NewReader(obj)
+		if err != nil {
+			writeErr(w, 500, err)
+			return
+		}
+		defer zr.Close()
+		src = zr
+	}
+	w.Header().Set("Content-Type", "application/octet-stream")
+	w.Header().Set("Content-Disposition", `attachment; filename="`+name+`.dem"`)
+	if _, err := io.Copy(w, src); err != nil {
+		log.Printf("demo indirme kesildi (%s): %v", name, err)
+	}
 }
 
 // orphanJanitor: restart/redelivery tükenmesi sırasında düşüp ara durumda
