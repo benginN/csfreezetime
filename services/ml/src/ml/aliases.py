@@ -21,7 +21,13 @@ from collections import defaultdict
 
 
 def _norm(name: str) -> str:
-    return re.sub(r"\s|-|team|esports|gaming|clan", "", name.lower())
+    # tüm ayraç/noktalama düşer ("Virtus.pro_"→"virtuspro", "[B8]"→"b8"),
+    # baş artikel düşer ("The MongolZ"→"mongolz"), org ekleri düşer
+    n = re.sub(r"[^a-z0-9]+", "", name.lower())
+    n = re.sub(r"^the", "", n)
+    for w in ("team", "esports", "esport", "gaming", "clan"):
+        n = n.replace(w, "")
+    return n
 
 
 def run(pgconn) -> int:
@@ -78,9 +84,9 @@ def run(pgconn) -> int:
     # KURAL (sertleştirilmiş — v1 kadro-örtüşmesi zincirleme yanlış birleştirdi):
     # yalnız normalize ad EŞİTSE (veya bilinen kısaltma haritasındaysa) VE
     # kadro ≥2 örtüşüyorsa birleştir. Ad eşleşmeden asla birleşmez.
-    KNOWN = {  # gözlemlenen resmî kısaltmalar → kanonik norm
+    KNOWN = {  # gözlemlenen resmî kısaltmalar → kanonik norm (_norm ÇIKTISI biçiminde)
         "navi": "natusvincere", "nip": "ninjasinpyjamas", "flc": "falcons",
-        "pv": "parivision", "mnglz": "themongolz", "lvg": "lynnvisiongaming",
+        "pv": "parivision", "mnglz": "mongolz", "lvg": "lynnvision",
         "9zglobant": "9z", "hotuxvavada": "hotu", "gl": "gamerlegion",
     }
     canon_norm = lambda n: KNOWN.get(_norm(n), _norm(n))
