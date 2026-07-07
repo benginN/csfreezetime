@@ -141,12 +141,24 @@ func (s *server) playerProfile(w http.ResponseWriter, r *http.Request) {
 		           count(*) FILTER (WHERE won) AS wins
 		    FROM clutches WHERE player_id = $1 GROUP BY versus
 		) x`, playerID)
+	// kazanılanlar önce (highlight sayfası karamsar olmasın), sonra zorluk
 	out["clutch_moments"] = s.jsonQuery(ctx, `
-		SELECT COALESCE(json_agg(x ORDER BY x.versus DESC, x.won DESC), '[]'::json) FROM (
+		SELECT COALESCE(json_agg(x ORDER BY x.won DESC, x.versus DESC), '[]'::json) FROM (
 		    SELECT c.match_id, c.round_number, c.versus, c.won, c.start_sec, m.map_name
 		    FROM clutches c JOIN matches m ON m.match_id = c.match_id
 		    WHERE c.player_id = $1
-		    ORDER BY c.versus DESC, c.won DESC LIMIT 12
+		    ORDER BY c.won DESC, c.versus DESC LIMIT 12
+		) x`, playerID)
+
+	// çok kill'li rauntlar (3k/4k/ace) — "notable moments"in parlak yüzü
+	out["big_rounds"] = s.jsonQuery(ctx, `
+		SELECT COALESCE(json_agg(x ORDER BY x.kills DESC, x.played_at DESC), '[]'::json) FROM (
+		    SELECT s.match_id, s.round_number, s.kills, s.side,
+		           m.map_name, m.played_at::date AS played_at
+		    FROM player_round_states s
+		    JOIN matches m ON m.match_id = s.match_id AND m.status = 'ready'
+		    WHERE s.player_id = $1 AND s.kills >= 3
+		    ORDER BY s.kills DESC, m.played_at DESC LIMIT 12
 		) x`, playerID)
 
 	// anomali bayrakları (kanıtlı)

@@ -25,16 +25,11 @@ const METHOD_LABEL: Record<string, string> = {
 // başlığında (title) kullanılır
 const METHOD_DESC: Record<string, string> = {
   league: 'Ignores the team completely: how often ANY team plays each strategy on this map & side. The bar every smarter method must beat.',
-  team: 'This team’s own history on this map & side, blended with the league average when data is thin (recent matches count more).',
+  team: 'The predicted team’s own history on this map & side, blended with the league average when data is thin (recent matches count more).',
   team_buy: 'Same as team tendency, but split by the round economy (full buy, eco, …) — teams behave very differently when poor.',
-  team_vs: 'Only rounds this team played against THIS exact opponent. Sharp when there is enough history, useless when there isn’t.',
+  team_vs: 'Only rounds the predicted team played against the exact opponent you pick. Sharp when there is enough history, useless when there isn’t.',
   team_style: 'Rounds against opponents whose playstyle looks similar to the selected opponent (cosine similarity of strategy profiles).',
   lgbm: 'A gradient-boosted decision-tree model (LightGBM). Sees the same information as "team + economy" but can generalize across teams with similar styles.',
-};
-
-const IMPORTANCE_LABEL: Record<string, string> = {
-  buy_type: 'round economy (buy type)',
-  log_n_eff: 'how much history the team has',
 };
 
 export default function Insights() {
@@ -95,33 +90,69 @@ export default function Insights() {
         recent ones) before they are allowed to serve you a prediction.
       </p>
 
-      {/* 1 — envanter */}
-      <h2>Data inventory</h2>
+      {/* 4 — tahmin laboratuvarı */}
+      <h2>Prediction lab — pick a team, see what the site would predict</h2>
       <p className="meta" style={{ maxWidth: 720 }}>
-        What the models are fed. More rounds per team &amp; map = sharper, more
-        trustworthy predictions.
+        Pick a team and a situation; you get the same distribution the site would
+        serve, plus <b>which method produced it and on how much evidence</b>.
+        Setting an opponent switches to matchup-calibrated methods when the
+        temporal test favours them: real head-to-head rounds if there are enough,
+        otherwise rounds against similar-style opponents.
       </p>
-      {inv && (
-        <div className="grid cards" style={{ marginTop: 12 }}>
-          {([
-            [inv.matches, 'matches parsed'], [inv.rounds, 'rounds analyzed'],
-            [inv.clusters, 'strategy clusters'], [inv.tendency_rows, 'team tendencies'],
-            [inv.vs_rows, 'opponent-calibrated rows'], [inv.winprob_cells, 'win-prob states'],
-            [inv.anomaly_flags, 'anomaly flags'], [inv.exec_templates, 'execute templates'],
-            [inv.clutches, 'clutch situations'],
-          ] as [number, string][]).map(([n, label]) => (
-            <div key={label} className="card" style={{ textAlign: 'center', padding: '10px 6px' }}>
-              <div style={{ fontSize: 22, fontWeight: 700 }}>{n.toLocaleString('en-US')}</div>
-              <div className="meta">{label}</div>
-            </div>
-          ))}
+      <div className="panel">
+        <div className="toolbar">
+          <select value={teamId} onChange={(e) => setTeamId(e.target.value)}>
+            <option value="">team…</option>
+            {teamList.map((t) => <option key={t.team_id} value={t.team_id}>{t.name}</option>)}
+          </select>
+          <span className="meta">vs</span>
+          <select value={oppId} onChange={(e) => setOppId(e.target.value)}>
+            <option value="">any opponent</option>
+            {teamList.filter((t) => t.team_id !== teamId)
+              .map((t) => <option key={t.team_id} value={t.team_id}>{t.name}</option>)}
+          </select>
+          <select value={effMap} onChange={(e) => setMapName(e.target.value)}>
+            {maps.map((m) => <option key={m}>{m}</option>)}
+          </select>
+          <select value={side} onChange={(e) => setSide(e.target.value)}>
+            <option>T</option><option>CT</option>
+          </select>
+          <select value={buy} onChange={(e) => setBuy(e.target.value)}>
+            <option value="">buy unknown</option>
+            {['pistol', 'eco', 'semi', 'force', 'full'].map((b) => <option key={b}>{b}</option>)}
+          </select>
         </div>
-      )}
+        {!teamId && <p className="meta">pick a team to see its next-round strategy distribution</p>}
+        {predict.data && (
+          <>
+            <div className="toolbar" style={{ gap: 8 }}>
+              <span className="badge gray" title={METHOD_DESC[predict.data.method]}>
+                method: {METHOD_LABEL[predict.data.method] ?? predict.data.method}
+              </span>
+              <span className="meta">{predict.data.evidence.note}</span>
+            </div>
+            {(predict.data.clusters ?? []).slice(0, 6).map((c) => (
+              <Bar key={c.cluster_id} prob={c.prob}
+                label={c.label ?? c.top_places.slice(0, 3).map((p) => p.place).join(' → ')} />
+            ))}
+          </>
+        )}
+        {teamId && (
+          <p className="meta" style={{ marginTop: 8 }}>
+            fallback chain: LightGBM → head-to-head → opponent style → team + economy
+            → team → league — each step only serves where it won the temporal test.
+            {teamId && <> · <Link to={`/report/${teamId}?map=${effMap}`}>full opponent report →</Link></>}
+          </p>
+        )}
+      </div>
 
       {/* 2 — yöntem yarışı */}
       <h2>Method race — which prediction method earns the right to be shown?</h2>
       <p className="meta" style={{ maxWidth: 720 }}>
-        Six methods try to predict the strategy of each round. We score them with{' '}
+        Every method is a different way of answering one question: <i>“which
+        strategy will team X play next round?”</i> — pick any team in the
+        prediction lab above to see the answers live. Here the six methods are
+        scored against each other with{' '}
         <b title="For every test round: how much probability did the method give to the strategy that actually happened? Less surprise = lower score.">
           log-loss
         </b>{' '}
@@ -195,17 +226,30 @@ export default function Insights() {
       {lgbmRows.length > 0 ? (
         <div className="grid cards">
           {lgbmRows.map((e) => {
-            const imp = Object.entries(e.lgbm_importance!).sort((a, b) => b[1] - a[1]).slice(0, 6);
+            // ham özellik önemleri üç anlaşılır bileşene toplanır
+            let eco = 0, hist = 0, finger = 0;
+            for (const [k2, v] of Object.entries(e.lgbm_importance!)) {
+              if (k2 === 'buy_type') eco += v;
+              else if (k2 === 'log_n_eff') hist += v;
+              else finger += v; // own_share_* → takımın strateji parmak izi
+            }
+            const parts: [string, number][] = ([
+              ['the round economy (what they can afford)', eco],
+              ['the team’s strategy fingerprint (what they historically run)', finger],
+              ['how much history there is (evidence volume)', hist],
+            ] as [string, number][]).sort((a, b) => b[1] - a[1]);
             return (
               <div key={e.map_name + e.side} className="card">
                 <div className="teams">
                   <span>{e.map_name.replace('de_', '')} <span className={`badge ${e.side}`}>{e.side}</span></span>
-                  {e.best_method === 'lgbm' && <span className="badge gray">live</span>}
+                  {e.best_method === 'lgbm' && <span className="badge gray" title="this is what the site serves for this map & side">live</span>}
                 </div>
-                {imp.map(([name, v]) => (
-                  <Bar key={name} prob={v}
-                    label={IMPORTANCE_LABEL[name]
-                      ?? name.replace(/^own_share_c(\d+)$/, 'own use of strategy #$1')} />
+                <p className="meta" style={{ margin: '6px 0' }}>
+                  Decides mostly by <b>{parts[0][0]}</b> ({Math.round(100 * parts[0][1])}%),
+                  then by {parts[1][0]} ({Math.round(100 * parts[1][1])}%).
+                </p>
+                {parts.map(([name, v]) => (
+                  <Bar key={name} prob={v} label={name} />
                 ))}
               </div>
             );
@@ -219,61 +263,28 @@ export default function Insights() {
         </p>
       )}
 
-      {/* 4 — tahmin laboratuvarı */}
-      <h2>Prediction lab — try it yourself</h2>
+      {/* 1 — envanter */}
+      <h2>Data inventory</h2>
       <p className="meta" style={{ maxWidth: 720 }}>
-        Pick a team and a situation; you get the same distribution the site would
-        serve, plus <b>which method produced it and on how much evidence</b>.
-        Setting an opponent switches to matchup-calibrated methods when the
-        temporal test favours them: real head-to-head rounds if there are enough,
-        otherwise rounds against similar-style opponents.
+        What the models are fed. More rounds per team &amp; map = sharper, more
+        trustworthy predictions.
       </p>
-      <div className="panel">
-        <div className="toolbar">
-          <select value={teamId} onChange={(e) => setTeamId(e.target.value)}>
-            <option value="">team…</option>
-            {teamList.map((t) => <option key={t.team_id} value={t.team_id}>{t.name}</option>)}
-          </select>
-          <span className="meta">vs</span>
-          <select value={oppId} onChange={(e) => setOppId(e.target.value)}>
-            <option value="">any opponent</option>
-            {teamList.filter((t) => t.team_id !== teamId)
-              .map((t) => <option key={t.team_id} value={t.team_id}>{t.name}</option>)}
-          </select>
-          <select value={effMap} onChange={(e) => setMapName(e.target.value)}>
-            {maps.map((m) => <option key={m}>{m}</option>)}
-          </select>
-          <select value={side} onChange={(e) => setSide(e.target.value)}>
-            <option>T</option><option>CT</option>
-          </select>
-          <select value={buy} onChange={(e) => setBuy(e.target.value)}>
-            <option value="">buy unknown</option>
-            {['pistol', 'eco', 'semi', 'force', 'full'].map((b) => <option key={b}>{b}</option>)}
-          </select>
-        </div>
-        {!teamId && <p className="meta">pick a team to see its next-round strategy distribution</p>}
-        {predict.data && (
-          <>
-            <div className="toolbar" style={{ gap: 8 }}>
-              <span className="badge gray" title={METHOD_DESC[predict.data.method]}>
-                method: {METHOD_LABEL[predict.data.method] ?? predict.data.method}
-              </span>
-              <span className="meta">{predict.data.evidence.note}</span>
+      {inv && (
+        <div className="grid cards" style={{ marginTop: 12 }}>
+          {([
+            [inv.matches, 'matches parsed'], [inv.rounds, 'rounds analyzed'],
+            [inv.clusters, 'strategy clusters'], [inv.tendency_rows, 'team tendencies'],
+            [inv.vs_rows, 'opponent-calibrated rows'], [inv.winprob_cells, 'win-prob states'],
+            [inv.anomaly_flags, 'anomaly flags'], [inv.exec_templates, 'execute templates'],
+            [inv.clutches, 'clutch situations'],
+          ] as [number, string][]).map(([n, label]) => (
+            <div key={label} className="card" style={{ textAlign: 'center', padding: '10px 6px' }}>
+              <div style={{ fontSize: 22, fontWeight: 700 }}>{n.toLocaleString('en-US')}</div>
+              <div className="meta">{label}</div>
             </div>
-            {(predict.data.clusters ?? []).slice(0, 6).map((c) => (
-              <Bar key={c.cluster_id} prob={c.prob}
-                label={c.label ?? c.top_places.slice(0, 3).map((p) => p.place).join(' → ')} />
-            ))}
-          </>
-        )}
-        {teamId && (
-          <p className="meta" style={{ marginTop: 8 }}>
-            fallback chain: LightGBM → head-to-head → opponent style → team + economy
-            → team → league — each step only serves where it won the temporal test.
-            {teamId && <> · <Link to={`/report/${teamId}?map=${effMap}`}>full opponent report →</Link></>}
-          </p>
-        )}
-      </div>
+          ))}
+        </div>
+      )}
 
       {/* 5 — küme gezgini */}
       <h2>Strategy cluster explorer — what are these “strategies” anyway?</h2>

@@ -361,6 +361,10 @@ export interface PlayerProfile {
   trades: { side: 'T' | 'CT'; made: number }[];
   deaths_traded: { side: 'T' | 'CT'; deaths: number; traded: number }[];
   clutches: { versus: number; attempts: number; wins: number }[];
+  big_rounds: {
+    match_id: string; round_number: number; kills: number;
+    side: 'T' | 'CT'; map_name: string; played_at: string;
+  }[];
   clutch_moments: {
     match_id: string; round_number: number; versus: number;
     won: boolean; start_sec: number; map_name: string | null;

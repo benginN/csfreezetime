@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useRoster, useWindow, WindowPicker } from '../lib/window';
 import { api } from '../api';
 import { teamHue, teamInitials } from '../lib/rounds';
+import { MlMark } from '../lib/MlMark';
 
 // Takım anasayfası: genel karne + harita karneleri (rapora link) + geçmiş maçlar.
 export default function Team() {
@@ -46,7 +47,13 @@ export default function Team() {
         <Stat label="Pistol rounds" v={pct(ov.pistol_wins, ov.pistol_rounds)} n={`${ov.pistol_wins}/${ov.pistol_rounds}`} />
       </div>
 
-      <h2>Maps <span className="meta">— with the team's signature strategy per side (vs league average)</span></h2>
+      <h2>Maps <MlMark /> <span className="meta">— win record per map, plus the team's signature strategy on each side</span></h2>
+      <p className="meta" style={{ maxWidth: 720 }}>
+        Each card: match record, round-win rate, and what this team most likes
+        to run on T and CT (found automatically from all their rounds). A{' '}
+        <span style={{ color: '#8fd39a' }}>×N league</span> note means they play
+        it far more than the average team. Click a card for the full report.
+      </p>
       <div className="grid cards">
         {d.maps.map((m) => (
           <Link key={m.map_name} to={`/report/${teamId}?map=${m.map_name}`} className="card">

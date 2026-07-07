@@ -61,9 +61,15 @@ def run(pgconn, fs: FeatureSet) -> dict | None:
         for c in range(k):
             mask = labels == c
             center = km.cluster_centers_[c]
-            # merkezin bölge profili: pencereler ortalaması → en belirgin 5 bölge
+            # merkezin bölge profili: pencereler ortalaması → en belirgin 5 bölge.
+            # Spawn bölgeleri elenir: her raunt orada başladığından her rotada
+            # baskın çıkıp adları anlamsızlaştırıyordu ("TSpawn → A" vakası) —
+            # kümeyi AYIRAN bölgeler spawn sonrası gidilen yerlerdir.
             occ = center[: WINDOWS * P].reshape(WINDOWS, P).mean(axis=0)
-            top = sorted(zip(fs.places, occ), key=lambda t: -t[1])[:5]
+            top = sorted(
+                ((pl, w) for pl, w in zip(fs.places, occ) if 'spawn' not in pl.lower()),
+                key=lambda t: -t[1],
+            )[:5]
             top_places = [{"place": p, "weight": round(float(w), 3)} for p, w in top if w > 0.02]
             # temsilciler: merkeze en yakın 3 raunt
             d = np.linalg.norm(fs.X[mask] - center, axis=1)

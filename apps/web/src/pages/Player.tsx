@@ -5,6 +5,7 @@ import { api } from '../api';
 import { drawMapBase, hidpiCtx, loadMapBase, type MapBase } from '../lib/mapbase';
 import { paintHeat } from '../lib/heatpaint';
 import { teamHue } from '../lib/rounds';
+import { MlMark } from '../lib/MlMark';
 
 // Oyuncu sayfası: roller (kanıtlı), harita performansı, açılış düelloları,
 // arşiv ısı haritaları ve anomali bayrakları.
@@ -55,6 +56,7 @@ export default function Player() {
               <span>
                 <span className={`badge ${r.side}`}>{r.side}</span>{' '}
                 {mapSel && <span className="badge gray">{mapSel.replace('de_', '')}</span>}{' '}
+                <MlMark note="Role tags come from the ML pipeline: position, timing and inventory metrics with open thresholds — evidence is shown right here." />{' '}
                 {r.tags.length
                   ? r.tags.map((t) => <span key={t} className="badge gray" style={{ marginRight: 4 }}>{t}</span>)
                   : <span className="meta">no role label (threshold-based)</span>}
@@ -172,7 +174,19 @@ export default function Player() {
               </table>
             </div>
             <div className="card">
-              <div className="meta" style={{ marginBottom: 6 }}>notable moments</div>
+              <div className="meta" style={{ marginBottom: 6 }}>
+                notable moments — multi-kills first, then clutches (wins on top)
+              </div>
+              {(d.big_rounds ?? [])
+                .filter((m) => !mapSel || m.map_name === mapSel)
+                .slice(0, 5).map((m, i) => (
+                <div key={'bk' + i} style={{ marginBottom: 3 }}>
+                  <Link to={`/match/${m.match_id}?round=${m.round_number}`}>
+                    ▶ 💥 {m.kills}k round — {m.map_name} r{m.round_number}
+                  </Link>
+                  <span className="meta"> <span className={`badge ${m.side}`}>{m.side}</span> {m.played_at}</span>
+                </div>
+              ))}
               {d.clutch_moments
                 .filter((m) => !mapSel || m.map_name === mapSel)
                 .slice(0, 8).map((m, i) => (
@@ -194,7 +208,7 @@ export default function Player() {
       {/* Anomaliler */}
       {d.flags.length > 0 && (
         <>
-          <h2>Anomaly flags <span className="meta">(|z| &gt; 1.5 vs own baseline)</span></h2>
+          <h2>Anomaly flags <MlMark note="ML pipeline: each metric is compared to the player's own historical baseline; |z| measures how unusual the match was." /> <span className="meta">(|z| &gt; 1.5 vs own baseline) — unusual matches, good or bad, not accusations</span></h2>
           <table>
             <thead><tr><th>Metric</th><th>Value</th><th>Baseline</th><th>z</th><th>Match</th></tr></thead>
             <tbody>

@@ -5,6 +5,7 @@ import { useRoster, useWindow, WindowPicker } from '../lib/window';
 import { api, type ReportResp, type StackResp } from '../api';
 import { drawMapBase, hidpiCtx, loadMapBase, RADAR, type MapBase } from '../lib/mapbase';
 import { paintHeat } from '../lib/heatpaint';
+import { MlMark } from '../lib/MlMark';
 
 // Rakip Hazırlık Raporu (Faz 5): koçun maç öncesi tek sayfası.
 // Her iddia örneklem boyutuyla; yazdırılabilir (Print düğmesi + @media print).
@@ -109,7 +110,12 @@ export default function Report() {
       {/* 3b — Execute templates */}
       {d.exec_templates.length > 0 && (
         <>
-          <h2>Execute templates <span className="meta">(recurring first-25s utility sets{d.archive_wide ? ' · full archive' : ''})</span></h2>
+          <h2>Execute templates <MlMark note="Found automatically: the ML pipeline groups the first-25-second utility of every round and keeps combinations this team repeats 3+ times." /> <span className="meta">{d.archive_wide ? ' · full archive' : ''}</span></h2>
+          <p className="meta" style={{ maxWidth: 720 }}>
+            Utility combinations this team runs again and again to open a hit —
+            with how often, how successful, and which site it usually ends on.
+            If you see one of these smokes go up live, you know what is coming.
+          </p>
           <div className="card" style={{ maxWidth: 760 }}>
             {d.exec_templates.map((t, i) => {
               const sites = Object.entries(t.site_mix).sort((a, b) => b[1] - a[1]);
@@ -127,7 +133,14 @@ export default function Report() {
       )}
 
       {/* 3 — Strategy tendencies (küme adları koçça düzenlenebilir) */}
-      <h2>Strategy tendencies <span className="meta">— ✏ names strategies for everyone</span></h2>
+      <h2>Strategy tendencies <MlMark /> <span className="meta">— ✏ names strategies for everyone</span></h2>
+      <p className="meta" style={{ maxWidth: 720 }}>
+        The archive automatically groups every round&apos;s opening into recurring
+        strategies (routes shown as area → area). Bars = how often THIS team
+        picks each one; the <span style={{ color: '#8fd39a' }}>×N league</span>{' '}
+        badge means they do it that many times more than an average team —
+        that is the habit worth preparing against.
+      </p>
       <div className="grid cards">
         {(['T', 'CT'] as const).map((side) => {
           const rows = d.tendencies.filter((t) => t.side === side).slice(0, 4);
@@ -169,7 +182,12 @@ export default function Report() {
       <PredictionSection teamId={teamId} mapName={mapName} />
 
       {/* 4 — Setups */}
-      <h2>Default setups <span className="meta">(positions 15 s into the round)</span>{d.archive_wide && <span className="meta"> · full archive (window n/a)</span>}</h2>
+      <h2>Default setups <MlMark note="Setup patterns are mined automatically from player positions 15s into every round; shown positions come from a real example round." /> <span className="meta">(positions 15 s into the round)</span>{d.archive_wide && <span className="meta"> · full archive (window n/a)</span>}</h2>
+      <p className="meta" style={{ maxWidth: 720 }}>
+        Where the five actually stand 15 seconds in — their most common
+        arrangements, with exact player positions from a real round. “after
+        first contact” below each shows where they rotate once the fight starts.
+      </p>
       <div className="grid cards">
         {(['CT', 'T'] as const).map((side) => (
           <SetupCard key={side} d={d} side={side} mapName={mapName} />
@@ -195,7 +213,12 @@ export default function Report() {
           </table>
         </div>
       )}
-      <h2>Utility habits {d.archive_wide && <span className="meta"> · full archive (window n/a)</span>}</h2>
+      <h2>Utility habits <MlMark note="Grenade landing spots are clustered automatically (3+ repeats) with average throw timing." /> {d.archive_wide && <span className="meta"> · full archive (window n/a)</span>}</h2>
+      <p className="meta" style={{ maxWidth: 720 }}>
+        The smokes/molotovs/flashes this team throws to the same spot over and
+        over — with when in the round they come. Deep-dive with box-select on
+        the <Link to="/patterns">Pattern Finder</Link> page.
+      </p>
       <UtilitySection d={d} mapName={mapName} />
       <div className="grid cards two" style={{ marginTop: 12 }}>
         <div className="card">
@@ -413,7 +436,9 @@ function BuyCard({ title, dist }: { title: string; dist: Record<string, number> 
   );
 }
 
-// Radar üstünde kurulum deseni: yerleşim merkezlerine noktalar.
+// Radar üstünde kurulum deseni: temsilci raundun GERÇEK oyuncu konumları
+// (t_offset anındaki kare) + desen bölge etiketleri. Bölge merkezleri yerine
+// tam konum: "default'ta kim tam nerede duruyor" sorusunun cevabı.
 function SetupCard({ d, side, mapName }: { d: ReportResp; side: 'T' | 'CT'; mapName: string }) {
   const setups = d.setups.filter((s) => s.side === side && s.t_offset === 15).slice(0, 3);
   const [sel, setSel] = useState(0);
@@ -422,27 +447,54 @@ function SetupCard({ d, side, mapName }: { d: ReportResp; side: 'T' | 'CT'; mapN
   useEffect(() => { loadMapBase(mapName).then(setBase); }, [mapName]);
 
   const cur = setups[Math.min(sel, setups.length - 1)];
+  const rep = cur?.representatives[0];
+  const repTicks = useQuery({
+    queryKey: ['setupticks', rep?.match_id, rep?.round_number],
+    queryFn: () => api.roundTicks(rep!.match_id, rep!.round_number),
+    enabled: !!rep,
+  });
   useEffect(() => {
     const cv = cvRef.current;
     if (!cv || !base || !cur) return;
     const ctx = hidpiCtx(cv, MAPW);
     drawMapBase(ctx, MAPW, base, false);
-    const centro = new Map(base.layout.places.map((p) => [p.name, p]));
-    for (const pp of cur.pattern) {
-      const c = centro.get(pp.place);
-      if (!c) continue;
-      const x = (c.rx * MAPW) / RADAR, y = (c.ry * MAPW) / RADAR;
-      ctx.fillStyle = side === 'T' ? '#e8a33d' : '#4d9de0';
-      ctx.beginPath(); ctx.arc(x, y, 9, 0, 7); ctx.fill();
-      ctx.strokeStyle = '#0b0e0c'; ctx.lineWidth = 1.5;
-      ctx.beginPath(); ctx.arc(x, y, 9, 0, 7); ctx.stroke();
-      ctx.fillStyle = '#0b0e0c'; ctx.font = 'bold 11px system-ui'; ctx.textAlign = 'center';
-      ctx.fillText(String(pp.n), x, y + 4);
-      ctx.fillStyle = '#dbe4dc'; ctx.font = '10px system-ui';
-      ctx.fillText(pp.place, x, y - 13);
+    const k = MAPW / RADAR;
+    const td = repTicks.data;
+    if (td) {
+      // temsilci raundun t_offset (15 sn) anındaki gerçek konumlar
+      const target = (td.freeze_end_tick ?? td.ticks[0]) + cur.t_offset * td.tick_rate;
+      let idx = td.ticks.findIndex((t) => t >= target);
+      if (idx < 0) idx = td.ticks.length - 1;
+      ctx.font = '10px system-ui'; ctx.textAlign = 'center';
+      for (const pl of td.players) {
+        if (pl.side !== side) continue;
+        const x = pl.rx[idx], y = pl.ry[idx];
+        if (x == null || y == null || pl.alive[idx] === false) continue;
+        ctx.fillStyle = side === 'T' ? '#e8a33d' : '#4d9de0';
+        ctx.beginPath(); ctx.arc(x * k, y * k, 5, 0, 7); ctx.fill();
+        ctx.strokeStyle = '#0b0e0c'; ctx.lineWidth = 1.2;
+        ctx.beginPath(); ctx.arc(x * k, y * k, 5, 0, 7); ctx.stroke();
+        ctx.fillStyle = '#dbe4dc';
+        ctx.fillText(pl.nickname + (pl.lower?.[idx] ? ' ↓' : ''), x * k, y * k - 9);
+      }
       ctx.textAlign = 'left';
+    } else {
+      // temsilci yüklenene dek: bölge merkezi yaklaşıklaması
+      const centro = new Map(base.layout.places.map((p) => [p.name, p]));
+      for (const pp of cur.pattern) {
+        const c = centro.get(pp.place);
+        if (!c) continue;
+        const x = (c.rx * MAPW) / RADAR, y = (c.ry * MAPW) / RADAR;
+        ctx.fillStyle = side === 'T' ? '#e8a33d' : '#4d9de0';
+        ctx.globalAlpha = 0.7;
+        ctx.beginPath(); ctx.arc(x, y, 9, 0, 7); ctx.fill();
+        ctx.globalAlpha = 1;
+        ctx.fillStyle = '#0b0e0c'; ctx.font = 'bold 11px system-ui'; ctx.textAlign = 'center';
+        ctx.fillText(String(pp.n), x, y + 4);
+        ctx.textAlign = 'left';
+      }
     }
-  }, [base, cur, side]);
+  }, [base, cur, side, repTicks.data]);
 
   if (!setups.length) {
     return (
@@ -465,9 +517,9 @@ function SetupCard({ d, side, mapName }: { d: ReportResp; side: 'T' | 'CT'; mapN
           </button>
         ))}
       </div>
-      <canvas ref={cvRef} className="flat" width={MAPW} height={MAPW} />
+      <canvas ref={cvRef} className="flat" width={MAPW} height={MAPW} style={{ maxWidth: '100%', height: 'auto' }} />
       <p className="meta" style={{ marginTop: 6 }}>
-        {cur.pattern.map((p) => `${p.place}×${p.n}`).join(' · ')} — seen {cur.observed}/{cur.sample_size}
+        dots = exact positions from example round · {cur.pattern.map((p) => `${p.place}×${p.n}`).join(' · ')} — seen {cur.observed}/{cur.sample_size}
         {cur.avg_hold_sec != null && <> · held ≈{Math.round(cur.avg_hold_sec)} s</>}
         {' · '}
         {cur.representatives.slice(0, 2).map((r, i) => (
@@ -534,7 +586,7 @@ function PredictionSection({ teamId, mapName }: { teamId: string; mapName: strin
   return (
     <>
       <h2>
-        Next-round prediction{' '}
+        Next-round prediction <MlMark />{' '}
         <span className="meta">— what will they most likely run? (from the ML Lab, evidence included)</span>
       </h2>
       <div className="panel">
@@ -633,7 +685,7 @@ function UtilitySection({ d, mapName }: { d: ReportResp; mapName: string }) {
             <button key={t} className={t === type ? '' : 'ghost'} onClick={() => setType(t)}>{t}</button>
           ))}
         </div>
-        <canvas ref={cvRef} className="flat" width={MAPW} height={MAPW} />
+        <canvas ref={cvRef} className="flat" width={MAPW} height={MAPW} style={{ maxWidth: '100%', height: 'auto' }} />
         <p className="meta">dot size = frequency · dashed line = typical throw origin</p>
       </div>
       <div className="card">
