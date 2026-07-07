@@ -480,6 +480,98 @@ func wrapResult(r map[string]any, err error) ([]map[string]any, error) {
 	return []map[string]any{r}, nil
 }
 
+// orphanJanitor: restart/redelivery tükenmesi sırasında düşüp ara durumda
+// ('queued'/'parsing' vb.) takılı kalan maçları kendiliğinden kurtarır.
+// Öksüzlük tespiti kesindir: JetStream'de hem bekleyen hem işlenmekte olan
+// mesaj yoksa ara durumdaki maç için bir daha mesaj GELMEYECEK demektir.
+// Yarışları (ingest'in satırı yazıp mesajı henüz yayınlamadığı milisaniyeler)
+// elemek için maç, iki ARDIŞIK sakin turda takılı görülmeden requeue edilmez.
+func (s *server) orphanJanitor() {
+	monURL := envOr("NATS_MONITOR_URL", "http://localhost:8222")
+	seen := map[string]int{}
+	for {
+		time.Sleep(5 * time.Minute)
+		rows, err := s.pg.Query(context.Background(),
+			"SELECT match_id::text FROM matches WHERE status NOT IN ('ready','failed','private')")
+		if err != nil {
+			continue
+		}
+		stuck := []string{}
+		for rows.Next() {
+			var id string
+			if rows.Scan(&id) == nil {
+				stuck = append(stuck, id)
+			}
+		}
+		rows.Close()
+		if len(stuck) == 0 {
+			clear(seen)
+			continue
+		}
+		if n, err := jetstreamInflight(monURL); err != nil || n > 0 {
+			continue // kuyruk meşgul (ya da izleme kapalı): karar verme, sayaçları dondur
+		}
+		cur := map[string]int{}
+		for _, id := range stuck {
+			cur[id] = seen[id] + 1
+			if cur[id] < 2 {
+				continue
+			}
+			var mid, sha, key, ev, played, tour string
+			if s.pg.QueryRow(context.Background(), `
+				SELECT match_id, demo_sha256, demo_object_key,
+				       COALESCE(event_name,''), COALESCE(to_char(played_at,'YYYY-MM-DD"T"HH24:MI:SS"Z"'),''),
+				       COALESCE(tournament,'')
+				FROM matches WHERE match_id = $1`, id).
+				Scan(&mid, &sha, &key, &ev, &played, &tour) != nil {
+				continue
+			}
+			payload, _ := json.Marshal(map[string]any{
+				"demo_sha256": sha, "match_id": mid, "object_key": key,
+				"source_file": ev, "played_at": played, "tournament": tour,
+			})
+			if s.up.nc.Publish("demo.ingested", payload) == nil {
+				log.Printf("kuyruk bekçisi: öksüz maç requeue edildi: %s (%s)", ev, mid)
+				markIngest()
+				delete(cur, id)
+			}
+		}
+		seen = cur
+	}
+}
+
+// jetstreamInflight: NATS izleme ucundan tüm consumer'ların bekleyen +
+// işlenmekte olan mesaj toplamı.
+func jetstreamInflight(monURL string) (int, error) {
+	resp, err := http.Get(monURL + "/jsz?consumers=true")
+	if err != nil {
+		return 0, err
+	}
+	defer resp.Body.Close()
+	var jz struct {
+		AccountDetails []struct {
+			StreamDetail []struct {
+				ConsumerDetail []struct {
+					NumAckPending int    `json:"num_ack_pending"`
+					NumPending    uint64 `json:"num_pending"`
+				} `json:"consumer_detail"`
+			} `json:"stream_detail"`
+		} `json:"account_details"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&jz); err != nil {
+		return 0, err
+	}
+	total := 0
+	for _, a := range jz.AccountDetails {
+		for _, st := range a.StreamDetail {
+			for _, c := range st.ConsumerDetail {
+				total += c.NumAckPending + int(c.NumPending)
+			}
+		}
+	}
+	return total, nil
+}
+
 // retentionLoop: saklama politikası (güncel karar 2026-07-06 akşamı:
 // 12 ay — arşiv kapsamı "son 1 yılın S+A tier maçları"; 90 günlük
 // zaman-azalımıyla 12+ ay öncesi zaten ~0.06 ağırlık taşır, ara karar

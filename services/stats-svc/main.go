@@ -153,7 +153,8 @@ func main() {
 	go srv.backfillWatch() // backfill klasörünü otomatik işle
 	go srv.mlAutoRun()     // kuyruk durulunca istatistikleri tazele
 	if srv.up != nil {
-		go srv.retentionLoop() // 24 ay üstü: ham+tick sil, meta kalsın
+		go srv.retentionLoop()  // eşik üstü: ham+tick sil, meta kalsın
+		go srv.orphanJanitor() // ara durumda takılı maçları requeue et
 	}
 
 	addr := envOr("STATS_ADDR", ":8090")
