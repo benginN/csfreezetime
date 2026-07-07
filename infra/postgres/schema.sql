@@ -268,3 +268,238 @@ CREATE TABLE IF NOT EXISTS team_tendencies_vs (
     PRIMARY KEY (team_id, opp_team_id, map_name, side, kind, cluster_id)
 );
 CREATE INDEX IF NOT EXISTS ttv_lookup ON team_tendencies_vs (team_id, map_name, side, opp_team_id);
+
+-- ============================================================================
+-- Şema kayması onarımı (2026-07-08): aşağıdaki 11 tablo Temmuz sprintinde
+-- canlı DB'ye elle ALTER/CREATE ile girmiş, schema.sql'e yazılmamıştı
+-- (playlists/notes = işbirliği araçları; utility_spots/team_setups/
+-- player_roles = Faz 5; winprob/clutches/rotations/cond = analitik).
+-- DDL canlı veritabanından pg_dump ile çıkarıldı.
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS clutches (
+    match_id uuid NOT NULL,
+    round_number smallint NOT NULL,
+    player_id uuid,
+    side text NOT NULL,
+    versus smallint NOT NULL,
+    start_sec real NOT NULL,
+    won boolean NOT NULL,
+    computed_at timestamp with time zone DEFAULT now(),
+    CONSTRAINT clutches_side_check CHECK ((side = ANY (ARRAY['T'::text, 'CT'::text])))
+);
+CREATE TABLE IF NOT EXISTS notes (
+    note_id integer NOT NULL,
+    match_id uuid,
+    round_number smallint NOT NULL,
+    t_sec real NOT NULL,
+    author text DEFAULT ''::text,
+    body text DEFAULT ''::text,
+    audio_key text,
+    created_at timestamp with time zone DEFAULT now()
+);
+CREATE SEQUENCE IF NOT EXISTS notes_note_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+ALTER SEQUENCE notes_note_id_seq OWNED BY notes.note_id;
+CREATE TABLE IF NOT EXISTS player_roles (
+    player_id uuid NOT NULL,
+    team_id uuid,
+    side text NOT NULL,
+    map_name text NOT NULL DEFAULT '',  -- '' = tüm haritalar (genel profil)
+    rounds integer NOT NULL,
+    entry_attempt_share real,
+    entry_success real,
+    opening_kills integer,
+    opening_deaths integer,
+    lurk_dist_avg real,
+    anchor_place text,
+    anchor_share real,
+    awp_round_share real,
+    util_per_round real,
+    flash_assists_pr real,
+    adr real,
+    tags text[] DEFAULT '{}'::text[],
+    computed_at timestamp with time zone DEFAULT now(),
+    CONSTRAINT player_roles_side_check CHECK ((side = ANY (ARRAY['T'::text, 'CT'::text])))
+);
+CREATE TABLE IF NOT EXISTS playlist_items (
+    item_id integer NOT NULL,
+    playlist_id integer,
+    match_id uuid,
+    round_number smallint NOT NULL,
+    t_sec real,
+    note text,
+    "position" integer DEFAULT 0 NOT NULL,
+    created_at timestamp with time zone DEFAULT now()
+);
+CREATE SEQUENCE IF NOT EXISTS playlist_items_item_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+ALTER SEQUENCE playlist_items_item_id_seq OWNED BY playlist_items.item_id;
+CREATE TABLE IF NOT EXISTS playlists (
+    playlist_id integer NOT NULL,
+    name text NOT NULL,
+    created_at timestamp with time zone DEFAULT now()
+);
+CREATE SEQUENCE IF NOT EXISTS playlists_playlist_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+ALTER SEQUENCE playlists_playlist_id_seq OWNED BY playlists.playlist_id;
+CREATE TABLE IF NOT EXISTS round_winprob (
+    match_id uuid NOT NULL,
+    round_number smallint NOT NULL,
+    max_t_prob real NOT NULL,
+    max_ct_prob real NOT NULL,
+    computed_at timestamp with time zone DEFAULT now()
+);
+CREATE TABLE IF NOT EXISTS setup_rotations (
+    team_id uuid NOT NULL,
+    map_name text NOT NULL,
+    side text NOT NULL,
+    pattern_id smallint NOT NULL,
+    place text NOT NULL,
+    n_contacts integer NOT NULL,
+    rotations integer NOT NULL,
+    rotate_rate real NOT NULL,
+    med_delay_sec real,
+    dest_mix jsonb,
+    computed_at timestamp with time zone DEFAULT now(),
+    CONSTRAINT setup_rotations_side_check CHECK ((side = ANY (ARRAY['T'::text, 'CT'::text])))
+);
+CREATE TABLE IF NOT EXISTS team_setups (
+    team_id uuid NOT NULL,
+    map_name text NOT NULL,
+    side text NOT NULL,
+    t_offset smallint NOT NULL,
+    pattern_id smallint NOT NULL,
+    pattern jsonb NOT NULL,
+    observed integer NOT NULL,
+    sample_size integer NOT NULL,
+    share real NOT NULL,
+    avg_hold_sec real,
+    representatives jsonb,
+    computed_at timestamp with time zone DEFAULT now(),
+    CONSTRAINT team_setups_side_check CHECK ((side = ANY (ARRAY['T'::text, 'CT'::text])))
+);
+CREATE TABLE IF NOT EXISTS team_tendencies_cond (
+    team_id uuid NOT NULL,
+    map_name text NOT NULL,
+    side text NOT NULL,
+    buy_type text NOT NULL,
+    cluster_id smallint NOT NULL,
+    observed integer NOT NULL,
+    sample_size integer NOT NULL,
+    prob real NOT NULL,
+    computed_at timestamp with time zone DEFAULT now(),
+    CONSTRAINT team_tendencies_cond_buy_type_check CHECK ((buy_type = ANY (ARRAY['pistol'::text, 'eco'::text, 'semi'::text, 'force'::text, 'full'::text]))),
+    CONSTRAINT team_tendencies_cond_side_check CHECK ((side = ANY (ARRAY['T'::text, 'CT'::text])))
+);
+CREATE TABLE IF NOT EXISTS utility_spots (
+    team_id uuid NOT NULL,
+    map_name text NOT NULL,
+    side text NOT NULL,
+    type text NOT NULL,
+    cluster_id smallint NOT NULL,
+    label text,
+    det_rx real NOT NULL,
+    det_ry real NOT NULL,
+    throw_rx real,
+    throw_ry real,
+    count integer NOT NULL,
+    share real NOT NULL,
+    t_avg real,
+    t_std real,
+    strat_mix jsonb,
+    representatives jsonb,
+    computed_at timestamp with time zone DEFAULT now(),
+    CONSTRAINT utility_spots_side_check CHECK ((side = ANY (ARRAY['T'::text, 'CT'::text])))
+);
+CREATE TABLE IF NOT EXISTS winprob_table (
+    alive_t smallint NOT NULL,
+    alive_ct smallint NOT NULL,
+    bomb boolean NOT NULL,
+    tbucket smallint NOT NULL,
+    t_wins integer NOT NULL,
+    n integer NOT NULL,
+    p real NOT NULL,
+    computed_at timestamp with time zone DEFAULT now()
+);
+ALTER TABLE ONLY notes ALTER COLUMN note_id SET DEFAULT nextval('notes_note_id_seq'::regclass);
+ALTER TABLE ONLY playlist_items ALTER COLUMN item_id SET DEFAULT nextval('playlist_items_item_id_seq'::regclass);
+ALTER TABLE ONLY playlists ALTER COLUMN playlist_id SET DEFAULT nextval('playlists_playlist_id_seq'::regclass);
+DO $$ BEGIN
+    ALTER TABLE ONLY clutches ADD CONSTRAINT clutches_pkey PRIMARY KEY (match_id, round_number);
+EXCEPTION WHEN duplicate_object OR duplicate_table OR invalid_table_definition THEN NULL; END $$;
+DO $$ BEGIN
+    ALTER TABLE ONLY notes ADD CONSTRAINT notes_pkey PRIMARY KEY (note_id);
+EXCEPTION WHEN duplicate_object OR duplicate_table OR invalid_table_definition THEN NULL; END $$;
+DO $$ BEGIN
+    ALTER TABLE ONLY player_roles ADD CONSTRAINT player_roles_pkey PRIMARY KEY (player_id, side, map_name);
+EXCEPTION WHEN duplicate_object OR duplicate_table OR invalid_table_definition THEN NULL; END $$;
+DO $$ BEGIN
+    ALTER TABLE ONLY playlist_items ADD CONSTRAINT playlist_items_pkey PRIMARY KEY (item_id);
+EXCEPTION WHEN duplicate_object OR duplicate_table OR invalid_table_definition THEN NULL; END $$;
+DO $$ BEGIN
+    ALTER TABLE ONLY playlists ADD CONSTRAINT playlists_pkey PRIMARY KEY (playlist_id);
+EXCEPTION WHEN duplicate_object OR duplicate_table OR invalid_table_definition THEN NULL; END $$;
+DO $$ BEGIN
+    ALTER TABLE ONLY round_winprob ADD CONSTRAINT round_winprob_pkey PRIMARY KEY (match_id, round_number);
+EXCEPTION WHEN duplicate_object OR duplicate_table OR invalid_table_definition THEN NULL; END $$;
+DO $$ BEGIN
+    ALTER TABLE ONLY setup_rotations ADD CONSTRAINT setup_rotations_pkey PRIMARY KEY (team_id, map_name, side, pattern_id, place);
+EXCEPTION WHEN duplicate_object OR duplicate_table OR invalid_table_definition THEN NULL; END $$;
+DO $$ BEGIN
+    ALTER TABLE ONLY team_setups ADD CONSTRAINT team_setups_pkey PRIMARY KEY (team_id, map_name, side, t_offset, pattern_id);
+EXCEPTION WHEN duplicate_object OR duplicate_table OR invalid_table_definition THEN NULL; END $$;
+DO $$ BEGIN
+    ALTER TABLE ONLY team_tendencies_cond ADD CONSTRAINT team_tendencies_cond_pkey PRIMARY KEY (team_id, map_name, side, buy_type, cluster_id);
+EXCEPTION WHEN duplicate_object OR duplicate_table OR invalid_table_definition THEN NULL; END $$;
+DO $$ BEGIN
+    ALTER TABLE ONLY utility_spots ADD CONSTRAINT utility_spots_pkey PRIMARY KEY (team_id, map_name, side, type, cluster_id);
+EXCEPTION WHEN duplicate_object OR duplicate_table OR invalid_table_definition THEN NULL; END $$;
+DO $$ BEGIN
+    ALTER TABLE ONLY winprob_table ADD CONSTRAINT winprob_table_pkey PRIMARY KEY (alive_t, alive_ct, bomb, tbucket);
+EXCEPTION WHEN duplicate_object OR duplicate_table OR invalid_table_definition THEN NULL; END $$;
+CREATE INDEX IF NOT EXISTS notes_match_idx ON notes USING btree (match_id, round_number);
+DO $$ BEGIN
+    ALTER TABLE ONLY clutches ADD CONSTRAINT clutches_match_id_fkey FOREIGN KEY (match_id) REFERENCES matches(match_id) ON DELETE CASCADE;
+EXCEPTION WHEN duplicate_object OR duplicate_table OR invalid_table_definition THEN NULL; END $$;
+DO $$ BEGIN
+    ALTER TABLE ONLY clutches ADD CONSTRAINT clutches_player_id_fkey FOREIGN KEY (player_id) REFERENCES players(player_id);
+EXCEPTION WHEN duplicate_object OR duplicate_table OR invalid_table_definition THEN NULL; END $$;
+DO $$ BEGIN
+    ALTER TABLE ONLY notes ADD CONSTRAINT notes_match_id_fkey FOREIGN KEY (match_id) REFERENCES matches(match_id) ON DELETE CASCADE;
+EXCEPTION WHEN duplicate_object OR duplicate_table OR invalid_table_definition THEN NULL; END $$;
+DO $$ BEGIN
+    ALTER TABLE ONLY player_roles ADD CONSTRAINT player_roles_player_id_fkey FOREIGN KEY (player_id) REFERENCES players(player_id);
+EXCEPTION WHEN duplicate_object OR duplicate_table OR invalid_table_definition THEN NULL; END $$;
+DO $$ BEGIN
+    ALTER TABLE ONLY playlist_items ADD CONSTRAINT playlist_items_match_id_fkey FOREIGN KEY (match_id) REFERENCES matches(match_id) ON DELETE CASCADE;
+EXCEPTION WHEN duplicate_object OR duplicate_table OR invalid_table_definition THEN NULL; END $$;
+DO $$ BEGIN
+    ALTER TABLE ONLY playlist_items ADD CONSTRAINT playlist_items_playlist_id_fkey FOREIGN KEY (playlist_id) REFERENCES playlists(playlist_id) ON DELETE CASCADE;
+EXCEPTION WHEN duplicate_object OR duplicate_table OR invalid_table_definition THEN NULL; END $$;
+DO $$ BEGIN
+    ALTER TABLE ONLY round_winprob ADD CONSTRAINT round_winprob_match_id_fkey FOREIGN KEY (match_id) REFERENCES matches(match_id) ON DELETE CASCADE;
+EXCEPTION WHEN duplicate_object OR duplicate_table OR invalid_table_definition THEN NULL; END $$;
+DO $$ BEGIN
+    ALTER TABLE ONLY team_setups ADD CONSTRAINT team_setups_team_id_fkey FOREIGN KEY (team_id) REFERENCES teams(team_id);
+EXCEPTION WHEN duplicate_object OR duplicate_table OR invalid_table_definition THEN NULL; END $$;
+DO $$ BEGIN
+    ALTER TABLE ONLY team_tendencies_cond ADD CONSTRAINT team_tendencies_cond_team_id_fkey FOREIGN KEY (team_id) REFERENCES teams(team_id);
+EXCEPTION WHEN duplicate_object OR duplicate_table OR invalid_table_definition THEN NULL; END $$;
+DO $$ BEGIN
+    ALTER TABLE ONLY utility_spots ADD CONSTRAINT utility_spots_team_id_fkey FOREIGN KEY (team_id) REFERENCES teams(team_id);
+EXCEPTION WHEN duplicate_object OR duplicate_table OR invalid_table_definition THEN NULL; END $$;
