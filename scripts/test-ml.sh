@@ -108,10 +108,19 @@ check "rotasyon örneklem kapısı (<5 yazılmış)" \
 check "rotasyon sayım tutarlılığı (ihlal)" \
   "SELECT count(*) FROM setup_rotations WHERE rotations > n_contacts" "0"
 
-echo
-[ $FAILS -eq 0 ] && echo "ML TESTLERİ GEÇTİ ✅" || { echo "$FAILS TEST BAŞARISIZ ❌"; exit 1; }
-
-# Execute şablonları: n>=3, wins<=n, desen >=2 öğe
+# 14. Execute şablonları: n>=3, wins<=n, desen >=2 öğe
 check "şablon eşik (n>=3)" "SELECT count(*) FROM team_exec_templates WHERE n < 3" 0
 check "şablon tutarlılık (wins<=n)" "SELECT count(*) FROM team_exec_templates WHERE wins > n" 0
 check "şablon boyut (>=2 utility)" "SELECT count(*) FROM team_exec_templates WHERE jsonb_array_length(pattern) < 2" 0
+
+# 15. LightGBM sunumu: yalnız kazandığı çiftlerde satır; olasılıklar ~1'e toplanır
+check "lgbm yalnız kazanan çiftte (ihlal)" \
+  "SELECT count(*) FROM (SELECT DISTINCT map_name, side FROM lgbm_predictions) l
+   WHERE NOT EXISTS (SELECT 1 FROM prediction_meta pm
+                     WHERE pm.map_name=l.map_name AND pm.side=l.side AND pm.best_method='lgbm')" "0"
+check "lgbm olasılık toplamı=1 (sapan grup)" \
+  "SELECT count(*) FROM (SELECT team_id, map_name, side, buy_type FROM lgbm_predictions
+   GROUP BY 1,2,3,4 HAVING abs(sum(prob)-1) > 0.01) x" "0"
+
+echo
+[ $FAILS -eq 0 ] && echo "ML TESTLERİ GEÇTİ ✅" || { echo "$FAILS TEST BAŞARISIZ ❌"; exit 1; }
