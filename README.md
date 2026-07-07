@@ -22,6 +22,9 @@ işlenir, koçun tüm sorguları önceden hesaplanmış tablolara düşer
 
 ## Hızlı başlangıç
 
+> Kurulu ortamı (moladan dönüşte) ayağa kaldırmak için tek komut yeter:
+> `scripts/start-all.sh` — colima + altyapı + tüm servisler, idempotent.
+
 ```bash
 # 1. Altyapı
 cd infra && cp .env.example .env && docker compose up -d --wait postgres clickhouse minio nats
