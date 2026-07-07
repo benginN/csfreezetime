@@ -1,7 +1,22 @@
-# Freezetime — CS2 Analiz Platformu
+# Freezetime — CS2 Analysis Platform
 
-Profesyonel CS2 takımları için demo analiz platformu: demolar bir kez derinlemesine
-işlenir, koçun tüm sorguları önceden hesaplanmış tablolara düşer
+Self-hosted, coach-grade analysis for Counter-Strike 2 demos. Demos are parsed
+**once** into positions, kills, grenades and economy; every query then reads
+from pre-computed tables — a synchronized 2D replay, archive-wide statistics,
+grenade pattern finding, opponent playbooks, and locally-trained prediction
+models. **No external AI services**, no per-use cost: everything is
+deterministic SQL + geometry + local ML, running entirely on your own machine.
+
+> ⚠️ **You bring the demos.** The repository ships the *engine*, not any match
+> data — no demos, no database dumps. Point it at your own GOTV/FACEIT `.dem`
+> files (drop them in `backfill/`, or use the in-browser **My DB** page) and it
+> builds your archive. Everything is local and private.
+
+MIT licensed — free to use, modify and share. Turkish is the project's primary
+language; docs and UI copy are bilingual where it matters.
+
+Bu, kendi kendine barındırılan bir CS2 demo analiz platformudur: demolar bir kez
+derinlemesine işlenir, koçun tüm sorguları önceden hesaplanmış tablolara düşer
 ("parse once, query forever"). Mimari referansı: [docs/mimari.md](docs/mimari.md).
 
 > **Not:** LLM/dış AI servisi kullanılmaz (v0.2 kararı). Tüm analizler
@@ -89,3 +104,11 @@ scripts/test-ml.sh           # kümeleme/eğilim/anomali tutarlılığı
   ML Lab (/insights) yöntem yarışı + özellik önemleri panellerinde şeffaf
 - ⬜ Sonrası (moladan dönüşte) — Hetzner'e taşınma (deploy/ kiti hazır),
   auth + ücretsiz beta, p1/p2 birleştirme, heatmap p95, alias kalanları
+
+## Lisans / License
+
+MIT — see [LICENSE](LICENSE). Use it, fork it, ship it; just keep the copyright
+notice. No warranty. Katkılar ve fork'lar memnuniyetle karşılanır.
+
+CS2 radar images and demo files are property of Valve and are **not** included
+in this repository (see `.gitignore`); supply your own.

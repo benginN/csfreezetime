@@ -46,3 +46,6 @@ services/stats-svc/static/radars/*.png
 apps/web/node_modules/
 apps/web/dist/
 backfill/
+
+# Local Claude Code config (may contain machine-specific paths)
+.claude/
