@@ -80,5 +80,9 @@ scripts/test-ml.sh           # kümeleme/eğilim/anomali tutarlılığı
   rolleri (player_roles — entry/lurker/anchor/AWP, kanıt eşiği 30 raunt),
   ekonomi davranışı + taraf/pistol istatistikleri; takım arşiv ısı haritası
   (GET /teams/{id}/heatmap); yazdırılabilir rapor sayfası
-- ⬜ Sonrası — LightGBM adayı (lig ≥50k raunt eşiğinde değerlendirme düzeneğine girer),
-  rotasyon analizi (setups v2), takım karşılaştırma, yayına hazırlık (ingest-svc, auth)
+- ✅ LightGBM v2 (2026-07-07, ~52k rauntla) — (harita, taraf) başına çok-sınıflı
+  aday model; zamansal sınavda 16 çiftin 8'ini kazandı (ağırlıkla CT tarafları)
+  ve yalnız kazandığı çiftlerde servis edilir (ml/boost.py, lgbm_predictions);
+  ML Lab (/insights) yöntem yarışı + özellik önemleri panellerinde şeffaf
+- ⬜ Sonrası (moladan dönüşte) — Hetzner'e taşınma (deploy/ kiti hazır),
+  auth + ücretsiz beta, p1/p2 birleştirme, heatmap p95, alias kalanları
