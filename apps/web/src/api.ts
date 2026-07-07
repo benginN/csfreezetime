@@ -443,6 +443,12 @@ export interface Prediction {
   evidence: { sample_size: number; note: string };
 }
 
+export interface PatternNade {
+  type: string; side: 'T' | 'CT'; thrower: string; player_id: string;
+  trx: number; try: number; drx: number; dry: number;
+  t: number; match_id: string; round_number: number;
+}
+
 export interface PlaylistItem {
   item_id: number;
   match_id: string;
@@ -494,6 +500,8 @@ export const api = {
       body: JSON.stringify({ label }),
     }).then((r) => r.json()),
   predict: (p: URLSearchParams) => get<Prediction>('/api/v1/predict?' + p),
+  patterns: (p: URLSearchParams) =>
+    get<{ nades: PatternNade[]; truncated: boolean }>('/api/v1/patterns?' + p),
   matches: (teamId?: string, since = '', roster = 0) =>
     get<MatchSummary[]>('/api/v1/matches' + (teamId ? `?team_id=${teamId}&since=${since}&roster_min=${roster}` : '')),
   matchDetail: async (id: string): Promise<MatchDetail> => {
