@@ -186,6 +186,10 @@ export default function ReplayView({
   // hover: her karede güncellenen hayalet nokta konumları + seçili kimlik
   const ghostDotsRef = useRef<{ x: number; y: number; li: number; nick: string }[]>([]);
   const dropDotsRef = useRef<{ x: number; y: number; name: string }[]>([]);
+  // granat hover: aktif granatlar (duman/molo/flash/he) üstünde atış zamanı +
+  // atan oyuncu; hover'dayken uçuş izi de çizilir (gi = grenades dizini)
+  const nadeDotsRef = useRef<{ x: number; y: number; name: string; gi: number }[]>([]);
+  const nadeHoverRef = useRef<number | null>(null);
   const bombPosRef = useRef<{ round: number; rx: number; ry: number; lower: boolean } | null>(null);
   const jumpAtRef = useRef<Map<number, number>>(new Map()); // oyuncu idx → zıplama tick'i
   const plantPosRef = useRef<{ round: number; rx: number; ry: number; lower: boolean } | null>(null);
@@ -638,8 +642,10 @@ export default function ReplayView({
             if (dist < bd) { bd = dist; best = { li: d.li, nick: d.nick }; }
           }
           ghostHoverRef.current = best;
-          // hayalet yoksa: düşen silah noktaları
+          // hayalet yoksa: düşen silah noktaları + aktif granatlar
+          // (aynı eşikte yarışırlar; en yakın olan kazanır)
           let dropName: string | null = null;
+          let nadeGi: number | null = null;
           if (!best) {
             let dd = thr * thr;
             for (const dt of dropDotsRef.current) {
@@ -647,7 +653,13 @@ export default function ReplayView({
               const dist = dx * dx + dy * dy;
               if (dist < dd) { dd = dist; dropName = dt.name; }
             }
+            for (const nt of nadeDotsRef.current) {
+              const dx = nt.x - p.x, dy = nt.y - p.y;
+              const dist = dx * dx + dy * dy;
+              if (dist < dd) { dd = dist; dropName = nt.name; nadeGi = nt.gi; }
+            }
           }
+          nadeHoverRef.current = nadeGi;
           const tip = ghostTipRef.current;
           if (tip) {
             if (best || dropName) {
@@ -887,8 +899,10 @@ export default function ReplayView({
 
         gNades.clear();
         const phase = (tick / d.tick_rate) % 1; // hafif titreşim için zaman fazı
+        nadeDotsRef.current = [];
+        const feN = rounds.find((r) => r.round_number === round)?.freeze_end_tick ?? d.ticks[0];
 
-        for (const g of replayOn ? (d.grenades ?? []) : []) {
+        for (const [gi, g] of (replayOn ? (d.grenades ?? []) : []).entries()) {
           if (g.rx == null || g.ry == null) continue;
           const dt = (tick - g.tick) / d.tick_rate;
           const life = NADE_LIFE[g.type] ?? 1;
@@ -923,6 +937,32 @@ export default function ReplayView({
           if (dt < 0 || dt > life) continue;
           const { x, y, s } = place(g.rx, g.ry, g.lower);
           const fade = Math.min(1, (life - dt) / 2);
+
+          // hover kaydı: atış zamanı + atan oyuncu; hover'dayken uçuş izi
+          {
+            const tsec = Math.max(0, Math.round(((g.throw_tick ?? g.tick) - feN) / d.tick_rate));
+            nadeDotsRef.current.push({
+              x, y, gi,
+              name: `${g.type} · thrown ${Math.floor(tsec / 60)}:${String(tsec % 60).padStart(2, '0')}`
+                + (g.thrower ? ` by ${g.thrower}` : ''),
+            });
+          }
+          if (nadeHoverRef.current === gi && g.throw_rx != null && g.throw_ry != null &&
+              (g.throw_lower ?? false) === (g.lower ?? false)) {
+            const from = place(g.throw_rx, g.throw_ry, g.throw_lower);
+            const col = NADE_COLOR[g.type] ?? 0xffffff;
+            gNades.moveTo(from.x, from.y);
+            const steps = 16;
+            for (let i2 = 1; i2 <= steps; i2++) {
+              const q = i2 / steps;
+              gNades.lineTo(
+                from.x + (x - from.x) * q,
+                from.y + (y - from.y) * q - Math.sin(Math.PI * q) * 9 * s,
+              );
+            }
+            gNades.stroke({ width: 1.5, color: col, alpha: 0.65 });
+            gNades.circle(from.x, from.y, 2.6 * s).fill({ color: col, alpha: 0.9 });
+          }
           if (g.type === 'smoke') {
             const r = worldPx(144) * s;
             gNades.circle(x, y, r).fill({ color: 0x62676d, alpha: 0.55 * fade });
