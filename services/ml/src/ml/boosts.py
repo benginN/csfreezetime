@@ -1,8 +1,13 @@
 """Boost tespiti: raunt başında üst üste çıkan oyuncu çiftleri.
 
-Geometri: aynı takımdan iki oyuncu, xy-düzleminde ≤55 birim yakın ve
-z-farkı 40-110 birim (çömelme boyu ~46, ayakta ~64) ise boost'tur.
-Gürültüye karşı aynı çift en az 2 farklı saniyede bu koşulu sağlamalı.
+Geometri: aynı takımdan iki oyuncu, xy-düzleminde ≤24 birim yakın (üst
+üste durmanın gereği; oyuncu yarıçapı ~16) ve z-farkı 40-110 birim
+(çömelme boyu ~46, ayakta ~64) ise boost'tur. Daha gevşek xy eşiği
+rampa/çıkıntı arazisini yanlış yakalıyordu (TopofMid ×100 vakası).
+Gürültüye karşı aynı çift en az 2 farklı saniyede bu koşulu sağlamalı
+VE alttaki oyuncu bu saniyelerin en az yarısında çömelmiş olmalı —
+gerçek boost imzası budur; rampa/kutu kenarı bitişikliği (dust2
+TopofMid vakası) alttaki yürüdüğü için elenir.
 Raunt başına (taraf, bölge) bir kez sayılır; bölge = ÜSTTEKİ oyuncunun
 place'i (boost'un amacı üsttekinin gördüğü açıdır).
 
@@ -16,7 +21,7 @@ import json
 from collections import defaultdict
 
 MIN_COUNT = 3        # rapor eşiği
-XY_NEAR = 55.0       # yatay yakınlık (world unit)
+XY_NEAR = 24.0       # yatay yakınlık — üst üste durma (oyuncu yarıçapı ~16)
 DZ_MIN, DZ_MAX = 40.0, 110.0
 MIN_SECS = 2         # aynı çift en az bu kadar saniye
 
@@ -37,7 +42,8 @@ def run(pgconn, chc) -> int:
         """
         SELECT toString(match_id), map_name, round_number, side,
                toUInt16(floor(round_time)) AS sec,
-               toString(player_id), any(x), any(y), any(z), any(place)
+               toString(player_id), any(x), any(y), any(z), any(place),
+               max(is_ducking) AS duck
         FROM player_ticks
         WHERE is_alive AND round_time >= 5 AND round_time <= 30
         GROUP BY match_id, map_name, round_number, side, sec, player_id
@@ -45,11 +51,11 @@ def run(pgconn, chc) -> int:
     ).result_rows
 
     bucket: dict[tuple, list] = defaultdict(list)
-    for mid, mp, rn, side, sec, pid, x, y, z, place in rows:
-        bucket[(mid, mp, rn, side, sec)].append((pid, x, y, z, place))
+    for mid, mp, rn, side, sec, pid, x, y, z, place, duck in rows:
+        bucket[(mid, mp, rn, side, sec)].append((pid, x, y, z, place, duck))
 
-    # (mid, rn, side, çift) → {saniye sayısı, üst oyuncunun place'i}
-    pair_secs: dict[tuple, dict] = defaultdict(lambda: {"secs": 0, "place": ""})
+    # (mid, rn, side, çift) → {saniye, alttaki-çömelik saniye, üstün place'i}
+    pair_secs: dict[tuple, dict] = defaultdict(lambda: {"secs": 0, "duck": 0, "place": ""})
     for (mid, mp, rn, side, _sec), plist in bucket.items():
         for i in range(len(plist)):
             for j in range(i + 1, len(plist)):
@@ -59,9 +65,11 @@ def run(pgconn, chc) -> int:
                     continue
                 if (a[1] - b[1]) ** 2 + (a[2] - b[2]) ** 2 > XY_NEAR ** 2:
                     continue
-                upper = a if dz > 0 else b
+                upper, lower = (a, b) if dz > 0 else (b, a)
                 key = (mid, mp, rn, side, tuple(sorted((a[0], b[0]))))
                 pair_secs[key]["secs"] += 1
+                if lower[5]:
+                    pair_secs[key]["duck"] += 1
                 if upper[4]:
                     pair_secs[key]["place"] = upper[4]
 
@@ -70,6 +78,8 @@ def run(pgconn, chc) -> int:
     for (mid, mp, rn, side, _pair), info in pair_secs.items():
         if info["secs"] < MIN_SECS or not info["place"]:
             continue
+        if info["duck"] * 2 < info["secs"]:
+            continue  # alttaki çömelmemiş → arazi bitişikliği, boost değil
         if "spawn" in info["place"].lower():
             continue  # spawn boost'u bilgi taşımaz
         team = teams.get((mid, rn), {}).get(side)
