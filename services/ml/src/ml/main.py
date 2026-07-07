@@ -10,7 +10,7 @@ from __future__ import annotations
 import time
 
 from . import (
-    anomaly, boost, clustering, clutch, db, evaluate, features, flashstats, recency,
+    anomaly, boost, boosts, clustering, clutch, db, evaluate, features, flashstats, recency,
     aliases, integrity, roles, rotations, setups, templates, tendencies, tournaments, utility, winprob,
 )
 
@@ -95,6 +95,10 @@ def cli() -> None:
     print("— rotasyon analizi (temas sonrası) —")
     nrot = rotations.run(pgconn, chc)
     print(f"  {nrot} pozisyon-rotasyon satırı (pencere {rotations.ROT_WINDOW} sn, n≥{rotations.MIN_CONTACTS})")
+
+    print("— boost tespiti (üst üste çiftler) —")
+    nb = boosts.run(pgconn, chc)
+    print(f"  {nb} boost deseni (n≥{boosts.MIN_COUNT})")
 
     print("— oyuncu rolleri —")
     nr = roles.run(pgconn, chc)

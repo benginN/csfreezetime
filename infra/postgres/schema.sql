@@ -503,3 +503,15 @@ EXCEPTION WHEN duplicate_object OR duplicate_table OR invalid_table_definition T
 DO $$ BEGIN
     ALTER TABLE ONLY utility_spots ADD CONSTRAINT utility_spots_team_id_fkey FOREIGN KEY (team_id) REFERENCES teams(team_id);
 EXCEPTION WHEN duplicate_object OR duplicate_table OR invalid_table_definition THEN NULL; END $$;
+
+-- Boost tespiti (2026-07-08, ml/boosts.py): raunt başında üst üste çıkan
+-- çiftler; bölge = üstteki oyuncunun place'i, n = tekrar eden raunt sayısı
+CREATE TABLE IF NOT EXISTS team_boosts (
+    team_id  UUID NOT NULL REFERENCES teams(team_id),
+    map_name TEXT NOT NULL,
+    side     TEXT NOT NULL CHECK (side IN ('T','CT')),
+    place    TEXT NOT NULL,
+    n        INT  NOT NULL,
+    representatives JSONB NOT NULL,
+    PRIMARY KEY (team_id, map_name, side, place)
+);

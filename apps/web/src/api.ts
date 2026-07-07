@@ -321,6 +321,8 @@ export interface ReportResp {
   };
   tendencies: (Tendency & { side: 'T' | 'CT' })[];
   round_tendencies: RoundTendencyRow[];
+  boosts: { side: 'T' | 'CT'; place: string; n: number;
+    representatives: { match_id: string; round_number: number }[] }[];
   playbook?: { rush_n: number; rush_total: number; setstrat_rounds: number; t_rounds_all: number };
   conditional: {
     side: 'T' | 'CT'; buy_type: string; cluster_id: number;

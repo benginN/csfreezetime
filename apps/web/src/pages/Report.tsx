@@ -228,6 +228,31 @@ export default function Report() {
       {/* 3b — Sonraki raunt tahmini (ML Lab'in kalibre dağılımı, raporda) */}
       <PredictionSection teamId={teamId} mapName={mapName} />
 
+      {(d.boosts ?? []).length > 0 && (
+        <>
+          <h3>
+            Boost spots <MlMark note="Detected geometrically: two teammates stacked vertically (40-110 units apart) for 2+ seconds in the opening 30s; the area is where the top player sees from." />{' '}
+            <span className="meta">— player-on-player boosts they repeat (3+ rounds) · full archive</span>
+          </h3>
+          <div className="card" style={{ maxWidth: 640 }}>
+            {(d.boosts ?? []).map((b, i) => (
+              <div key={i} style={{ display: 'flex', gap: 8, alignItems: 'baseline', lineHeight: 1.9 }}>
+                <span className={`badge ${b.side}`}>{b.side}</span>
+                <span>boost at <b>{b.place}</b></span>
+                <span className="meta" style={{ marginLeft: 'auto', whiteSpace: 'nowrap' }}>
+                  ×{b.n} ·{' '}
+                  {b.representatives.slice(0, 2).map((r2, j) => (
+                    <span key={j}>{j > 0 && ', '}
+                      <Link to={`/match/${r2.match_id}?round=${r2.round_number}`}>▶ r{r2.round_number}</Link>
+                    </span>
+                  ))}
+                </span>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+
       {/* 3c — Harita kontrolü → sonuç */}
       <ControlSection teamId={teamId} mapName={mapName} since={since} roster={roster} />
 

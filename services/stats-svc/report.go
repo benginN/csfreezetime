@@ -471,6 +471,15 @@ func (s *server) report(w http.ResponseWriter, r *http.Request) {
 		    FROM setup_rotations WHERE team_id = $1 AND map_name = $2
 		    ORDER BY side, pattern_id, rotate_rate DESC
 		) x`, teamID, mapName)
+	// boost alışkanlıkları (arşiv geneli; ml/boosts.py)
+	out["boosts"] = s.jsonQuery(ctx, `
+		SELECT COALESCE(json_agg(x ORDER BY x.n DESC), '[]'::json) FROM (
+		    SELECT side, place, n, representatives
+		    FROM team_boosts
+		    WHERE team_id = $1 AND map_name = $2
+		    ORDER BY n DESC LIMIT 10
+		) x`, teamID, mapName)
+
 	out["utility"] = s.jsonQuery(ctx, `
 		SELECT COALESCE(json_agg(x), '[]'::json) FROM (
 		    SELECT side, type, cluster_id, label, det_rx, det_ry, throw_rx, throw_ry,
