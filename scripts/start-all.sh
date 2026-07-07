@@ -29,8 +29,9 @@ done
 # 3. Servis süreçleri (varsa dokunma, yoksa başlat)
 set -a; source infra/.env; set +a
 
-# macOS pgrep'te -c yok → wc -l; BSD seq azalan da sayar → önce koşulla ele
-NPARSER=$(pgrep -f 'parser-worker/target/release/parser-worker' 2>/dev/null | wc -l | tr -d ' ')
+# macOS pgrep'te -c yok → wc -l; BSD seq azalan da sayar → önce koşulla ele;
+# eşleşme yoksa pgrep 1 döner → pipefail'i tetiklemesin diye || true
+NPARSER=$( (pgrep -f 'parser-worker/target/release/parser-worker' 2>/dev/null || true) | wc -l | tr -d ' ')
 if [ "$NPARSER" -ge 2 ]; then
     echo "✓ parser ×2 zaten çalışıyor"
 else
