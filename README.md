@@ -22,8 +22,11 @@ işlenir, koçun tüm sorguları önceden hesaplanmış tablolara düşer
 
 ## Hızlı başlangıç
 
-> Kurulu ortamı (moladan dönüşte) ayağa kaldırmak için tek komut yeter:
-> `scripts/start-all.sh` — colima + altyapı + tüm servisler, idempotent.
+> **Günlük kullanım (kurulu ortam) — iki komut:**
+> - Siteyi açmak: `scripts/start-all.sh` (colima + altyapı + tüm servisler; ~40 sn, idempotent)
+> - Kapatmak: `scripts/stop-all.sh` — **SSD'yi çıkarmadan önce ZORUNLU**
+>   (VM diski SSD'de; çalışırken çekmek veritabanını bozabilir). Script bitince
+>   terminali kapat, sonra Finder'dan ⏏ ile çıkar.
 
 ```bash
 # 1. Altyapı
