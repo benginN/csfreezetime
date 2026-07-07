@@ -92,6 +92,8 @@ export default function Help() {
         <li><b>Player pages:</b> per-side role cards with entry/opening/AWP/utility evidence, flash and utility-damage numbers, trades made and deaths traded, clutch history (each 1vX linked to its replay), per-map stats and personal heatmaps.</li>
         <li><b>Leaderboards:</b> archive-wide top-20s — ADR, opening-duel net, clutch wins, flash effectiveness, trade kills. Every board states its minimum sample.</li>
         <li><b>Moments:</b> a structured search over every round ever parsed — "AWP kills through smoke on eco" — with presets and savable searches. Results deep-link into replays.</li>
+        <li><b>🧭 Pattern Finder:</b> every grenade on a map as landing dots with repeat badges. Top patterns are ranked for you ("smoke → TopMid ×47, usually at 1:39 ±5s"); drag a box on the map to isolate an area, read the timing histogram, jump into the rounds.</li>
+        <li><b>🔬 Scenarios:</b> situation questions about a team — "what do they run on a full buy right after losing a round on A?" Answers show the historical mix in exactly that spot, how far it deviates from their normal game (×N vs usual), and real rounds to watch.</li>
       </ul>
 
       <h2>5. ML Lab — the models behind the predictions</h2>
