@@ -409,7 +409,9 @@ export interface MlStatus {
     map_name: string; side: string; best_method: string;
     logloss_league: number | null; logloss_team: number | null;
     logloss_team_buy: number | null; logloss_team_vs: number | null;
-    logloss_team_style: number | null; test_rounds: number | null;
+    logloss_team_style: number | null; logloss_lgbm: number | null;
+    lgbm_importance?: Record<string, number>;
+    test_rounds: number | null;
   }[];
   inventory: {
     matches: number; rounds: number; clusters: number; tendency_rows: number;
@@ -419,7 +421,7 @@ export interface MlStatus {
 }
 
 export interface Prediction {
-  method: 'league' | 'team' | 'team_buy' | 'team_vs' | 'team_style';
+  method: 'league' | 'team' | 'team_buy' | 'team_vs' | 'team_style' | 'lgbm';
   clusters: {
     cluster_id: number;
     label: string | null;

@@ -155,6 +155,9 @@ export default function Report() {
         </>
       )}
 
+      {/* 3b — Sonraki raunt tahmini (ML Lab'in kalibre dağılımı, raporda) */}
+      <PredictionSection teamId={teamId} mapName={mapName} />
+
       {/* 4 — Setups */}
       <h2>Default setups <span className="meta">(positions 15 s into the round)</span>{d.archive_wide && <span className="meta"> · full archive (window n/a)</span>}</h2>
       <div className="grid cards">
@@ -478,6 +481,85 @@ function SetupCard({ d, side, mapName }: { d: ReportResp; side: 'T' | 'CT'; mapN
 const UTIL_CSS: Record<string, string> = {
   smoke: '#b4b9be', molotov: '#eb781e', flash: '#ffffff', he: '#ff8c3c',
 };
+
+// Sonraki raunt tahmini: /predict'in kalibre dağılımı rapor bağlamında.
+// ML Lab'deki laboratuvarın rapora gömülü hâli — yöntem + kanıt notu aynen
+// gösterilir (ürün etiği: her tahminin yanında kanıt gücü).
+const PREDICT_METHOD_LABEL: Record<string, string> = {
+  league: 'league baseline', team: 'team tendency', team_buy: 'team + economy',
+  team_vs: 'head-to-head', team_style: 'opponent style', lgbm: 'LightGBM model',
+};
+
+function PredictionSection({ teamId, mapName }: { teamId: string; mapName: string }) {
+  const [side, setSide] = useState<'T' | 'CT'>('T');
+  const [buy, setBuy] = useState('full');
+  const [oppId, setOppId] = useState('');
+  const teams = useQuery({ queryKey: ['teams'], queryFn: () => api.teams() });
+  const opps = (teams.data ?? [])
+    .filter((t) => t.matches > 0 && t.team_id !== teamId)
+    .sort((a, b) => a.name.localeCompare(b.name));
+  const predict = useQuery({
+    queryKey: ['predict', teamId, oppId, mapName, side, buy],
+    queryFn: () => {
+      const p = new URLSearchParams({ team_id: teamId, map: mapName, side });
+      if (buy) p.set('buy_type', buy);
+      if (oppId) p.set('opp_id', oppId);
+      return api.predict(p);
+    },
+    enabled: !!teamId && !!mapName,
+  });
+  return (
+    <>
+      <h2>
+        Next-round prediction{' '}
+        <span className="meta">— what will they most likely run? (from the ML Lab, evidence included)</span>
+      </h2>
+      <div className="panel">
+        <div className="toolbar noprint">
+          {(['T', 'CT'] as const).map((s) => (
+            <button key={s} className={side === s ? '' : 'ghost'} onClick={() => setSide(s)}>{s}</button>
+          ))}
+          <select value={buy} onChange={(e) => setBuy(e.target.value)}>
+            <option value="">buy unknown</option>
+            {['pistol', 'eco', 'semi', 'force', 'full'].map((b) => <option key={b}>{b}</option>)}
+          </select>
+          <span className="meta">vs</span>
+          <select value={oppId} onChange={(e) => setOppId(e.target.value)}>
+            <option value="">any opponent</option>
+            {opps.map((t) => <option key={t.team_id} value={t.team_id}>{t.name}</option>)}
+          </select>
+        </div>
+        {predict.data && (
+          <>
+            <div className="toolbar" style={{ gap: 8 }}>
+              <span className="badge gray">
+                method: {PREDICT_METHOD_LABEL[predict.data.method] ?? predict.data.method}
+              </span>
+              <span className="meta">{predict.data.evidence.note}</span>
+            </div>
+            {(predict.data.clusters ?? []).slice(0, 5).map((c) => (
+              <div key={c.cluster_id} style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4 }}>
+                <div style={{ flex: '0 0 42px', fontVariantNumeric: 'tabular-nums' }}>
+                  %{Math.round(100 * c.prob)}
+                </div>
+                <div style={{ flex: 1, background: '#232a26', borderRadius: 3, height: 9 }}>
+                  <div style={{ width: `${100 * c.prob}%`, height: '100%', background: '#4c8f52', borderRadius: 3 }} />
+                </div>
+                <div className="meta" style={{ flex: '0 0 55%' }}>
+                  {c.label ?? c.top_places.slice(0, 3).map((p) => p.place).join(' → ')}
+                </div>
+              </div>
+            ))}
+            <p className="meta noprint" style={{ marginTop: 8 }}>
+              methods compete on a temporal test; only the winner is served —
+              details in the <Link to="/insights">ML Lab</Link>.
+            </p>
+          </>
+        )}
+      </div>
+    </>
+  );
+}
 
 function UtilitySection({ d, mapName }: { d: ReportResp; mapName: string }) {
   const [side, setSide] = useState<'T' | 'CT'>('T');

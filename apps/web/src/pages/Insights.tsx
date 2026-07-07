@@ -4,17 +4,37 @@ import { useQuery } from '@tanstack/react-query';
 import { api } from '../api';
 
 // ML Lab: modellerin ne bildiğini, ne kadar iyi bildiğini ve nasıl
-// sınandığını TEK sayfada gösterir. Dört panel:
+// sınandığını TEK sayfada gösterir. Beş panel:
 //   1. envanter  — modellerin beslendiği veri hacmi
 //   2. yöntem yarışı — zamansal log-loss tablosu (dürüstlük panosu)
-//   3. tahmin laboratuvarı — takım+rakip+harita → canlı dağılım
-//   4. küme gezgini — stratejilerin kendisi
+//   3. LightGBM içgörüsü — modelin neye baktığı (özellik önemleri)
+//   4. tahmin laboratuvarı — takım+rakip+harita → canlı dağılım
+//   5. küme gezgini — stratejilerin kendisi
+// Okunurluk ilkesi (kullanıcı geri bildirimi): her panel, ne gösterdiğini
+// SADE İngilizceyle açıklar; kısaltma/terim yalnız legend'la birlikte.
 const METHOD_LABEL: Record<string, string> = {
   league: 'league baseline',
   team: 'team tendency',
-  team_buy: 'team + buy',
+  team_buy: 'team + economy',
   team_vs: 'head-to-head',
   team_style: 'opponent style',
+  lgbm: 'LightGBM model',
+};
+
+// yöntem sözlüğü — yarış tablosunun üstündeki legend ve her rozet
+// başlığında (title) kullanılır
+const METHOD_DESC: Record<string, string> = {
+  league: 'Ignores the team completely: how often ANY team plays each strategy on this map & side. The bar every smarter method must beat.',
+  team: 'This team’s own history on this map & side, blended with the league average when data is thin (recent matches count more).',
+  team_buy: 'Same as team tendency, but split by the round economy (full buy, eco, …) — teams behave very differently when poor.',
+  team_vs: 'Only rounds this team played against THIS exact opponent. Sharp when there is enough history, useless when there isn’t.',
+  team_style: 'Rounds against opponents whose playstyle looks similar to the selected opponent (cosine similarity of strategy profiles).',
+  lgbm: 'A gradient-boosted decision-tree model (LightGBM). Sees the same information as "team + economy" but can generalize across teams with similar styles.',
+};
+
+const IMPORTANCE_LABEL: Record<string, string> = {
+  buy_type: 'round economy (buy type)',
+  log_n_eff: 'how much history the team has',
 };
 
 export default function Insights() {
@@ -61,22 +81,30 @@ export default function Insights() {
 
   const inv = status.data?.inventory;
   const evalRows = status.data?.evaluation ?? [];
+  const lgbmRows = evalRows.filter((e) => e.lgbm_importance && Object.keys(e.lgbm_importance).length);
+  const lgbmWins = evalRows.filter((e) => e.best_method === 'lgbm').length;
 
   return (
     <>
       <h1>🧠 ML Lab</h1>
       <p className="meta" style={{ maxWidth: 720 }}>
-        Everything here is computed locally from the demo archive — no external
-        AI services. Models re-train on every ingest and must beat the league
-        baseline on a <b>temporal test</b> (train on the past, test on the most
-        recent rounds) before they are allowed to serve predictions.
+        This page shows <b>what the prediction models know, how good they are and
+        how they are tested</b>. Everything is computed locally from the demo
+        archive — no external AI services. Models re-train on every ingest and
+        must win a <b>temporal test</b> (train on older rounds, predict the most
+        recent ones) before they are allowed to serve you a prediction.
       </p>
 
       {/* 1 — envanter */}
+      <h2>Data inventory</h2>
+      <p className="meta" style={{ maxWidth: 720 }}>
+        What the models are fed. More rounds per team &amp; map = sharper, more
+        trustworthy predictions.
+      </p>
       {inv && (
         <div className="grid cards" style={{ marginTop: 12 }}>
           {([
-            [inv.matches, 'matches'], [inv.rounds, 'rounds'],
+            [inv.matches, 'matches parsed'], [inv.rounds, 'rounds analyzed'],
             [inv.clusters, 'strategy clusters'], [inv.tendency_rows, 'team tendencies'],
             [inv.vs_rows, 'opponent-calibrated rows'], [inv.winprob_cells, 'win-prob states'],
             [inv.anomaly_flags, 'anomaly flags'], [inv.exec_templates, 'execute templates'],
@@ -91,20 +119,36 @@ export default function Insights() {
       )}
 
       {/* 2 — yöntem yarışı */}
-      <h2>Model race — temporal log-loss (lower is better)</h2>
+      <h2>Method race — which prediction method earns the right to be shown?</h2>
       <p className="meta" style={{ maxWidth: 720 }}>
-        Five methods compete per map &amp; side. <b>Bold</b> is the winner and is
-        what the site actually serves. A method that cannot beat the baseline is
-        never shown to you — that is the honesty rule.
+        Six methods try to predict the strategy of each round. We score them with{' '}
+        <b title="For every test round: how much probability did the method give to the strategy that actually happened? Less surprise = lower score.">
+          log-loss
+        </b>{' '}
+        — think of it as <i>“how surprised was the method by what actually
+        happened”</i>, so <b>lower is better</b>. The test is honest: methods only
+        see older rounds and must predict the newest 25% of every match.
+        The <span style={{ fontWeight: 700, color: '#8fd39a' }}>green</span> value
+        wins that row, and <b>only the winner is ever shown on the site</b>.
       </p>
+      <div className="grid cards" style={{ margin: '10px 0' }}>
+        {Object.entries(METHOD_DESC).map(([m, desc]) => (
+          <div key={m} className="card" style={{ padding: '8px 10px' }}>
+            <div style={{ fontWeight: 700, marginBottom: 4 }}>{METHOD_LABEL[m]}</div>
+            <div className="meta" style={{ fontSize: 12 }}>{desc}</div>
+          </div>
+        ))}
+      </div>
       <div style={{ overflowX: 'auto' }}>
         <table>
           <thead>
             <tr>
               <th>map / side</th>
-              <th>league</th><th>team</th><th>team+buy</th>
-              <th>head-to-head</th><th>opp. style</th>
-              <th>winner</th><th className="meta">test n</th>
+              {(['league', 'team', 'team_buy', 'team_vs', 'team_style', 'lgbm'] as const).map((m) => (
+                <th key={m} title={METHOD_DESC[m]}>{METHOD_LABEL[m]}</th>
+              ))}
+              <th>served method</th>
+              <th className="meta" title="how many recent rounds each method was tested on">test n</th>
             </tr>
           </thead>
           <tbody>
@@ -112,7 +156,7 @@ export default function Insights() {
               const vals: [string, number | null][] = [
                 ['league', e.logloss_league], ['team', e.logloss_team],
                 ['team_buy', e.logloss_team_buy], ['team_vs', e.logloss_team_vs],
-                ['team_style', e.logloss_team_style],
+                ['team_style', e.logloss_team_style], ['lgbm', e.logloss_lgbm],
               ];
               return (
                 <tr key={e.map_name + e.side}>
@@ -122,25 +166,67 @@ export default function Insights() {
                       {v != null ? v.toFixed(3) : '—'}
                     </td>
                   ))}
-                  <td><span className="badge gray">{METHOD_LABEL[e.best_method] ?? e.best_method}</span></td>
+                  <td>
+                    <span className="badge gray" title={METHOD_DESC[e.best_method]}>
+                      {METHOD_LABEL[e.best_method] ?? e.best_method}
+                    </span>
+                  </td>
                   <td className="meta">{e.test_rounds ?? '—'}</td>
                 </tr>
               );
             })}
             {!evalRows.length && (
-              <tr><td colSpan={8} className="meta">no evaluation yet — run ml-jobs</td></tr>
+              <tr><td colSpan={9} className="meta">no evaluation yet — run ml-jobs</td></tr>
             )}
           </tbody>
         </table>
       </div>
 
-      {/* 3 — tahmin laboratuvarı */}
-      <h2>Prediction lab</h2>
+      {/* 3 — LightGBM içgörüsü */}
+      <h2>LightGBM insight — what does the model look at?</h2>
       <p className="meta" style={{ maxWidth: 720 }}>
-        Pick a team and (optionally) an opponent. When an opponent is set and the
-        temporal test favours it, the distribution is calibrated to that matchup:
-        real head-to-head rounds when there are enough, otherwise rounds against
-        opponents with a <i>similar style profile</i>.
+        LightGBM is the only <i>learned</i> model in the race (the others are
+        transparent counting + smart averaging). It currently wins{' '}
+        <b>{lgbmWins} of {evalRows.length}</b> map/side combinations
+        {lgbmWins === 0 && ' — the honest baselines are still better, so it is not shown anywhere on the site yet'}.
+        Where it wins, the bars below show <b>which inputs drive its decisions</b>{' '}
+        (share of total decision power, from tree gain).
+      </p>
+      {lgbmRows.length > 0 ? (
+        <div className="grid cards">
+          {lgbmRows.map((e) => {
+            const imp = Object.entries(e.lgbm_importance!).sort((a, b) => b[1] - a[1]).slice(0, 6);
+            return (
+              <div key={e.map_name + e.side} className="card">
+                <div className="teams">
+                  <span>{e.map_name.replace('de_', '')} <span className={`badge ${e.side}`}>{e.side}</span></span>
+                  {e.best_method === 'lgbm' && <span className="badge gray">live</span>}
+                </div>
+                {imp.map(([name, v]) => (
+                  <Bar key={name} prob={v}
+                    label={IMPORTANCE_LABEL[name]
+                      ?? name.replace(/^own_share_c(\d+)$/, 'own use of strategy #$1')} />
+                ))}
+              </div>
+            );
+          })}
+        </div>
+      ) : (
+        <p className="meta">
+          No winning map/side yet — importance charts appear here once LightGBM
+          beats the baseline somewhere. It re-enters the race on every archive
+          update, so this can change as data grows.
+        </p>
+      )}
+
+      {/* 4 — tahmin laboratuvarı */}
+      <h2>Prediction lab — try it yourself</h2>
+      <p className="meta" style={{ maxWidth: 720 }}>
+        Pick a team and a situation; you get the same distribution the site would
+        serve, plus <b>which method produced it and on how much evidence</b>.
+        Setting an opponent switches to matchup-calibrated methods when the
+        temporal test favours them: real head-to-head rounds if there are enough,
+        otherwise rounds against similar-style opponents.
       </p>
       <div className="panel">
         <div className="toolbar">
@@ -165,11 +251,13 @@ export default function Insights() {
             {['pistol', 'eco', 'semi', 'force', 'full'].map((b) => <option key={b}>{b}</option>)}
           </select>
         </div>
-        {!teamId && <p className="meta">pick a team to see its next-round distribution</p>}
+        {!teamId && <p className="meta">pick a team to see its next-round strategy distribution</p>}
         {predict.data && (
           <>
             <div className="toolbar" style={{ gap: 8 }}>
-              <span className="badge gray">method: {METHOD_LABEL[predict.data.method] ?? predict.data.method}</span>
+              <span className="badge gray" title={METHOD_DESC[predict.data.method]}>
+                method: {METHOD_LABEL[predict.data.method] ?? predict.data.method}
+              </span>
               <span className="meta">{predict.data.evidence.note}</span>
             </div>
             {(predict.data.clusters ?? []).slice(0, 6).map((c) => (
@@ -180,15 +268,22 @@ export default function Insights() {
         )}
         {teamId && (
           <p className="meta" style={{ marginTop: 8 }}>
-            fallback chain: head-to-head → opponent style → team {buy ? '→ team+buy ' : ''}→ league —
-            each step only serves if it won the temporal test.
+            fallback chain: LightGBM → head-to-head → opponent style → team + economy
+            → team → league — each step only serves where it won the temporal test.
             {teamId && <> · <Link to={`/report/${teamId}?map=${effMap}`}>full opponent report →</Link></>}
           </p>
         )}
       </div>
 
-      {/* 4 — küme gezgini */}
-      <h2>Strategy cluster explorer</h2>
+      {/* 5 — küme gezgini */}
+      <h2>Strategy cluster explorer — what are these “strategies” anyway?</h2>
+      <p className="meta" style={{ maxWidth: 720 }}>
+        A <b>strategy cluster</b> is a recurring way a side opens a round —
+        found automatically by grouping rounds whose players occupy similar map
+        areas in the opening phase (k-means). The route shows the dominant map
+        areas; ▶ opens a real example round in the replay viewer. Name the
+        clusters on the Analyze page ✏ — labels show up everywhere.
+      </p>
       <div className="panel">
         <div className="toolbar">
           <select value={effCMap} onChange={(e) => setCMap(e.target.value)}>
@@ -197,9 +292,6 @@ export default function Insights() {
           <select value={cSide} onChange={(e) => setCSide(e.target.value)}>
             <option>T</option><option>CT</option>
           </select>
-          <span className="meta">
-            k-means over opening-phase positioning; label them on the Analyze page ✏
-          </span>
         </div>
         <div className="grid cards">
           {(clusters.data ?? []).map((c) => (
