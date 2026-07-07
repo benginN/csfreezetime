@@ -67,6 +67,15 @@ export function chipTitle(
     if (tl) bits.push(`T strat: ${tl}`);
     if (cl) bits.push(`CT setup: ${cl}`);
   }
+  // sürpriz: model gerçekleşen stratejiye raunt öncesi <%15 vermişse
+  const surp: string[] = [];
+  if (r.t_pred_prob != null && r.t_pred_prob < 0.15) {
+    surp.push(`T ran a strat the model gave only ${Math.round(100 * r.t_pred_prob)}%`);
+  }
+  if (r.ct_pred_prob != null && r.ct_pred_prob < 0.15) {
+    surp.push(`CT setup had only ${Math.round(100 * r.ct_pred_prob)}%`);
+  }
+  if (surp.length) bits.push(`⚡ surprise: ${surp.join('; ')}`);
   // thrown: kaybeden taraf kazanma olasılığında ≥%75 zirve yaptıysa
   if (r.winner_side && r.max_t_prob != null && r.max_ct_prob != null) {
     const loserPeak = r.winner_side === 'T' ? r.max_ct_prob : r.max_t_prob;

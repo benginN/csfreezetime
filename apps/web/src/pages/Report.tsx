@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRoster, useWindow, WindowPicker } from '../lib/window';
-import { api, type ReportResp, type StackResp } from '../api';
+import { api, type ReportResp, type RoundTendencyRow, type StackResp } from '../api';
 import { drawMapBase, hidpiCtx, loadMapBase, RADAR, type MapBase } from '../lib/mapbase';
 import { paintHeat } from '../lib/heatpaint';
 import { MlMark } from '../lib/MlMark';
@@ -173,6 +173,37 @@ export default function Report() {
                   <td className="meta">{c.sample_size}</td>
                 </tr>
               ))}
+            </tbody>
+          </table>
+        </>
+      )}
+
+      {(d.round_tendencies ?? []).length > 0 && (
+        <>
+          <h3>By round type <MlMark /> <span className="meta">(what they run on pistols, after pistols, and deep in the half)</span></h3>
+          <table className="cond">
+            <thead><tr><th>Round</th><th>Side</th><th>Most likely</th><th>P</th><th>2nd choice</th><th className="meta">n</th></tr></thead>
+            <tbody>
+              {(['T', 'CT'] as const).flatMap((side) =>
+                ['pistol', 'after pistol', '3rd round', 'mid-game', 'overtime'].map((rc) => {
+                  const rows2 = (d.round_tendencies ?? []).filter((x) => x.side === side && x.rclass === rc);
+                  if (!rows2.length) return null;
+                  const [first, second] = rows2;
+                  const nm = (x: RoundTendencyRow) =>
+                    x.label ?? x.top_places.slice(0, 3).map((p2) => p2.place).join(' → ');
+                  return (
+                    <tr key={side + rc} style={first.total < 10 ? { opacity: 0.5 } : undefined}>
+                      <td>{rc}</td>
+                      <td><span className={`badge ${side}`}>{side}</span></td>
+                      <td>{nm(first)}</td>
+                      <td>{Math.round(100 * first.share)}%</td>
+                      <td className="meta">{second ? `${nm(second)} (${Math.round(100 * second.share)}%)` : '—'}</td>
+                      <td className="meta" title={first.total < 10 ? 'small sample — low confidence' : undefined}>
+                        {first.total}{first.total < 10 ? ' ⚠' : ''}
+                      </td>
+                    </tr>
+                  );
+                }))}
             </tbody>
           </table>
         </>

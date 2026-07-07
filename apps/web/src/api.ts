@@ -39,6 +39,8 @@ export interface RoundRow {
   ct_team_id: string | null;
   max_t_prob?: number | null;   // winprob zirveleri (thrown tespiti)
   max_ct_prob?: number | null;
+  t_pred_prob?: number | null;  // modelin raunt öncesi bu stratejiye verdiği p
+  ct_pred_prob?: number | null;
 }
 
 export interface Tendency {
@@ -288,6 +290,12 @@ export interface ReportPlayer {
   tags: string[];
 }
 
+export interface RoundTendencyRow {
+  rclass: string; side: 'T' | 'CT'; cluster_id: number;
+  label: string | null; top_places: { place: string; weight: number }[];
+  n: number; total: number; share: number;
+}
+
 export interface ReportResp {
   util_dmg: { side: string; he_dmg: number; fire_dmg: number; he_n: number; fire_n: number }[];
   exec_templates: { pattern: string[]; n: number; wins: number; site_mix: Record<string, number>; recency_score: number }[];
@@ -310,6 +318,7 @@ export interface ReportResp {
     after_pistol_loss: Record<string, number>;
   };
   tendencies: (Tendency & { side: 'T' | 'CT' })[];
+  round_tendencies: RoundTendencyRow[];
   conditional: {
     side: 'T' | 'CT'; buy_type: string; cluster_id: number;
     label: string | null; top_places: { place: string; weight: number }[];

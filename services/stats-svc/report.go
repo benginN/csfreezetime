@@ -462,6 +462,42 @@ func (s *server) report(w http.ResponseWriter, r *http.Request) {
 		    LIMIT 15
 		) x`, teamID, mapName, elig)
 
+	// raunt-sınıfı eğilimleri: pistol / pistol-sonrası / 3. raunt / orta oyun /
+	// uzatma sınıflarında en olası 2 strateji (kullanıcı isteği: "roundlara
+	// göre eğilimler"). Ham sayım — küçük n'ler istemcide işaretlenir.
+	out["round_tendencies"] = s.jsonQuery(ctx, `
+		WITH tr AS (
+		    SELECT CASE WHEN r.round_number IN (1,13) THEN 'pistol'
+		                WHEN r.round_number IN (2,14) THEN 'after pistol'
+		                WHEN r.round_number IN (3,15) THEN '3rd round'
+		                WHEN r.round_number >= 25 THEN 'overtime'
+		                ELSE 'mid-game' END AS rclass,
+		           x.side, x.cluster_id
+		    FROM rounds r
+		    JOIN matches m ON m.match_id = r.match_id AND m.status = 'ready'
+		    CROSS JOIN LATERAL (VALUES
+		        ('T',  r.t_team_id,  r.t_strategy_cluster),
+		        ('CT', r.ct_team_id, r.ct_strategy_cluster)
+		    ) AS x(side, team_id, cluster_id)
+		    WHERE m.map_name = $2 AND x.team_id = $1 AND x.cluster_id IS NOT NULL
+		      AND ($3::text[] IS NULL OR m.match_id::text = ANY($3::text[]))
+		),
+		agg AS (
+		    SELECT rclass, side, cluster_id, count(*) AS n,
+		           sum(count(*)) OVER (PARTITION BY rclass, side) AS total,
+		           row_number() OVER (PARTITION BY rclass, side ORDER BY count(*) DESC) AS rk
+		    FROM tr GROUP BY rclass, side, cluster_id
+		)
+		SELECT COALESCE(json_agg(x), '[]'::json) FROM (
+		    SELECT a.rclass, a.side, a.cluster_id, sc.label, sc.top_places,
+		           a.n, a.total::int, round((a.n::real / a.total)::numeric, 2) AS share
+		    FROM agg a
+		    JOIN strategy_clusters sc
+		      ON (sc.map_name, sc.side, sc.cluster_id) = ($2, a.side, a.cluster_id)
+		    WHERE a.rk <= 2
+		    ORDER BY a.side DESC, a.rclass, a.rk
+		) x`, teamID, mapName, elig)
+
 	// rapor harita bağlamındadır: o haritanın rol satırı varsa o, yoksa
 	// genel ('' harita) profil — kanıt (rounds) hangisinin geldiğini söyler
 	out["players"] = s.jsonQuery(ctx, `

@@ -79,14 +79,23 @@ func (s *server) matchDetail(w http.ResponseWriter, r *http.Request) {
 		CTTeamID      *uuid.UUID `json:"ct_team_id"`
 		MaxTProb      *float32   `json:"max_t_prob"`  // winprob zirvesi (thrown tespiti)
 		MaxCTProb     *float32   `json:"max_ct_prob"`
+		TPredProb     *float32   `json:"t_pred_prob"`  // modelin bu stratejiye raunt
+		CTPredProb    *float32   `json:"ct_pred_prob"` // öncesi verdiği olasılık (sürpriz)
 	}
 	rows, err := s.pg.Query(ctx, `
 		SELECT r.round_number, r.start_tick, r.freeze_end_tick, r.end_tick, r.winner_side,
 		       r.end_reason, r.bomb_site, r.bomb_plant_tick, r.t_buy_type, r.ct_buy_type,
 		       r.t_strategy_cluster, r.ct_strategy_cluster, r.t_team_id, r.ct_team_id,
-		       w.max_t_prob, w.max_ct_prob
+		       w.max_t_prob, w.max_ct_prob, tp.prob, cp.prob
 		FROM rounds r
+		JOIN matches mm ON mm.match_id = r.match_id
 		LEFT JOIN round_winprob w ON (w.match_id, w.round_number) = (r.match_id, r.round_number)
+		LEFT JOIN team_tendencies_cond tp
+		  ON (tp.team_id, tp.map_name, tp.side, tp.buy_type, tp.cluster_id)
+		   = (r.t_team_id, mm.map_name, 'T', r.t_buy_type, r.t_strategy_cluster)
+		LEFT JOIN team_tendencies_cond cp
+		  ON (cp.team_id, cp.map_name, cp.side, cp.buy_type, cp.cluster_id)
+		   = (r.ct_team_id, mm.map_name, 'CT', r.ct_buy_type, r.ct_strategy_cluster)
 		WHERE r.match_id = $1 ORDER BY r.round_number`, matchID)
 	if err != nil {
 		writeErr(w, 500, err)
@@ -98,7 +107,7 @@ func (s *server) matchDetail(w http.ResponseWriter, r *http.Request) {
 		if err := rows.Scan(&x.RoundNumber, &x.StartTick, &x.FreezeEndTick, &x.EndTick,
 			&x.WinnerSide, &x.EndReason, &x.BombSite, &x.BombPlantTick, &x.TBuy, &x.CTBuy,
 			&x.TCluster, &x.CTCluster, &x.TTeamID, &x.CTTeamID,
-			&x.MaxTProb, &x.MaxCTProb); err != nil {
+			&x.MaxTProb, &x.MaxCTProb, &x.TPredProb, &x.CTPredProb); err != nil {
 			rows.Close()
 			writeErr(w, 500, err)
 			return
