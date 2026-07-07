@@ -29,8 +29,10 @@ uygulamadan önce mutlaka sor ve gerekçesini açıkla.
 - `test-data/` içindeki .dem dosyaları büyüktür; git'e asla ekleme
   (.gitignore'da tanımlı).
 
-## Mevcut faz
-Şu an Faz 0'dayız: docker-compose altyapısı + Rust parser worker dikey dilimi.
-Faz tanımları ve çıkış kriterleri `docs/mimari.md` §11'dedir. Faz 0 tamamlanma
-kriteri: tek bir .dem dosyası < 5 sn'de parse edilip ClickHouse'ta
-sorgulanabiliyor olmalı.
+## Durum
+Faz 0-5 + LightGBM v2 tamamlandı; platform çalışır ve özellik-tam durumda
+(replay, raporlar, Pattern Finder, Scenarios, ML Lab, My DB). Proje MIT
+lisansıyla açık kaynaktır. Faz tanımları ve tarihçe `docs/mimari.md` §11'de;
+projeye yeni gelen için sade tur `docs/how-it-works.md`. Yeni özellik
+eklerken: önce kısa plan sun, onay al, sonra uygula (yukarıdaki çalışma
+kuralları geçerli).

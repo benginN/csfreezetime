@@ -15,6 +15,10 @@ deterministic SQL + geometry + local ML, running entirely on your own machine.
 MIT licensed — free to use, modify and share. Turkish is the project's primary
 language; docs and UI copy are bilingual where it matters.
 
+📖 **New here? Read [docs/how-it-works.md](docs/how-it-works.md)** — a
+plain-language tour of what it does, what each page gives you, and how the
+pieces fit together (including how to explore and extend it with Claude Code).
+
 Bu, kendi kendine barındırılan bir CS2 demo analiz platformudur: demolar bir kez
 derinlemesine işlenir, koçun tüm sorguları önceden hesaplanmış tablolara düşer
 ("parse once, query forever"). Mimari referansı: [docs/mimari.md](docs/mimari.md).
