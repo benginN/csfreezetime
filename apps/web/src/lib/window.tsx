@@ -39,6 +39,13 @@ export function useRoster(): [number, (n: number) => void] {
   return [roster, set];
 }
 
+// Kadro filtresi tooltip'i: koça "neden var" cümlesiyle birlikte
+const LINEUP_TIP =
+  'Roster changes matter — a team with new players plays differently. '
+  + 'Keep only matches with at least N of the team\'s current five (the five '
+  + 'from their most recent match) on the server. 5/5 = the exact current '
+  + 'lineup; lower it to tolerate a stand-in; off = every match.';
+
 export function WindowPicker({ win, onChange, roster, onRoster }: {
   win: string; onChange: (w: string) => void;
   roster?: number; onRoster?: (n: number) => void;
@@ -62,10 +69,8 @@ export function WindowPicker({ win, onChange, roster, onRoster }: {
       {win && <button className="ghost" onClick={() => onChange('')}>all time</button>}
       {onRoster && (
         <>
-          <label className="meta" title="only matches where at least N of the current five (from the team's latest match) played">
-            · lineup ≥
-          </label>
-          <select value={roster ?? 0} onChange={(e) => onRoster(Number(e.target.value))}>
+          <label className="meta" title={LINEUP_TIP}>· lineup ≥</label>
+          <select value={roster ?? 0} onChange={(e) => onRoster(Number(e.target.value))} title={LINEUP_TIP}>
             {[0, 1, 2, 3, 4, 5].map((n) => (
               <option key={n} value={n}>{n === 0 ? 'off' : `${n}/5`}</option>
             ))}
