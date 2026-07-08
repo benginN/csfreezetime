@@ -16,6 +16,9 @@ deterministic SQL + geometry + local ML, running entirely on your own machine.
 MIT licensed — free to use, modify and share. Turkish is the project's primary
 language; docs and UI copy are bilingual where it matters.
 
+🤖 Built end to end with [Claude Code](https://claude.com/claude-code)
+(Claude Fable 5) — from the Rust parser to the React UI.
+
 📖 **New here? Read [docs/how-it-works.md](docs/how-it-works.md)** — a
 plain-language tour of what it does, what each page gives you, and how the
 pieces fit together (including how to explore and extend it with Claude Code).

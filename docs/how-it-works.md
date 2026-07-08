@@ -5,8 +5,10 @@ the pieces fit together. If you just want to run it, see the
 [README](../README.md); if you want every architectural decision, see
 [mimari.md](mimari.md) (Turkish). This page is the middle ground.
 
-*(Türkçe okuyucu: bu dosya, projeyi ilk kez görenlerin "ne yapıyor, nasıl
-çalışıyor" sorusuna sade bir cevap. Derin mimari için `mimari.md`.)*
+> This whole project — parser to UI — was built end to end with
+> [Claude Code](https://claude.com/claude-code) (Claude Fable 5), pair-programmed
+> by its author. That's also why it's set up to be explored and extended the
+> same way (see the last section).
 
 ---
 
@@ -146,9 +148,10 @@ Good places to start reading:
 
 ## Exploring & extending it with Claude Code
 
-This project was built with, and is set up to be explored with,
-[Claude Code](https://claude.com/claude-code). If you clone it and open Claude
-Code in the repo, it will read:
+This project was built **end to end** with, and is set up to be explored with,
+[Claude Code](https://claude.com/claude-code) (Claude Fable 5) — from the Rust
+parser to the React UI. If you clone it and open Claude Code in the repo, it
+will read:
 
 - **`CLAUDE.md`** — the house rules (which language each service uses, where
   tick data may and may not go, the "plan → confirm → build" workflow).
