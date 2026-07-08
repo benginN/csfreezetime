@@ -147,68 +147,157 @@ itself rather than guess. 🧠 marks anything derived from the ML pipeline.
 
 ---
 
-## Quick start
+## Step-by-step setup (from zero)
 
-**Prerequisites:** Docker + Docker Compose, a Rust toolchain (`cargo`) with
-`protoc`, Go 1.22+, Node 18+, and Python 3.11+ with [`uv`](https://docs.astral.sh/uv/).
+Follow these in order. Everything runs on your own machine.
+
+**0. Install the prerequisites** (once):
+
+- [Docker](https://docs.docker.com/get-docker/) + Docker Compose
+- A **Rust** toolchain (`cargo`) and `protoc` (Protocol Buffers compiler)
+- **Go** 1.22+
+- **Node** 18+
+- **Python** 3.11+ and [`uv`](https://docs.astral.sh/uv/)
+- Optional but recommended: `unar` (recovers the occasional broken `.rar` demo
+  archive), `ffmpeg` (only if you'll make GIFs)
+
+Then clone the repo and `cd` into it.
+
+**1. Start the databases and message queue.** This brings up PostgreSQL,
+ClickHouse, MinIO and NATS in Docker, then creates the database tables:
 
 ```bash
-# 1. Infrastructure (Postgres, ClickHouse, MinIO, NATS)
 cd infra && cp .env.example .env && docker compose up -d --wait postgres clickhouse minio nats
 docker compose up -d minio-init && cd ..
 scripts/apply-pg-schema.sh && scripts/apply-ch-schema.sh
-
-# 2. Services (each in its own terminal, from the repo root)
-set -a; source infra/.env; set +a
-cargo run --release --manifest-path services/parser-worker/Cargo.toml     # parser
-(cd services/enrichment && uv run --no-editable enrichment-worker)        # enrichment
-(cd services/stats-svc && go build -o stats-svc . ) && ./services/stats-svc/stats-svc  # API + web (:8090)
-
-# 3. Build the web app (served by stats-svc from apps/web/dist)
-(cd apps/web && npm install && npm run build)
-
-# 4. Add demos — see below — then open the site
-open http://localhost:8090
-
-# Tests
-scripts/e2e-test.sh    # pipeline end-to-end
-scripts/test-dsl.sh    # replay/stack smoke + heatmap p95
-scripts/test-ml.sh     # clustering / tendency / anomaly consistency
 ```
 
-> **macOS + Colima:** `scripts/start-all.sh` brings the VM, infrastructure and
-> all services up in one command; `scripts/stop-all.sh` takes them down.
+**2. Start the four services.** Open **four terminals**, and in each one first
+load the env vars with `set -a; source infra/.env; set +a`, then run one of:
+
+```bash
+# terminal 1 — parser (turns demos into data)
+cargo run --release --manifest-path services/parser-worker/Cargo.toml
+
+# terminal 2 — a second parser is optional but speeds up big batches
+cargo run --release --manifest-path services/parser-worker/Cargo.toml
+
+# terminal 3 — enrichment (trades, first-kills, buy classes…)
+(cd services/enrichment && uv run --no-editable enrichment-worker)
+
+# terminal 4 — stats-svc: the API + website on http://localhost:8090
+(cd services/stats-svc && go build -o stats-svc . ) && ./services/stats-svc/stats-svc
+```
+
+**3. Build the website** (stats-svc serves it from `apps/web/dist`):
+
+```bash
+(cd apps/web && npm install && npm run build)
+```
+
+**4. Add demos** — see [Feeding it demos](#feeding-it-demos) below. This is what
+actually fills the site with data.
+
+**5. Open** <http://localhost:8090>. That's it.
+
+> **macOS + Colima shortcut:** once set up, `scripts/start-all.sh` brings the VM,
+> databases and all four services up in one command; `scripts/stop-all.sh` takes
+> them down.
+
+> **Sanity checks (optional):** `scripts/e2e-test.sh` (pipeline end-to-end),
+> `scripts/test-dsl.sh` (replay/heatmap), `scripts/test-ml.sh` (analysis
+> consistency).
 
 ---
 
 ## Feeding it demos
 
-This is the important part — the app is empty until you give it demos.
+This is the important part — **the app is empty until you give it demos.**
 
-**Where they go:** with the services running, **drop demo files into the
-`backfill/` folder** at the repo root. A watcher scans it every ~20 seconds,
-parses and enriches each demo, adds it to your archive, and then recomputes the
-analysis tables automatically. That's it — no button to press.
+**Step 1 — find (or create) the `backfill/` folder.** It lives at the **root of
+the repo**, right next to `README.md`, `services/`, `apps/`. If it isn't there
+yet, just make it:
 
-**What it accepts:**
+```bash
+mkdir -p backfill      # run this from the repo root
+```
+
+**Step 2 — drop your demo files into `backfill/`.** With the services running
+(step 2 of setup), a watcher checks that folder **every ~20 seconds**, and for
+each new file it: parses it → enriches it → adds it to your archive →
+recomputes the analysis tables. **No button to press.** A file is only picked up
+once its size stops changing between two scans, so a still-copying file safely
+waits its turn.
+
+**What you can drop in `backfill/`:**
 
 - raw `.dem` files
 - archives that contain demos: `.rar` or `.zip` (as you'd download from HLTV/FACEIT)
 - compressed single demos: `.dem.gz` or `.dem.zst`
 
-**How much do you need?** Team-level intelligence — tendencies, predictions,
-patterns, playbooks — only gets meaningful with a real archive. The more demos
-you feed it, the sharper and more trustworthy the numbers. A season or two of a
-team's matches is the sweet spot. If you just want to look at **one match**, the
-**Analyze** page (or drag-drop in the UI) parses a single demo on its own — no
-archive required.
+**Step 3 — wait, then refresh the site.** Parsing a demo takes seconds to a
+minute or two depending on its size. As demos finish, the match total on the
+home page goes up. Team-level analysis (tendencies, predictions, patterns) is
+recomputed automatically once the queue settles.
+
+**How much do you need?** Team-level intelligence only gets meaningful with a
+real archive — the more demos, the sharper and more trustworthy the numbers. A
+season or two of a team's matches is the sweet spot. Just want to look at **one
+match**? The **Analyze** page parses a single demo on its own, no archive
+required.
 
 **Where to get demos:** your own GOTV recordings, FACEIT/ESEA downloads, or
-HLTV. Respect each source's terms of service — Freezetime doesn't scrape
-anything; you supply the files.
+HLTV. Respect each source's terms — Freezetime doesn't scrape anything; you
+supply the files.
 
-> Manual alternatives: `scripts/ingest-dir.sh` queues a folder of demos, and the
-> in-browser **My DB** page processes private demos client-side.
+### Demos not showing up? (troubleshooting)
+
+Work down this list — it's almost always one of these:
+
+1. **Does the `backfill/` folder exist and contain your files?** It's at the
+   repo root. Create it with `mkdir -p backfill` if missing.
+2. **Are all the services running?** You need **stats-svc** (the watcher lives
+   here), at least one **parser-worker**, and **enrichment** — all up, all
+   started with the env loaded (`set -a; source infra/.env; set +a`).
+3. **Give it ~20 seconds** for the scan, plus parse time. Big demos take longer.
+4. **Watch the stats-svc terminal.** It logs `backfill izleyici: N dosya bulundu`
+   when it picks files up, and `backfill HATA …` if one fails.
+5. **A `.rar` that won't open?** Some HLTV archives trip the built-in unpacker;
+   installing `unar` lets Freezetime recover them automatically.
+6. **A match stuck showing "parsing"?** The system re-queues orphaned jobs on
+   its own within a few minutes; you can also re-run analysis manually with
+   `(cd services/ml && uv run --no-editable ml-jobs)`.
+7. **Stats look stale after adding demos?** They recompute automatically, but you
+   can force it any time with the same `ml-jobs` command above.
+8. **`No space left on device` in the logs?** The demos/positions filled the
+   disk (or, on macOS + Colima, the VM disk). Free space or grow the VM.
+
+> Manual alternatives to the watcher: `scripts/ingest-dir.sh` queues a whole
+> folder at once, and the in-browser **My DB** page processes private demos
+> client-side.
+
+---
+
+## Map backgrounds (radar images) — optional
+
+Out of the box, the 2D replay draws a **walkable-area silhouette** derived from
+position data, so it works on every map with no setup. To make it look like the
+real in-game radar, add the map images yourself:
+
+- **Folder:** `services/stats-svc/static/radars/`
+- **Filenames:** one **1024×1024** PNG per map, named exactly after the map —
+  `de_mirage.png`, `de_inferno.png`, `de_ancient.png`, `de_dust2.png`,
+  `de_overpass.png`, `de_train.png`, `de_anubis.png`, `de_nuke.png`,
+  `de_vertigo.png`.
+- **Two-level maps** (Nuke, Vertigo) also take a lower-level image for the inset:
+  `de_nuke_lower.png`, `de_vertigo_lower.png`.
+- **SVG works too** and stays crisp at any zoom — if you have one, name it
+  `de_mirage.svg` (the app tries `.svg` first, then `.png`).
+
+Where to get them: the radar images ship inside the CS2 game files, or you can
+export/download them from community sources. They are **Valve's property**,
+which is why they're gitignored and not included — you supply your own. Drop the
+files in, refresh the page, done (no restart needed).
 
 ---
 
