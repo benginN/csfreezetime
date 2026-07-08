@@ -1,5 +1,9 @@
 # Freezetime — CS2 Analysis Platform
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![PRs welcome](https://img.shields.io/badge/PRs-welcome-blue.svg)](CONTRIBUTING.md)
+[![Built with Claude Code](https://img.shields.io/badge/built%20with-Claude%20Code-8A5CF6.svg)](https://claude.com/claude-code)
+
 Self-hosted, coach-grade analysis for **Counter-Strike 2** demos. Every demo is
 parsed **once** into positions (16 Hz), kills, grenades and economy; from that,
 hundreds of features are pre-computed into database tables. After that, every
@@ -15,6 +19,11 @@ internal docs (`docs/mimari.md`) and code comments are in Turkish.
 
 🤖 Built end to end with [Claude Code](https://claude.com/claude-code)
 (Claude Fable 5) — from the Rust parser to the React UI.
+
+> 💬 **Why it's free:** I was going to launch this as a subscription website and
+> try to make some money selling monthly plans. But — what the hell. It's more
+> fun to just put it out there. Use it, learn from it, build on it. If it helps
+> your team, that's payment enough. If you like it, a ⭐ makes my day.
 
 > ⚠️ **You bring the demos.** The repo ships the *engine*, not any match data —
 > no demos, no database dumps. Drop your own `.dem` files into `backfill/` and it
@@ -336,10 +345,20 @@ original author's notes required; everything a contributor needs is in the repo.
 
 ---
 
+## Contributing &amp; community
+
+- **Questions, setup help, ideas** → start a
+  [Discussion](https://github.com/benginN/csfreezetime/discussions).
+- **Found a bug or want a feature** → open an
+  [Issue](https://github.com/benginN/csfreezetime/issues).
+- **Want to build on it** → see [CONTRIBUTING.md](CONTRIBUTING.md); forks and
+  pull requests are welcome. It pairs nicely with Claude Code.
+- **Enjoying it?** A ⭐ helps other people find it.
+
 ## License
 
 MIT — see [LICENSE](LICENSE). Use it, fork it, ship it; just keep the copyright
-notice. No warranty. Issues, forks and pull requests welcome.
+notice. No warranty.
 
 CS2 radar images and demo files are property of Valve and are **not** included
 in this repository (see `.gitignore`); supply your own.
