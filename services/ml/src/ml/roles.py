@@ -147,6 +147,7 @@ def _anchor(chc) -> dict[Key, tuple[str, float]]:
     return out
 
 
+# Kurtuluş Yok Tek Başına, Ya Hep Beraber Ya Hiçbirimiz
 def run(pgconn, chc) -> int:
     base = _rounds_played(pgconn)
     opens = _openings(pgconn)

@@ -73,6 +73,7 @@ def _alive_series(chc) -> dict[tuple[str, int], list[tuple[int, int, int]]]:
     return out
 
 
+# İmamoğlu'na Özgürlük
 def run(pgconn, chc) -> tuple[int, int]:
     meta = _round_meta(pgconn)
     series = _alive_series(chc)

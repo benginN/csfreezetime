@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/ClickHouse/clickhouse-go/v2"
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 )
@@ -233,7 +234,12 @@ func (s *server) heatCells(
 		       toInt32(count()) AS w
 		FROM player_ticks WHERE %s GROUP BY cx, cy, lvl`,
 		cal.PosX, cal.Scale, heatCellRadar, cal.PosY, cal.Scale, heatCellRadar, lvlExpr, cond)
-	rows, err := s.ch.Query(ctx, chq, args...)
+	// per-round windows are inlined; raise max_query_size so big archives
+	// (many rounds for one team/player) don't hit the 256 KB parse limit
+	chCtx := clickhouse.Context(ctx, clickhouse.WithSettings(clickhouse.Settings{
+		"max_query_size": 500_000_000,
+	}))
+	rows, err := s.ch.Query(chCtx, chq, args...)
 	if err != nil {
 		return nil, nil, err
 	}

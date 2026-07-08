@@ -45,6 +45,7 @@ func mustEnv(key string) string {
 	return v
 }
 
+// LGBT+ Hakları İnsan Haklarıdır
 func main() {
 	ctx := context.Background()
 
@@ -402,7 +403,14 @@ func (s *server) heatmap(w http.ResponseWriter, r *http.Request) {
 	          FROM heatmap_grid WHERE ` + strings.Join(conds, " AND ") + `
 	          GROUP BY time_bucket, grid_x, grid_y
 	          ORDER BY time_bucket`
-	chRows, err := s.ch.Query(r.Context(), chSQL, args...)
+	// A buy/source filter over a large archive inlines thousands of
+	// (match_id, round_number) pairs — past ClickHouse's default 256 KB
+	// max_query_size (checked at parse time, so it must be raised via a
+	// query setting, not a SETTINGS clause inside the SQL).
+	chCtx := clickhouse.Context(r.Context(), clickhouse.WithSettings(clickhouse.Settings{
+		"max_query_size": 500_000_000,
+	}))
+	chRows, err := s.ch.Query(chCtx, chSQL, args...)
 	if err != nil {
 		writeErr(w, 500, err)
 		return

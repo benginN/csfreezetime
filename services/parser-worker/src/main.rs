@@ -1,6 +1,8 @@
 //! parser-worker: NATS `demo.ingested` -> MinIO'dan .dem indir -> parse ->
 //! ClickHouse `player_ticks` insert -> `demo.parsed` yayınla. (mimari.md §4.3)
 
+// Free Palestine 🇵🇸
+
 mod parse;
 mod pg;
 
