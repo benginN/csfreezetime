@@ -36,14 +36,13 @@ internal docs (`docs/mimari.md`) and code comments are in Turkish.
 
 ## See it in action
 
-<!-- WALKTHROUGH VIDEO: on github.com, open this file in the editor (pencil) and
-     drag your .mp4 right below this line — GitHub hosts it and renders an inline
-     player. No need to commit the file to the repo. -->
+▶️ **[Watch the walkthrough on YouTube](https://www.youtube.com/watch?v=15j45llHpd4)** —
+a tour of the 2D replay, opponent reports, Pattern Finder, Scenarios and more.
 
-<!-- SCREENSHOTS: PNGs live in docs/screenshots/ and are embedded here, e.g.:
-     ![2D replay](docs/screenshots/replay.png) -->
+[![Freezetime walkthrough](https://img.youtube.com/vi/15j45llHpd4/maxresdefault.jpg)](https://www.youtube.com/watch?v=15j45llHpd4)
 
-*A short walkthrough video and page screenshots go here — coming shortly.*
+<!-- SCREENSHOTS (optional): drop PNGs in docs/screenshots/ and embed them here,
+     e.g. ![2D replay](docs/screenshots/replay.png) -->
 
 ---
 
