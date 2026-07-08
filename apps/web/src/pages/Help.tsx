@@ -1,5 +1,5 @@
-// Yardım: SON KULLANICI için eksiksiz kılavuz. Yönetici/altyapı detayı
-// içermez (radar dosya yolları, backfill, sunucu kurulumu vb. YOK).
+// Help: complete end-user guide. No admin/infra detail (backfill, server
+// setup, radar paths). Kept in sync with the feature set as it grows.
 export default function Help() {
   return (
     <div className="help" style={{ maxWidth: 860, lineHeight: 1.65 }}>
@@ -8,131 +8,154 @@ export default function Help() {
         Freezetime turns CS2 demos into coach-grade intelligence: a synchronized
         2D replay, archive-wide statistics, and honest numbers — every claim
         carries its sample size, and thin data hides itself rather than mislead.
+        Anything marked 🧠 is produced by the local ML pipeline (deterministic,
+        no external AI); hover it anywhere for a one-line explanation.
       </p>
 
-      <h2>1. Finding things — Home &amp; search</h2>
+      <h2>1. Finding matches — Home &amp; search</h2>
       <ul>
-        <li><b>Team strip:</b> the top row lists every team alphabetically; scroll it sideways (mouse wheel works). Click a team for its overview page.</li>
-        <li><b>Tournament strip:</b> right below it, every tournament in the archive — most recent event first. Click one and the search locks to exactly that event&apos;s matches.</li>
-        <li><b>Search box:</b> type anything — team ("spirit"), player ("donk"), map ("mirage"), tournament ("cologne") or combinations ("spirit mirage"). Matching team, player and 🏆 tournament chips appear above the results; matches filter live.</li>
-        <li>The default list shows the most recent 100 <b>encounters</b> — a BO3/BO5 counts as one entry with its maps grouped inside, so a series is never cut in half at the bottom of the list. Searching reaches the entire database (the total is shown in the header).</li>
-        <li><b>Split recordings:</b> when a server restart split a map into two demos, the list shows ONE row with the combined score and an "N parts" badge. Inside, a banner links between parts and round numbers continue across them (part 2 starts at round 7 if part 1 ended 3-3).</li>
+        <li><b>Team strip:</b> the top row lists every team alphabetically; scroll it sideways (mouse wheel works). Click a team for its page.</li>
+        <li><b>Tournament strip:</b> right below it, every tournament in the archive, most recent first. Click one and the search locks to that event.</li>
+        <li><b>Search box:</b> type anything — team ("spirit"), player ("donk"), map ("mirage"), tournament ("cologne") or combinations ("spirit mirage"). Matching team, player and 🏆 tournament chips appear above the results; the list filters live.</li>
+        <li>The default list shows the most recent 100 <b>encounters</b> — a BO3/BO5 counts as one entry with its maps grouped inside, so a series is never cut in half at the bottom. Search reaches the entire database (the total is in the header).</li>
+        <li><b>Download a demo:</b> the ⬇ on any match row downloads the raw <code>.dem</code> (watchable in CS2).</li>
+        <li><b>Split recordings:</b> when a server restart split a map into two demos, the list shows ONE row with the combined score and an "N parts" badge; inside, round numbers continue across the parts.</li>
       </ul>
 
       <h2>2. The match page — one map, three independent layers</h2>
       <p>
-        Open any match and you get a single map with three layers that never
-        interfere with each other. Each has a checkbox header — unchecking
-        greys the section out. Only the checkbox and the title toggle a
-        section, so stray clicks on the row do nothing.
+        Open any match and you get a single map with three layers (Replay,
+        Heatmap, Ghost rounds) that never interfere. Each has a checkbox header —
+        unchecking greys it out. Only the checkbox and title toggle a section.
       </p>
 
       <h3>2a. Replay</h3>
       <ul>
-        <li>Play/pause, speeds from 0.25x to 8x, and a timeline (bottom right) marked with kills and events — click any mark to jump.</li>
-        <li><b>Players:</b> dots show facing direction, an HP ring, shield/money/inventory in the corner HUD, and a live killfeed. Blinded players whiten and fade back as the flash wears off. Muzzle flashes and red tracers show who is shooting whom.</li>
-        <li><b>Bomb:</b> the C4 carrier wears a small red dot; if the bomb is dropped, the red dot stays on the ground where it lies.</li>
-        <li><b>Dropped weapons:</b> when a player dies, their weapon stays as a small pale square at the death spot for the rest of the round — the name shows for 3 seconds, and any time on hover.</li>
-        <li><b>Focus a player:</b> click a name in the HUD (or use the player select) to highlight them; the timeline switches to their kills/deaths/nade throws. The <b>setpos</b> button copies their exact position and view angles as a console command for your practice server.</li>
-        <li><b>Round chips:</b> colored by the winning team, with a side stripe (amber = T win, blue = CT win) and a divider at side swaps. The <b>highlight</b> dropdown rings rounds by buy type — the ring color tells you WHICH team had that buy (cyan = left team, purple = right team, double ring = both).</li>
-        <li><b>Win probability:</b> the sparkline above the timeline shows the live T win chance, computed from archive history (alive counts, bomb state, clock). The percentage updates as you scrub.</li>
-        <li><b>Drawing:</b> pen and arrow tools live on the map edge with a color picker; drawings save per round automatically and survive reloads.</li>
-        <li><b>Zoom:</b> mouse wheel / trackpad pinch, drag to pan, double-click to reset; +/- buttons on the map.</li>
-        <li><b>Keyboard:</b> Space = play/pause · Left/Right = step · Up/Down = round · 1-6 = speed · Esc = clear focus.</li>
+        <li>Play/pause, speeds 0.25×–8×, and a timeline (bottom right) marked with kills and events — click any mark to jump.</li>
+        <li><b>Players:</b> dots show facing direction and an HP ring, with shield/money/inventory in the corner HUD and a live kill feed. Blinded players whiten and fade back as the flash wears off; muzzle flashes and red tracers show who is shooting whom.</li>
+        <li><b>Grenades:</b> smoke bloom, molotov fire and flashes are drawn. <b>Hover an active grenade</b> for its type, throw time and thrower, plus its flight arc. <b>Toggle grenade types</b> on/off (the "nades" row) — hide HE/decoy to read smokes and flashes cleanly.</li>
+        <li><b>Bomb &amp; dropped weapons:</b> the C4 carrier wears a red dot (it stays on the ground if dropped); a dead player&apos;s weapon stays as a pale square, named on hover.</li>
+        <li><b>Focus or hide a player:</b> click a HUD name to focus the timeline on their kills/deaths/nades; click the 👁 on a HUD row to hide that player from the map (unhide-all is in the nades row). <b>setpos</b> copies their exact position and view angles as a console command for your practice server.</li>
+        <li><b>Round chips:</b> colored by winner with a side stripe (amber = T win, blue = CT win) and a divider at side swaps. Hover a chip for its strategy labels, buy types and flags. The <b>highlight</b> picker rings rounds by buy type, by <b>strategy</b>, or by <b>who had an AWP</b> — the ring color says which team (cyan = left, purple = right, double = both).</li>
+        <li><b>Flags on chips:</b> ⚠ marks a <b>thrown round</b> (a team peaked ≥75% win probability and still lost); ⚡ marks a <b>surprise</b> (they ran a strategy the model gave under 15%) — the moments an opponent broke their own habits.</li>
+        <li><b>Win probability:</b> the sparkline above the timeline shows the live T win chance from archive history (alive counts, bomb state, clock); it updates as you scrub.</li>
+        <li><b>Drawing / zoom / keyboard:</b> pen + arrow tools with a color picker (saved per round); mouse-wheel / pinch to zoom, drag to pan, double-click to reset. Space = play/pause · ←/→ = step · ↑/↓ = round · 1–6 = speed · Esc = clear focus.</li>
       </ul>
 
       <h3>2b. Heatmap</h3>
       <ul>
-        <li>Football-style position density for <b>any set of rounds you pick</b> (chips, or all/none), one side or both, one player or everyone.</li>
+        <li>Position density for <b>any set of rounds you pick</b> (chips, or all/none), one side or both, one player or everyone.</li>
         <li>The player list is side-aware: pick CT and only players who actually played CT in your selected rounds appear.</li>
         <li>Lower levels (Nuke) render in their own inset.</li>
       </ul>
 
       <h3>2c. Ghost rounds</h3>
       <ul>
-        <li>Overlay many rounds as translucent trails with their <b>own clock</b> — align them at round start, bomb plant, or first kill, and compare how executions differ.</li>
+        <li>Overlay many rounds as translucent trails on their <b>own clock</b> — align at round start, bomb plant, or first kill and compare how executions differ.</li>
         <li>Filter to one side or a single player; each round is color-coded and labeled (r7, r19…).</li>
-        <li><b>Trail slider:</b> choose how long the tail behind each ghost is (1-60 s, or the full path at the far right).</li>
-        <li><b>Hover a ghost dot</b> for its name; the bottom-right panel shows that player&apos;s live HP/armor/money/inventory at the ghost clock. <b>Click the dot to pin</b> the panel; unpin with the panel&apos;s ✕ or by clicking empty map.</li>
+        <li><b>Trail slider:</b> how long the tail behind each ghost is (1–60 s, or the full path). <b>Hover a ghost</b> for its name; <b>click to pin</b> a panel with that player&apos;s live HP/armor/money/inventory at the ghost clock.</li>
       </ul>
 
       <h3>2d. Notes &amp; playlists</h3>
       <ul>
-        <li><b>Notes:</b> write a text note — or record a voice note with the mic button — pinned to the exact second of the round. Amber marks on the timeline jump to them.</li>
-        <li><b>Playlists:</b> save the current moment into a named playlist from the Replay panel. On the Playlists page, "Play all" walks the collection and <b>auto-advances</b> when each round ends — a hands-free VOD review session.</li>
+        <li><b>Notes:</b> pin a text note — or a voice note (mic button) — to the exact second of a round. Amber marks on the timeline jump to them.</li>
+        <li><b>Playlists:</b> save the current moment into a named playlist. On the Playlists page, "Play all" walks the collection and <b>auto-advances</b> when each round ends — hands-free VOD review.</li>
       </ul>
 
-      <h2>3. Team intelligence</h2>
-      <h3>3a. Team page</h3>
-      <p>Overall record, per-map report cards, and the team&apos;s matches. The <b>time window</b> (last N weeks/months/years — free-form) and <b>lineup ≥ N/5</b> filters at the top narrow everything, including the match list. Lineup compares against the five who played the team&apos;s most recent match.</p>
-
-      <h3>3b. Opponent report (per team + map)</h3>
+      <h2>3. Team page</h2>
       <ul>
-        <li><b>Overview:</b> map record, side round-win rates, pistols, conversion after a won pistol.</li>
+        <li>Overall record and per-map cards; each card shows the team&apos;s <b>signature strategy</b> per side with a 🧠 <b>×N vs league</b> note (how much more than an average team they run it). Click a card for the full report.</li>
+        <li><b>Player table:</b> matches, rounds, ADR, K/D, flash assists and survival for everyone who played for the team; the <b>current five</b> (from their most recent match) sit on top, former players are dimmed and dated. Click a name for the player page.</li>
+        <li><b>Filters</b> at the top narrow everything: a free-form <b>time window</b> (last N weeks/months/years) and <b>lineup ≥ N/5</b> — keep only matches where at least N of the current five played, so the stats describe today&apos;s roster, not a former one.</li>
+      </ul>
+
+      <h2>4. Opponent report (per team + map)</h2>
+      <p className="meta">The coach&apos;s one-pager. Everything respects the window/lineup filters; <b>Print</b> produces a clean sheet.</p>
+      <ul>
+        <li><b>Overview:</b> map record, side round-win rates, pistols, conversion after a won pistol, plus <b>rush rate</b> (T rounds with first contact inside 22 s) and <b>set-strat share</b> (rehearsed executes vs default/mid-round).</li>
         <li><b>Recent results:</b> the matches behind the numbers, W/L colored, linked to replays.</li>
-        <li><b>Execute templates:</b> utility combinations the team repeats across matches ("window smoke + top-mid flash + top-mid smoke x8, 88% won → A 3 / B 4").</li>
-        <li><b>Strategy tendencies:</b> the archive clusters each round&apos;s approach; bars show what this team actually favors (recent matches count more — see section 6). The pencil next to a bar lets you name a strategy ("B rush") — the name then appears everywhere. The buy-conditional table answers "they are on a force — what is coming?".</li>
-        <li><b>Next-round prediction:</b> the report embeds the same prediction engine as the ML Lab. Pick side, buy and (optionally) the opponent you are preparing against, and you get the most likely strategies with probabilities — plus <i>which method produced them and on how much evidence</i>. The method is chosen automatically: whichever won the honesty test for that map &amp; side (see section 5).</li>
+        <li><b>Execute templates:</b> 🧠 utility combinations the team repeats to open a site ("window smoke + top-mid flash + top-mid smoke ×8, 88% won → A 3 / B 4").</li>
+        <li><b>Strategy tendencies:</b> 🧠 the archive groups each round&apos;s opening into recurring strategies (shown as an <b>area mix</b>, e.g. "TopMid + SideAlley" — players split across these, not a single-file route; hover for exact shares). Bars show what this team favors, with the <b>×N vs league</b> badge. The pencil ✏ names a strategy ("B rush") — the name then appears everywhere. A <b>by-buy</b> table and a <b>by-round-type</b> table (pistol / after pistol / 3rd / mid-game / overtime) sit below.</li>
+        <li><b>Next-round prediction:</b> 🧠 the same engine as the ML Lab. Pick side, buy and (optionally) the opponent — you get the likely strategies with probabilities, plus <i>which method produced them and on how much evidence</i>.</li>
         <li><b>Economy behaviour:</b> buy mixes and the reaction after a lost pistol.</li>
-        <li><b>Default setups:</b> where the five stand 15 s into the round, with hold times and how setups <b>rotate after first contact</b> (destination mix and delay).</li>
-        <li><b>Utility habits:</b> recurring smoke/molotov/flash spots with timing, plus flash effectiveness, flash-to-kill sync, average HE/fire damage per nade, and trade pairs (who avenges whom).</li>
-        <li><b>Thrown rounds:</b> rounds the team lost after reaching a 75%+ win probability — each links to the exact replay moment.</li>
-        <li><b>Players:</b> role cards (entry/lurker/anchor/AWP with evidence), opening duels, clutches, trades.</li>
-        <li>Everything respects the time-window and lineup filters; sections built from archive-wide models say so when a window is active. <b>Print</b> produces a clean one-pager.</li>
+        <li><b>Default setups:</b> 🧠 the exact player positions 15 s into the round (from a real example round), a <b>site notation</b> badge on CT (3A-2B), hold times, and how they <b>rotate after first contact</b> (destination mix and delay).</li>
+        <li><b>Utility habits:</b> 🧠 recurring smoke/molotov/flash spots with timing, flash effectiveness, flash-to-kill sync, average HE/fire damage per nade, and trade pairs (who avenges whom). Deep-dive on the Pattern Finder page.</li>
+        <li><b>Boost spots:</b> 🧠 player-on-player boosts they repeat (detected geometrically), with replay links.</li>
+        <li><b>Map control → outcome:</b> 🧠 "when they take area X, where does the round end?" — areas held by 2+ players early, correlated with the finishing bombsite as a <b>×N</b> lift over their own average.</li>
+        <li><b>Thrown rounds:</b> rounds lost after reaching 75%+ win probability, each linked to the exact replay moment.</li>
+        <li><b>Players:</b> role cards (entry / lurker / anchor / AWP with evidence), opening duels, clutches, trades.</li>
       </ul>
 
-      <h3>3c. Compare &amp; veto</h3>
+      <h2>5. Compare &amp; veto</h2>
       <ul>
-        <li>Two full reports side by side with mirrored bars — pick any two teams and a shared map. Also reachable from any match via the report icon in its header.</li>
-        <li><b>Veto simulation:</b> rational ban/pick sequences for BO1/BO3/BO5 from both teams&apos; map strengths, with the reasoning (relative edge and sample) at every step, and projected maps with a clearly-labeled win heuristic.</li>
+        <li>Two full reports side by side with mirrored bars — pick any two teams and a shared map (also reachable from a match&apos;s header).</li>
+        <li><b>Veto simulation:</b> rational ban/pick sequences for BO1/BO3/BO5 from both teams&apos; map strengths, with the reasoning (relative edge and sample) at every step and projected maps.</li>
       </ul>
 
-      <h2>4. Players, leaderboards, moments</h2>
+      <h2>6. 🧭 Pattern Finder</h2>
       <ul>
-        <li><b>Player pages:</b> per-side role cards with entry/opening/AWP/utility evidence, flash and utility-damage numbers, trades made and deaths traded, clutch history (each 1vX linked to its replay), per-map stats and personal heatmaps.</li>
+        <li>Finds a team&apos;s grenade <b>habits</b>: every grenade on a map as landing dots, with the <b>top repeated spots</b> ranked for you ("smoke → TopMid ×47, usually at 1:39 ±5s").</li>
+        <li><b>Drag a box</b> on the map to isolate an area; the timing histogram shows exactly when in the round those grenades come, and the round list jumps into the replay.</li>
+        <li>Filter by team, side, thrower, period and grenade type; turn on trajectory lines when you want to see the throws.</li>
+      </ul>
+
+      <h2>7. 🔬 Scenarios</h2>
+      <ul>
+        <li>Situation questions about a team, like a moment search for tendencies: pick side, buy, previous-round result, where the previous round ended, and round type.</li>
+        <li>You get 🧠 the historical strategy mix in exactly that spot, how far it deviates from their normal game (<b>×N vs usual</b>), and real rounds to watch — e.g. "full buy, right after losing on A → they drop Palace to ×0.3 and load mid."</li>
+      </ul>
+
+      <h2>8. Player pages</h2>
+      <ul>
+        <li><b>Map-driven:</b> pick a map (chips at the top, or click a row in the Maps table) and the role cards, clutch moments and heatmaps all focus on it; "all maps" is the overall profile.</li>
+        <li><b>Roles:</b> 🧠 per-side cards (entry / lurker / anchor:site / AWP) with the evidence — opening duels, entry share, AWP rounds, utility per round, flash assists, trades made and deaths traded, utility damage.</li>
+        <li><b>Notable moments:</b> multi-kill rounds (3k/4k/ace) first, then clutch wins, each linked to the replay.</li>
+        <li><b>Positioning heatmaps</b> per side, with an <b>AWP-only</b> toggle (only positions taken while carrying the big gun) and a whole-round / first-25 s switch.</li>
+        <li><b>Anomaly flags:</b> 🧠 matches that were unusual for this player vs their own baseline (good or bad — not accusations).</li>
+      </ul>
+
+      <h2>9. Leaderboards &amp; Moments</h2>
+      <ul>
         <li><b>Leaderboards:</b> archive-wide top-20s — ADR, opening-duel net, clutch wins, flash effectiveness, trade kills. Every board states its minimum sample.</li>
-        <li><b>Moments:</b> a structured search over every round ever parsed — "AWP kills through smoke on eco" — with presets and savable searches. Results deep-link into replays.</li>
-        <li><b>🧭 Pattern Finder:</b> every grenade on a map as landing dots with repeat badges. Top patterns are ranked for you ("smoke → TopMid ×47, usually at 1:39 ±5s"); drag a box on the map to isolate an area, read the timing histogram, jump into the rounds.</li>
-        <li><b>🔬 Scenarios:</b> situation questions about a team — "what do they run on a full buy right after losing a round on A?" Answers show the historical mix in exactly that spot, how far it deviates from their normal game (×N vs usual), and real rounds to watch.</li>
+        <li><b>Moments:</b> a structured search over every round ever parsed ("AWP kills through smoke on eco"), with presets and savable searches. Results deep-link into replays.</li>
       </ul>
 
-      <h2>5. ML Lab — the models behind the predictions</h2>
+      <h2>10. 🧠 ML Lab — the models behind the predictions</h2>
+      <p className="meta">The transparency page. ML isn&apos;t hidden in one corner — 🧠 marks it across the site — and this is where you see how it&apos;s tested.</p>
       <ul>
-        <li>The 🧠 <b>ML Lab</b> page shows what the prediction models know, how good they are, and how they are tested — with every panel explained in plain words.</li>
-        <li><b>Method race:</b> six methods try to predict each round&apos;s strategy, from a simple league average to a gradient-boosted <b>LightGBM</b> model. They are scored on a <i>temporal test</i>: train on older rounds, predict the newest 25% of every match. Think of the score as "how surprised was the method by what actually happened" — lower is better.</li>
-        <li><b>The honesty rule:</b> per map &amp; side, only the winning method is ever shown anywhere on the site. A fancy model that cannot beat the simple baseline stays on the bench — you will never be shown numbers that tested worse.</li>
-        <li><b>LightGBM insight:</b> where the learned model wins, bar charts show which inputs drive its decisions (economy, the team&apos;s own strategy history, evidence volume) — no black box.</li>
-        <li><b>Prediction lab:</b> try any team/opponent/map/side/buy combination yourself and see exactly what the site would serve, with the method and evidence note attached.</li>
-        <li><b>Cluster explorer:</b> browse the strategies themselves — each cluster is a recurring way a side opens a round, with example rounds that jump straight into the replay.</li>
+        <li><b>Prediction lab:</b> pick a team (and optional opponent) and see exactly what the site would predict for any map/side/buy, with the method and evidence attached.</li>
+        <li><b>Method race:</b> six methods try to predict each round&apos;s strategy, from a simple league average to a gradient-boosted <b>LightGBM</b> model. They&apos;re scored on a <i>temporal test</i> — train on older rounds, predict the newest 25% of every match. Lower log-loss = less surprised by what actually happened.</li>
+        <li><b>The honesty rule:</b> per map &amp; side, only the winning method is ever served anywhere on the site. A model that can&apos;t beat the simple baseline stays on the bench — you&apos;re never shown numbers that tested worse.</li>
+        <li><b>LightGBM insight:</b> where the learned model wins, it&apos;s explained in three plain ingredients — the round economy, the team&apos;s strategy fingerprint, and how much history there is.</li>
+        <li><b>Cluster explorer:</b> browse the strategies themselves — each cluster is a recurring way a side opens a round, with example rounds that jump into the replay.</li>
       </ul>
 
-      <h2>6. My database — your own demos, on your machine</h2>
+      <h2>11. My DB — your own demos, on your machine</h2>
       <ul>
-        <li>Keep your demos (scrims, officials) in a folder on your computer. In <b>My DB</b>, pick that folder once (Chrome/Edge). Unprocessed demos are parsed one by one — stop anytime; it resumes where it left off.</li>
-        <li><b>Privacy by design:</b> your demo visits the server only to be parsed, never becomes part of the public site, and the server copy is deleted the moment your browser saves the result. Your matches, team names and players are invisible to everyone else.</li>
-        <li>Results are written into a <code>.freezetime/</code> folder next to your demos — that folder <b>is</b> your database: portable, re-importable on any machine in seconds, no re-uploads.</li>
-        <li><b>Mix in public matches:</b> the "Add matches from the Freezetime archive" panel lets you search the public archive and pull picked matches into your database — e.g. your next opponent&apos;s official maps next to your own scrims. They download once, live in your browser like your own matches (🌐 badge), count in your team report and clustering, and can be removed any time without touching the public site.</li>
-        <li><b>Team voice comms:</b> attach a recording of your team&apos;s voice (mp3/ogg/wav) to any local match with the 🎙 button. It plays inside the replay, locked to the match clock — speed changes and scrubbing keep it in sync — and a small offset control lets you line the calls up with the action. The audio never leaves your machine: it lives in your browser and (if you picked a folder) as a portable <code>.comms</code> file next to your bundles.</li>
-        <li>Local matches open with the full match page: replay, heatmap, ghost rounds — all computed in your browser (they even work offline).</li>
-        <li><b>Your team report</b> gives your archive the same intelligence: overview, economy, utility spots, setups, player table, trade pairs, thrown rounds, and — with enough rounds — the same strategy clustering and buy-conditional tendencies the main site uses. Below 12 rounds per side the strategy section hides itself instead of guessing.</li>
+        <li>Keep your demos (scrims, officials, POV) in a folder; in <b>My DB</b> pick it once (Chrome/Edge). Unprocessed demos are parsed one by one — stop anytime, it resumes.</li>
+        <li><b>Privacy by design:</b> your demo visits the server only to be parsed, never joins the public site, and the server copy is deleted the instant your browser saves the result. Results live in a <code>.freezetime/</code> folder next to your demos — portable, re-importable on any machine in seconds.</li>
+        <li><b>Compose with public matches:</b> the archive picker pulls chosen public matches into your database (e.g. your next opponent&apos;s official maps next to your scrims). They live locally with a 🌐 badge, count in your team report and clustering, and can be removed without touching the public site.</li>
+        <li><b>Team voice comms:</b> attach a recording (mp3/ogg/wav) to any local match with the 🎙 button. It plays inside the replay locked to the match clock — scrubbing and speed keep it in sync, and an offset control lines the calls up with the action. The audio never leaves your machine.</li>
+        <li><b>Your team report</b> gives your archive the same intelligence the main site uses; below 12 rounds per side the strategy section hides itself instead of guessing.</li>
       </ul>
 
-      <h2>7. How the numbers are made</h2>
+      <h2>12. How the numbers are made</h2>
       <ul>
         <li><b>Parse once, query forever:</b> each demo is parsed a single time into positions (16 Hz), kills, grenades and economy; every feature reads from that.</li>
-        <li><b>Honest statistics:</b> every percentage carries its n; thresholds (e.g. 8+ rounds for setups, 30+ for role tags, 12+ for clustering, 3+ throws for utility spots) hide thin data entirely.</li>
-        <li><b>Win probability</b> is historical: for each game state (alive counts, bomb, clock bucket) it is the actual T win rate across the archive, smoothed toward similar states when a cell is rare.</li>
-        <li><b>Strategy clusters</b> group rounds by where a team spends the first 30 seconds and what utility it uses — no black boxes, no external AI; everything is deterministic and reproducible.</li>
-        <li><b>Recency weighting:</b> tendencies, predictions and utility/setup shares weight each round by its age (half-life ≈ 3 months) — a team&apos;s style from last week matters more than from last winter. Raw round counts shown next to numbers stay unweighted, so you always see the true evidence size.</li>
-        <li><b>Retention:</b> matches older than 12 months keep their statistics and results forever, but replay/heatmap data is removed (marked "archived"). Old meta stays out of today&apos;s models by design — and the time-window filter lets you narrow further.</li>
+        <li><b>Honest statistics:</b> every percentage carries its <i>n</i>; thresholds (8+ rounds for setups, 30+ for role tags, 12+ for clustering, 3+ for utility/boost spots) hide thin data entirely.</li>
+        <li><b>Strategy clusters</b> group rounds by where a side spends the opening seconds and what utility it uses — shown as an <b>area mix</b> (players split across areas, with real shares on hover), not a single route. No black box, no external AI; deterministic and reproducible.</li>
+        <li><b>Win probability</b> is historical: for each game state (alive counts, bomb, clock bucket) it&apos;s the actual T win rate across the archive, smoothed toward similar states when a cell is rare.</li>
+        <li><b>Recency weighting:</b> tendencies, predictions and utility/setup shares weight each round by age (half-life ≈ 3 months) — last week matters more than last winter. Raw round counts stay unweighted, so you always see the true evidence size.</li>
+        <li><b>Retention:</b> matches past the retention window keep their stats and results forever, but replay/heatmap data is removed (marked "archived"). The time-window filter narrows further.</li>
       </ul>
 
-      <h2>8. Tips</h2>
+      <h2>13. Tips</h2>
       <ul>
-        <li>Time-window filters are free-form: type any number and pick weeks/months/years — "7 weeks" and "2 years" are both valid.</li>
-        <li>Name clusters early (pencil in the report) — the names flow into predictions, compare pages and match pages.</li>
+        <li>Time-window filters are free-form: "7 weeks" and "2 years" are both valid.</li>
+        <li>Name clusters early (✏ in the report) — the names flow into predictions, compare and match pages.</li>
         <li>Align ghost rounds at <i>bomb plant</i> to compare post-plant setups, and at <i>first kill</i> to study trades.</li>
-        <li>Setpos + a practice server is the fastest way to rebuild any position you find in a demo.</li>
+        <li>Use the highlight picker on the match page to ring every round a team ran a given strategy, then step through them.</li>
+        <li>setpos + a practice server is the fastest way to rebuild any position you find in a demo.</li>
       </ul>
     </div>
   );
