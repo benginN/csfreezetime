@@ -419,3 +419,9 @@ Demo files are property of Valve / the tournament organizers and are **not**
 included in this repository; supply your own. The bundled CS2 radar images are
 Valve's property, included only so this free, non-commercial project works out
 of the box (see [Map backgrounds](#map-backgrounds-radar-images)).
+
+## TODO
+
+- [ ] Update the in-app **Help** page to explain the public-site vs self-hosted
+      split (which features need the studio).
+- [ ] Add screenshots to the README (`docs/screenshots/`).
