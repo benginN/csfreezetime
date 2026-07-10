@@ -42,6 +42,8 @@ services/stats-svc/stats-svc
 # Frontend
 apps/web/node_modules/
 apps/web/dist/
+# demo giriş klasörü — dizin de olabilir, harici diske symlink de
+backfill
 backfill/
 
 # Local Claude Code config (may contain machine-specific paths)
