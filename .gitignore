@@ -39,9 +39,6 @@ logs/
 # Go binaries
 services/stats-svc/stats-svc
 
-# Telifli radar görselleri (kullanıcı kendisi ekler)
-services/stats-svc/static/radars/*.png
-
 # Frontend
 apps/web/node_modules/
 apps/web/dist/

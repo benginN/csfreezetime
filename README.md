@@ -25,10 +25,35 @@ internal docs (`docs/mimari.md`) and code comments are in Turkish.
 > fun to just put it out there. Use it, learn from it, build on it. If it helps
 > your team, that's payment enough. If you like it, a ⭐ makes my day.
 
-> ⚠️ **You bring the demos.** The repo ships the *engine*, not any match data —
-> no demos, no database dumps. Drop your own `.dem` files into `backfill/` and it
-> builds your archive (see [Feeding it demos](#feeding-it-demos)). Everything is
-> local and private.
+---
+
+## Two ways to use Freezetime
+
+**1. 🌐 Browse the public archive — nothing to install.** A free, read-only
+copy of the site with a curated pro-match archive is published on GitHub Pages:
+
+> **https://benginN.github.io** — 2D replays, opponent reports, predictions,
+> ML Lab and leaderboards, straight from your browser.
+
+**2. 🖥 Self-host the full studio.** The public site is a *static snapshot*; the
+live-query features below need the real databases running. For those — or to
+build an archive from **your own demos** — download this repository and run it
+on your own machine ([step-by-step setup](#step-by-step-setup-from-zero)).
+
+| Feature | Public site | Self-hosted |
+|---|:---:|:---:|
+| 2D replay, match heatmaps, ghost rounds | ✅ | ✅ |
+| Opponent reports, predictions, ML Lab, leaderboards, compare | ✅ | ✅ |
+| Search (teams / players / tournaments / matches) | ✅ | ✅ |
+| Moments (structured round search), Pattern Finder, Scenarios | — | ✅ |
+| Veto simulator, free-range heatmap time windows, round overlay | — | ✅ |
+| Notes, playlists, My DB (private demos), raw demo download | — | ✅ |
+| **Feeding it your own demos** | — | ✅ |
+
+> ⚠️ **Self-hosting? You bring the demos.** The repo ships the *engine*, not any
+> match data — no demos, no database dumps. Drop your own `.dem` files into
+> `backfill/` and it builds your archive (see
+> [Feeding it demos](#feeding-it-demos)). Everything is local and private.
 
 📖 Prefer a narrative tour? See **[docs/how-it-works.md](docs/how-it-works.md)**.
 
@@ -286,26 +311,57 @@ Work down this list — it's almost always one of these:
 
 ---
 
-## Map backgrounds (radar images) — optional
+## Map backgrounds (radar images)
 
-Out of the box, the 2D replay draws a **walkable-area silhouette** derived from
-position data, so it works on every map with no setup. To make it look like the
-real in-game radar, add the map images yourself:
+The repo **ships radar PNGs** for the current competitive pool in
+`services/stats-svc/static/radars/`, so the 2D replay looks like the in-game
+radar out of the box. (They originate from the CS2 game files and are **Valve's
+property** — included here purely so a non-commercial, free fan project works on
+first clone. If Valve ever objects, they'll be removed; open an issue if you
+represent the rights holder.)
 
-- **Folder:** `services/stats-svc/static/radars/`
-- **Filenames:** one **1024×1024** PNG per map, named exactly after the map —
-  `de_mirage.png`, `de_inferno.png`, `de_ancient.png`, `de_dust2.png`,
-  `de_overpass.png`, `de_train.png`, `de_anubis.png`, `de_nuke.png`,
-  `de_vertigo.png`.
-- **Two-level maps** (Nuke, Vertigo) also take a lower-level image for the inset:
-  `de_nuke_lower.png`, `de_vertigo_lower.png`.
-- **SVG works too** and stays crisp at any zoom — if you have one, name it
-  `de_mirage.svg` (the app tries `.svg` first, then `.png`).
+Missing or new maps degrade gracefully: the replay falls back to a
+**walkable-area silhouette** derived from position data. To add a map yourself:
 
-Where to get them: the radar images ship inside the CS2 game files, or you can
-export/download them from community sources. They are **Valve's property**,
-which is why they're gitignored and not included — you supply your own. Drop the
-files in, refresh the page, done (no restart needed).
+- one **1024×1024** PNG named exactly after the map (`de_train.png`), dropped
+  into `services/stats-svc/static/radars/`;
+- two-level maps (Nuke, Vertigo) also take `de_<map>_lower.png` for the inset;
+- **SVG works too** and stays crisp at any zoom (`de_mirage.svg` is tried before
+  the PNG). Refresh the page, done — no restart needed.
+
+---
+
+## Publishing a static copy (GitHub Pages)
+
+The public archive site is not hosted on a server — it's a **static snapshot**
+of a self-hosted studio, published to GitHub for free. The pipeline:
+
+1. `services/stats-svc/cmd/export` walks the running API and writes every page
+   as a JSON file, plus one gzipped **replay bundle** per match (a few MB each).
+2. Page JSONs and the web app go to a GitHub **Pages** repo; match bundles go to
+   GitHub **Releases** (grouped by tournament). The site downloads a match's
+   bundle on first view and caches it in the browser.
+3. `scripts/publish.sh` does all of the above in one command, **incrementally**
+   — already-published matches are never re-exported.
+
+Fork-friendly: set `FREEZETIME_SITE_REPO=you/you.github.io`, run
+`scripts/publish.sh`, and enable Pages on that repo (Settings → Pages →
+deploy from branch `main`) — that last step is one-time.
+
+> ### 📝 Maintainer note — the weekly routine
+>
+> How new matches get onto the public site, start to finish:
+>
+> 1. Plug in the archive SSD, then `scripts/start-all.sh` (brings up the VM,
+>    databases and all services).
+> 2. Drop the week's demo archives (`.rar`/`.zip` straight from HLTV) into
+>    `backfill/`. The watcher picks them up automatically — no button.
+> 3. Wait for the queue to settle (home-page match count stops climbing;
+>    ml-auto recomputes analysis on its own).
+> 4. Run `scripts/publish.sh`. It bundles only the **new** matches, uploads
+>    them to Releases, refreshes every page JSON and pushes the site.
+>
+> That's it — two commands and a folder drop.
 
 ---
 
@@ -359,5 +415,7 @@ original author's notes required; everything a contributor needs is in the repo.
 MIT — see [LICENSE](LICENSE). Use it, fork it, ship it; just keep the copyright
 notice. No warranty.
 
-CS2 radar images and demo files are property of Valve and are **not** included
-in this repository (see `.gitignore`); supply your own.
+Demo files are property of Valve / the tournament organizers and are **not**
+included in this repository; supply your own. The bundled CS2 radar images are
+Valve's property, included only so this free, non-commercial project works out
+of the box (see [Map backgrounds](#map-backgrounds-radar-images)).
