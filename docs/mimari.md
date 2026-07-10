@@ -578,6 +578,40 @@ NATS konuları: `demo.ingested`, `demo.parsed`, `demo.enriched`, `ml.cluster.ass
 | 3 — NLP + stacking | 4-5 hafta | LLM çeviri katmanı, grounding sözlüğü, altın set; Multi-View Stacking | Altın sette precision@10 ≥ 0,8; NLP→klip→stack akışı uçtan uca |
 | 4 — AI v1 | 6-8 hafta | Strateji kümeleme + isimlendirme arayüzü; kalibre tahmin modeli; anomali bayrakları + koç raporu | Tahmin, zamansal test setinde frekans taban çizgisini geçiyor; ilk pilot takım haftalık rapor alıyor |
 
+### 11.1 Yayın yol haritası — statik GitHub modeli (karar: 2026-07-10)
+
+Yukarıdaki fazların tamamı + Faz 5 (rakip raporu) + LightGBM v2 bitti; ürün
+özellik-tam ve MIT lisansıyla açık kaynak. Lansman için önceki plan
+(Hetzner sunucu → auth/üyelik → Stripe) **iptal edildi**; yerine sıfır
+maliyetli **"stüdyo + statik yayın"** modeli benimsendi:
+
+- **Stüdyo (lokal, T7 SSD):** mevcut docker-compose yığını yalnız operatörün
+  makinesinde koşar. Ham demolar `backfill/` üzerinden işlenir ve işlendikten
+  sonra silinir (MinIO'da ham kopya tutulmaz; kaynak gerçek = HLTV'den
+  yeniden indirilebilirlik). Parser artık olgun olduğundan "tam reprocess"
+  senaryosu istisnadır, kural değil.
+- **Yayınlama (`publish.sh`, fark bazlı):** her backfill partisi sonrası
+  (a) maç başına replay paketi (`.json.gz`, My DB formatıyla ortak),
+  (b) önceden hesaplanmış sayfa JSON'ları (ana sayfa, turnuva, takım,
+  oyuncu, leaderboard, rakip raporu, ML Lab, winprob), (c) manifest +
+  istemci arama indeksi üretilir.
+- **Barınma:** frontend + sayfa JSON'ları → GitHub Pages (`csfreezetime-data`
+  reposu); maç paketleri → GitHub Releases (2GB/dosya sınırına göre turnuva
+  bazlı gruplama). Toplam paket verisi 50-100 GB'ı aşarsa paketler
+  Cloudflare R2'ye taşınır (~1-2 $/ay); mimari değişmez.
+- **Frontend statik mod:** `api.ts`'te üçüncü veri yolu — sayfa verisi
+  Pages'tan, maç paketleri Releases'tan; mevcut `localcompute` katmanı
+  yeniden kullanılır. 2D replay ham demo gerektirmez. My DB aynen çalışır.
+- **Ölçek/T7 taşması:** yayınlanmış maçların ağır tick satırları
+  ClickHouse'dan budanır (agrega tablolar kalır); geri dönüş = demoyu
+  HLTV'den yeniden indirip işlemek.
+- **v1'de statikte olmayanlar:** Moments DSL, Pattern Finder, global arama
+  tam sürümü — self-host'ta çalışır etiketiyle; v2'de sınırlı istemci
+  sürümleri (raunt metadata indeksi) hedeflenir.
+- **İptal:** auth/üyelik, Stripe/fiyatlandırma, ham demo indirme, sunucu
+  kiralama. §9'daki Kubernetes/SSO tablosu tarihsel tasarımdır; güncel
+  işletim modeli bu bölümdür.
+
 ---
 
 ## Ek A — DSL şema kapsamı (v1 özet)
