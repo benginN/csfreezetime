@@ -5,6 +5,7 @@ import { api, type KillRow, type RoundRow, type StackResp } from '../api';
 import { DPR, insetGeom, isVectorBase, loadMapBase, renderMapBaseCanvas, RADAR, SIDE_COLOR, type MapBase } from '../lib/mapbase';
 import { renderHeatLayer } from '../lib/heatpaint';
 import { chipTitle, roundDividers, winnerTeamClass } from '../lib/rounds';
+import { isStatic } from '../lib/staticdata';
 
 const W = 860;
 // Zemin dokusu için aşırı örnekleme: zoom'da bloklaşmayı azaltır
@@ -1776,7 +1777,7 @@ export default function ReplayView({
                 </Fragment>
               ))}
             </div>
-            {!localMode && (
+            {!localMode && !isStatic && (
             <div className="row">
               <label style={{ minWidth: 0 }}>🎬</label>
               <select value={plSel} onChange={(e) => setPlSel(e.target.value)}>
@@ -1970,8 +1971,9 @@ export default function ReplayView({
         </div>
 
 
-        {/* Notlar: raunt+saniyeye bağlı metin/sesli koç notları */}
-        {!localMode && (
+        {/* Notlar: raunt+saniyeye bağlı metin/sesli koç notları
+            (statik sitede sunucu yok → panel gizli) */}
+        {!localMode && !isStatic && (
         <div className="layerpanel">
           <label className="layerhead">📝 Notes {roundNotes.length > 0 && <span className="meta">({roundNotes.length} this round)</span>}</label>
           <div className="layerbody">

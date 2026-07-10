@@ -15,8 +15,10 @@ export interface LocalMatchMeta {
   bytes: number;
   name?: string;                 // kaynak dosya adı (parça tespiti: …-p1/-p2)
   // hangi kaynaktan geldi: single=Analyze, folder=kendi demoların,
-  // archive=kamu arşivinden seçilip indirilen maç (My DB kompozisyonu)
-  origin?: 'single' | 'folder' | 'archive';
+  // archive=kamu arşivinden seçilip indirilen maç (My DB kompozisyonu),
+  // static=statik sitede Releases'tan indirilen kamu paketi (önbellek —
+  // My DB listelerinde gösterilmez)
+  origin?: 'single' | 'folder' | 'archive' | 'static';
 }
 
 function open(): Promise<IDBDatabase> {
@@ -97,7 +99,7 @@ export interface Bundle {
   detail: MatchDetail;
   players: LocalMatchMeta['players'];
   rounds: Record<number, RoundTicks>;
-  origin?: 'folder' | 'archive'; // arşiv kopyaları rozetini pakette de korur
+  origin?: 'folder' | 'archive' | 'static'; // arşiv kopyaları rozetini pakette de korur
 }
 
 // paketleri IndexedDB'ye aç (klasörden hızlı içe aktarma)

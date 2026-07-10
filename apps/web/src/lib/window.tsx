@@ -1,4 +1,7 @@
 import { useSearchParams } from 'react-router-dom';
+import { isStatic } from './staticdata';
+// Statik yayında pencere/kadro filtresi yoktur: sayfa JSON'ları yalnız
+// varsayılan (tüm arşiv, roster=0) kombinasyonla dökülür; seçici gizlenir.
 
 // Zaman penceresi: ?win=8w | 3m | 1y (sayı + birim, serbest). Boş = tüm arşiv.
 // Takım iki yıl önceki halinden farklı olabilir; koç pencereyi kendi seçer.
@@ -22,6 +25,7 @@ export function useWindow(): [string, string, (w: string) => void] {
     else p.delete('win');
     setParams(p, { replace: true });
   };
+  if (isStatic) return ['', '', () => {}];
   return [win, winToSince(win), set];
 }
 
@@ -36,6 +40,7 @@ export function useRoster(): [number, (n: number) => void] {
     else p.delete('roster');
     setParams(p, { replace: true });
   };
+  if (isStatic) return [0, () => {}];
   return [roster, set];
 }
 
@@ -53,6 +58,7 @@ export function WindowPicker({ win, onChange, roster, onRoster }: {
   const m = /^(\d+)([wmy])$/.exec(win);
   const n = m ? m[1] : '';
   const u = m ? m[2] : 'm';
+  if (isStatic) return null;
   return (
     <span className="toolbar" style={{ display: 'inline-flex', gap: 4 }}>
       <label className="meta">last</label>

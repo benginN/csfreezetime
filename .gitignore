@@ -49,3 +49,6 @@ backfill/
 
 # Local Claude Code config (may contain machine-specific paths)
 .claude/
+
+# statik yayın çalışma kopyası (scripts/publish.sh)
+.publish/

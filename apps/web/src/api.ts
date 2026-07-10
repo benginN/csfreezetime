@@ -1,5 +1,8 @@
 import { localIds, getMatch as getLocalMatch, getRound as getLocalRound } from './lib/localdb';
+import { isStatic, staticGet, ensureBundle, staticSearch, STATIC_UNAVAILABLE } from './lib/staticdata';
 // stats-svc API istemcisi — tüm tipler sunucu yanıtlarıyla birebir.
+// Üç veri yolu: (1) sunucu (self-host/stüdyo), (2) My DB (IndexedDB,
+// localIds), (3) statik yayın (GitHub Pages JSON + Releases paketleri).
 
 export interface Team {
   team_id: string;
@@ -409,6 +412,7 @@ export interface StackResp {
 }
 
 async function get<T>(url: string): Promise<T> {
+  if (isStatic) return staticGet<T>(url);
   const r = await fetch(url);
   const j = await r.json();
   if (j.error) throw new Error(j.error);
@@ -416,6 +420,7 @@ async function get<T>(url: string): Promise<T> {
 }
 
 async function post<T>(url: string, body: unknown): Promise<T> {
+  if (isStatic) throw new Error(STATIC_UNAVAILABLE);
   const r = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -506,7 +511,8 @@ export const api = {
     fetch(`/api/v1/matches/${matchId}/notes`, { method: 'POST', body: form }).then((r) => r.json()),
   noteDelete: (id: number) =>
     fetch(`/api/v1/notes/${id}`, { method: 'DELETE' }).then((r) => r.json()),
-  search: (q: string) => get<SearchResult>('/api/v1/search?q=' + encodeURIComponent(q)),
+  search: (q: string) =>
+    isStatic ? staticSearch(q) : get<SearchResult>('/api/v1/search?q=' + encodeURIComponent(q)),
   teams: () => get<Team[]>('/api/v1/teams'),
   tendencies: (teamId: string) => get<Tendency[]>(`/api/v1/teams/${teamId}/tendencies`),
   clusters: (map: string, side: string) => get<ClusterInfo[]>(`/api/v1/clusters?map=${map}&side=${side}`),
@@ -534,6 +540,7 @@ export const api = {
   matches: (teamId?: string, since = '', roster = 0) =>
     get<MatchSummary[]>('/api/v1/matches' + (teamId ? `?team_id=${teamId}&since=${since}&roster_min=${roster}` : '')),
   matchDetail: async (id: string): Promise<MatchDetail> => {
+    if (isStatic) await ensureBundle(id);
     if (localIds.has(id)) {
       const m = await getLocalMatch(id);
       if (m) return m.detail;
@@ -541,6 +548,7 @@ export const api = {
     return get<MatchDetail>(`/api/v1/matches/${id}`);
   },
   matchPlayers: async (id: string): Promise<MatchPlayerRow[]> => {
+    if (isStatic) await ensureBundle(id);
     if (localIds.has(id)) {
       const m = await getLocalMatch(id);
       if (m) return m.players;
@@ -548,6 +556,7 @@ export const api = {
     return get<MatchPlayerRow[]>(`/api/v1/matches/${id}/players`);
   },
   matchHeatmap: async (id: string, p: URLSearchParams): Promise<MatchHeatmap> => {
+    if (isStatic) await ensureBundle(id);
     if (localIds.has(id)) {
       const { localHeatmap } = await import('./lib/localcompute');
       return localHeatmap(id, p);
@@ -565,6 +574,7 @@ export const api = {
   report: (teamId: string, map: string, since = '', roster = 0) =>
     get<ReportResp>(`/api/v1/report?team_id=${teamId}&map=${encodeURIComponent(map)}&since=${since}&roster_min=${roster}`),
   roundTicks: async (id: string, n: number): Promise<RoundTicks> => {
+    if (isStatic) await ensureBundle(id);
     if (localIds.has(id)) {
       const r = await getLocalRound(id, n);
       if (r) return r;
@@ -576,7 +586,14 @@ export const api = {
   heatmap: (params: URLSearchParams) => get<HeatmapResp>('/api/v1/heatmap?' + params),
   stack: async (body: unknown): Promise<StackResp> => {
     const b = body as { rounds: { match_id: string; round_number: number }[]; align?: string; side?: string };
-    if (b.rounds?.length && b.rounds.every((r) => localIds.has(r.match_id))) {
+    // localStack tek maç içinde hizalar; maçlar-arası stack sunucu işidir
+    const sameMatch = !!b.rounds?.length &&
+      b.rounds.every((r) => r.match_id === b.rounds[0].match_id);
+    if (isStatic) {
+      if (!sameMatch) throw new Error(STATIC_UNAVAILABLE);
+      await ensureBundle(b.rounds[0].match_id);
+    }
+    if (sameMatch && b.rounds.every((r) => localIds.has(r.match_id))) {
       const { localStack } = await import('./lib/localcompute');
       return localStack(
         b.rounds[0].match_id,

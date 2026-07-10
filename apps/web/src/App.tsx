@@ -17,6 +17,13 @@ import Insights from './pages/Insights';
 import Patterns from './pages/Patterns';
 import Scenarios from './pages/Scenarios';
 import LocalReportPage from './pages/LocalReport';
+import StudioOnly from './components/StudioOnly';
+import { isStatic } from './lib/staticdata';
+
+// Statik yayında (GitHub Pages) canlı ClickHouse isteyen sayfalar
+// StudioOnly notuna düşer; nav'da da gizlenirler.
+const studioOnly = (feature: string, el: JSX.Element) =>
+  isStatic ? <StudioOnly feature={feature} /> : el;
 
 // ?admin=TOKEN ile bir kez tanıtılır; sonrasında admin panelleri görünür
 // ve istekler X-Admin-Token başlığı taşır.
@@ -36,15 +43,15 @@ export default function App() {
           Freezetime
         </span>
         <SearchBar />
-        <a href="/moments" style={{ whiteSpace: 'nowrap' }}>🔎 Moments</a>
+        {!isStatic && <a href="/moments" style={{ whiteSpace: 'nowrap' }}>🔎 Moments</a>}
         <a href="/compare" style={{ whiteSpace: 'nowrap' }}>⚔ Compare</a>
         <a href="/leaderboards" style={{ whiteSpace: 'nowrap' }}>🏆 Boards</a>
-        <a href="/playlists" style={{ whiteSpace: 'nowrap' }}>🎬 Playlists</a>
-        <a href="/analyze" style={{ whiteSpace: 'nowrap' }}>⚡ Analyze</a>
+        {!isStatic && <a href="/playlists" style={{ whiteSpace: 'nowrap' }}>🎬 Playlists</a>}
+        {!isStatic && <a href="/analyze" style={{ whiteSpace: 'nowrap' }}>⚡ Analyze</a>}
         <a href="/insights" style={{ whiteSpace: 'nowrap' }}>🧠 ML Lab</a>
-        <a href="/patterns" style={{ whiteSpace: 'nowrap' }}>🧭 Patterns</a>
-        <a href="/scenarios" style={{ whiteSpace: 'nowrap' }}>🔬 Scenarios</a>
-        <a href="/mydb" style={{ whiteSpace: 'nowrap' }}>🗄 Create DB</a>
+        {!isStatic && <a href="/patterns" style={{ whiteSpace: 'nowrap' }}>🧭 Patterns</a>}
+        {!isStatic && <a href="/scenarios" style={{ whiteSpace: 'nowrap' }}>🔬 Scenarios</a>}
+        {!isStatic && <a href="/mydb" style={{ whiteSpace: 'nowrap' }}>🗄 Create DB</a>}
         {localStorage.getItem('tm_admin') && (
           <a href="/upload" style={{ whiteSpace: 'nowrap' }}>⬆ Upload</a>
         )}
@@ -55,22 +62,22 @@ export default function App() {
           <Route path="/" element={<Home />} />
           <Route path="/match/:id" element={<MatchPage />} />
           <Route path="/match/:id/round/:n" element={<OldRoundRedirect />} />
-          <Route path="/upload" element={<Upload />} />
-          <Route path="/yukle" element={<Upload />} />
+          <Route path="/upload" element={studioOnly('Upload', <Upload />)} />
+          <Route path="/yukle" element={studioOnly('Upload', <Upload />)} />
           <Route path="/report/:teamId" element={<Report />} />
           <Route path="/team/:teamId" element={<Team />} />
-          <Route path="/moments" element={<Moments />} />
+          <Route path="/moments" element={studioOnly('Moments — DSL search', <Moments />)} />
           <Route path="/compare" element={<Compare />} />
           <Route path="/player/:playerId" element={<Player />} />
           <Route path="/help" element={<Help />} />
           <Route path="/leaderboards" element={<Leaderboards />} />
-          <Route path="/playlists" element={<Playlists />} />
-          <Route path="/analyze" element={<Analyze />} />
+          <Route path="/playlists" element={studioOnly('Playlists', <Playlists />)} />
+          <Route path="/analyze" element={studioOnly('Analyze a demo', <Analyze />)} />
           <Route path="/insights" element={<Insights />} />
-          <Route path="/patterns" element={<Patterns />} />
-          <Route path="/scenarios" element={<Scenarios />} />
-          <Route path="/mydb" element={<MyDb />} />
-          <Route path="/mydb/report" element={<LocalReportPage />} />
+          <Route path="/patterns" element={studioOnly('Pattern Finder', <Patterns />)} />
+          <Route path="/scenarios" element={studioOnly('Scenario Lab', <Scenarios />)} />
+          <Route path="/mydb" element={studioOnly('Create DB (My DB)', <MyDb />)} />
+          <Route path="/mydb/report" element={studioOnly('My DB report', <LocalReportPage />)} />
         </Routes>
       </main>
     </>

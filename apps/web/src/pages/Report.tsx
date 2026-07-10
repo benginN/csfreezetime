@@ -7,6 +7,7 @@ import { drawMapBase, hidpiCtx, loadMapBase, RADAR, type MapBase } from '../lib/
 import { paintHeat } from '../lib/heatpaint';
 import { mixLabel, mixTitle } from '../lib/rounds';
 import { MlMark } from '../lib/MlMark';
+import { isStatic } from '../lib/staticdata';
 
 // Rakip Hazırlık Raporu (Faz 5): koçun maç öncesi tek sayfası.
 // Her iddia örneklem boyutuyla; yazdırılabilir (Print düğmesi + @media print).
@@ -332,11 +333,15 @@ export default function Report() {
         </div>
       </div>
 
-      {/* 6 — Positioning heatmaps (kullanıcı seçimli pencere + hizalama) */}
-      <PositioningSection teamId={teamId} mapName={mapName} windowNote={d.window_since} />
+      {/* 6 — Positioning heatmaps (kullanıcı seçimli pencere + hizalama).
+          Statikte yok: sürekli t0/t1 penceresi canlı ClickHouse ister. */}
+      {!isStatic && (
+        <PositioningSection teamId={teamId} mapName={mapName} windowNote={d.window_since} />
+      )}
 
-      {/* 6.4 — Raunt bindirmesi: tüm maçlarda aynı raunt, ghost izleri */}
-      <RoundOverlay teamId={teamId} mapName={mapName} />
+      {/* 6.4 — Raunt bindirmesi: tüm maçlarda aynı raunt, ghost izleri.
+          Statikte yok: maçlar-arası stack sunucu işidir. */}
+      {!isStatic && <RoundOverlay teamId={teamId} mapName={mapName} />}
 
       {/* 6.5 — Thrown rounds */}
       {d.thrown.length > 0 && (
@@ -474,14 +479,17 @@ function NamableBar({
           {ratio >= 1.5 ? `×${ratio.toFixed(1)} league` : `${ratio.toFixed(1)}× league`}
         </span>
       )}
-      <button
-        className="ghost noprint"
-        title="name this strategy"
-        style={{ padding: '0 5px', fontSize: 11 }}
-        onClick={() => { setDraft(t.label ?? ''); setEditing(true); }}
-      >
-        ✏
-      </button>
+      {/* küme isimlendirme sunucuya yazar → statikte gizli */}
+      {!isStatic && (
+        <button
+          className="ghost noprint"
+          title="name this strategy"
+          style={{ padding: '0 5px', fontSize: 11 }}
+          onClick={() => { setDraft(t.label ?? ''); setEditing(true); }}
+        >
+          ✏
+        </button>
+      )}
     </div>
   );
 }
@@ -756,11 +764,16 @@ function PredictionSection({ teamId, mapName }: { teamId: string; mapName: strin
             <option value="">buy unknown</option>
             {['pistol', 'eco', 'semi', 'force', 'full'].map((b) => <option key={b}>{b}</option>)}
           </select>
-          <span className="meta">vs</span>
-          <select value={oppId} onChange={(e) => setOppId(e.target.value)}>
-            <option value="">any opponent</option>
-            {opps.map((t) => <option key={t.team_id} value={t.team_id}>{t.name}</option>)}
-          </select>
+          {/* opp_id kombinasyonları statiğe dökülmez (kare sayıda dosya) */}
+          {!isStatic && (
+            <>
+              <span className="meta">vs</span>
+              <select value={oppId} onChange={(e) => setOppId(e.target.value)}>
+                <option value="">any opponent</option>
+                {opps.map((t) => <option key={t.team_id} value={t.team_id}>{t.name}</option>)}
+              </select>
+            </>
+          )}
         </div>
         {predict.data && (
           <>

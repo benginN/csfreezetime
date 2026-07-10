@@ -6,6 +6,7 @@ import { api, type ReportResp } from '../api';
 import { drawMapBase, hidpiCtx, loadMapBase, RADAR, type MapBase } from '../lib/mapbase';
 import { paintHeat } from '../lib/heatpaint';
 import { mixLabel, mixTitle, teamHue, teamInitials } from '../lib/rounds';
+import { isStatic } from '../lib/staticdata';
 
 // Takım karşılaştırma: iki rakip raporu yan yana. Maç hazırlığının
 // "biz vs onlar" ekranı — tüm veriler mevcut /report ve /teams/{id}/heatmap
@@ -157,9 +158,11 @@ function CompareBody({
 
       <UtilityCompare A={A} B={B} mapName={mapName} />
 
-      <HeatCompare aId={aId} bId={bId} aName={A.team} bName={B.team} mapName={mapName} />
+      {/* Statikte yok: ısı karşılaştırma sürekli t0/t1 penceresi, veto ise
+          takım-çifti başına canlı sorgu ister (kare sayıda kombinasyon). */}
+      {!isStatic && <HeatCompare aId={aId} bId={bId} aName={A.team} bName={B.team} mapName={mapName} />}
 
-      <VetoSim aId={aId} bId={bId} aName={A.team} bName={B.team} />
+      {!isStatic && <VetoSim aId={aId} bId={bId} aName={A.team} bName={B.team} />}
     </>
   );
 }

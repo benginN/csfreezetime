@@ -6,6 +6,7 @@ import { drawMapBase, hidpiCtx, loadMapBase, type MapBase } from '../lib/mapbase
 import { paintHeat } from '../lib/heatpaint';
 import { teamHue } from '../lib/rounds';
 import { MlMark } from '../lib/MlMark';
+import { isStatic } from '../lib/staticdata';
 
 // Oyuncu sayfası: roller (kanıtlı), harita performansı, açılış düelloları,
 // arşiv ısı haritaları ve anomali bayrakları.
@@ -244,14 +245,19 @@ function PlayerHeat({ playerId, maps, initial = '' }: { playerId: string; maps: 
           <select value={effMap} onChange={(e) => setMapName(e.target.value)}>
             {maps.map((m) => <option key={m}>{m}</option>)}
           </select>
-          <select value={wnd} onChange={(e) => setWnd(e.target.value as typeof wnd)}>
-            <option value="0-115">whole round</option>
-            <option value="0-25">first 25 s</option>
-          </select>
-          <button className={awp ? '' : 'ghost'} onClick={() => setAwp(!awp)}
-            title="only positions taken while carrying an AWP — where do they set up with the big gun?">
-            🎯 AWP only
-          </button>
+          {/* statiğe yalnız tam-raunt/AWP'siz varyant dökülür */}
+          {!isStatic && (
+            <>
+              <select value={wnd} onChange={(e) => setWnd(e.target.value as typeof wnd)}>
+                <option value="0-115">whole round</option>
+                <option value="0-25">first 25 s</option>
+              </select>
+              <button className={awp ? '' : 'ghost'} onClick={() => setAwp(!awp)}
+                title="only positions taken while carrying an AWP — where do they set up with the big gun?">
+                🎯 AWP only
+              </button>
+            </>
+          )}
         </span>
       </h2>
       <div className="grid cards two">

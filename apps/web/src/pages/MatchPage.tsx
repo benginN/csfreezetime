@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { api } from '../api';
 import { playUrl } from './Playlists';
 import { getMatch as getLocalMatch, listMatches as listLocalMatches, localIds } from '../lib/localdb';
+import { isStatic } from '../lib/staticdata';
 import { scoreOf } from '../lib/localingest';
 import { winnerTeamClass } from '../lib/rounds';
 import ReplayView from '../components/ReplayView';
@@ -14,7 +15,9 @@ export default function MatchPage() {
   const { id = '' } = useParams();
   const [params, setParams] = useSearchParams();
   const nav = useNavigate();
-  const isLocal = localIds.has(id);
+  // Statik sitede localIds paket önbelleğidir, kişisel maç değil —
+  // maç kamu arşivi gibi davranır (takım linkleri, rozetsiz).
+  const isLocal = !isStatic && localIds.has(id);
   const round = Number(params.get('round') ?? '1');
   const seekTick = params.get('t') ? Number(params.get('t')) : null;
   const seekSec = params.get('ts') ? Number(params.get('ts')) : null;

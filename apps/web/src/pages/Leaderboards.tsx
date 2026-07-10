@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { isStatic, staticGet } from '../lib/staticdata';
 
 // Arşiv geneli oyuncu sıralamaları — her tablo kendi örneklem kapısıyla.
 interface LRow { nickname: string; player_id: string; team: string | null }
@@ -15,7 +16,10 @@ interface Boards {
 export default function Leaderboards() {
   const [d, setD] = useState<Boards | null>(null);
   useEffect(() => {
-    fetch('/api/v1/leaderboards').then((r) => r.json()).then(setD).catch(() => {});
+    (isStatic
+      ? staticGet<Boards>('/api/v1/leaderboards')
+      : fetch('/api/v1/leaderboards').then((r) => r.json())
+    ).then(setD).catch(() => {});
   }, []);
   if (!d) return <p className="meta">loading…</p>;
 

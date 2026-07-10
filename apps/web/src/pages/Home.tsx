@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { api, type SearchResult, type Tendency } from '../api';
 import { useMemo, useRef, useState } from 'react';
 import { mixLabel, mixTitle, teamHue, teamInitials } from '../lib/rounds';
+import { isStatic } from '../lib/staticdata';
 
 export default function Home() {
   const [params] = useSearchParams();
@@ -270,19 +271,22 @@ function MatchRow({ m }: { m: HomeMatch }) {
       )}
       {m.tournament && <span className="meta cut" style={{ maxWidth: 220 }}>🏆 {m.tournament.replace(/-/g, ' ')}</span>}
       <span className="meta">{m.played_at ?? ''}</span>
-      {/* Link içinde ikinci <a> geçersiz olur: span + programatik indirme */}
-      <span
-        role="button"
-        title="download the raw GOTV demo (.dem) — watchable in CS2"
-        style={{ cursor: 'pointer', opacity: 0.7, padding: '0 4px' }}
-        onClick={(e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          window.location.href = `/api/v1/matches/${m.match_id}/demo`;
-        }}
-      >
-        ⬇
-      </span>
+      {/* Link içinde ikinci <a> geçersiz olur: span + programatik indirme.
+          Statik sitede ham demo depolanmaz → indirme gizli. */}
+      {!isStatic && (
+        <span
+          role="button"
+          title="download the raw GOTV demo (.dem) — watchable in CS2"
+          style={{ cursor: 'pointer', opacity: 0.7, padding: '0 4px' }}
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            window.location.href = `/api/v1/matches/${m.match_id}/demo`;
+          }}
+        >
+          ⬇
+        </span>
+      )}
     </Link>
   );
 }
