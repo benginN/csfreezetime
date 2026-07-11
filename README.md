@@ -68,6 +68,12 @@ Nothing to install, no account:
 
 The archive is updated in batches (roughly weekly) by the maintainer.
 
+> **Want your own database?** Analyzing your own demos (scrims, FACEIT
+> matches, a private team archive) is not possible on the public site —
+> parsing a demo needs the real engine. Clone the repo and run it locally
+> instead: drop your demos into `backfill/` for a full archive, or use
+> **My DB** to keep private demos separate. See the next section.
+
 ### If you want to run it yourself (self-hosting)
 
 Clone this repo and follow **[Step-by-step setup](#step-by-step-setup-from-zero)**.
