@@ -239,31 +239,51 @@ func (s *server) backfillRun(files []string, dir string) {
 		bfState.Current = ""
 		bfState.mu.Unlock()
 	}()
-	for _, f := range files {
-		bfState.mu.Lock()
-		bfState.Current = filepath.Base(f)
-		bfState.mu.Unlock()
-
-		results, err := s.backfillFile(f)
-		bfState.mu.Lock()
-		if err != nil {
-			// dosya yerinde kalır ve her taramada yeniden denenir (bilinçli:
-			// kullanıcı fark etsin) — ama sessiz döngüye karşı log şart
-			log.Printf("backfill HATA %s: %v", filepath.Base(f), err)
-			bfState.Errors = append(bfState.Errors,
-				fmt.Sprintf("%s: %v", filepath.Base(f), err))
-		} else {
-			bfState.Results = append(bfState.Results, results...)
-			if os.Getenv("BACKFILL_DELETE_DONE") == "1" {
-				os.Remove(f) // disk baskısı: işlenen arşivi bekletme
-			} else {
-				// başarılı dosya done/ altına (yeniden taramada atlanır)
-				os.Rename(f, filepath.Join(dir, "done", filepath.Base(f)))
-			}
-		}
-		bfState.Done++
-		bfState.mu.Unlock()
+	// BACKFILL_WORKERS: rar hattının şerit sayısı (varsayılan 1 = eski
+	// davranış). Aşama disk-yazma ağırlıklı; harici SSD'de 2'yi aşmak
+	// G/Ç fırtınası riskini büyütür (bkz. 2026-07-11 notları).
+	workers := 1
+	if n, _ := strconv.Atoi(os.Getenv("BACKFILL_WORKERS")); n > 1 {
+		workers = n
 	}
+	fileCh := make(chan string)
+	var wg sync.WaitGroup
+	for i := 0; i < workers; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for f := range fileCh {
+				bfState.mu.Lock()
+				bfState.Current = filepath.Base(f) // çok şeritte: son başlayan görünür
+				bfState.mu.Unlock()
+
+				results, err := s.backfillFile(f)
+				bfState.mu.Lock()
+				if err != nil {
+					// dosya yerinde kalır ve her taramada yeniden denenir (bilinçli:
+					// kullanıcı fark etsin) — ama sessiz döngüye karşı log şart
+					log.Printf("backfill HATA %s: %v", filepath.Base(f), err)
+					bfState.Errors = append(bfState.Errors,
+						fmt.Sprintf("%s: %v", filepath.Base(f), err))
+				} else {
+					bfState.Results = append(bfState.Results, results...)
+					if os.Getenv("BACKFILL_DELETE_DONE") == "1" {
+						os.Remove(f) // disk baskısı: işlenen arşivi bekletme
+					} else {
+						// başarılı dosya done/ altına (yeniden taramada atlanır)
+						os.Rename(f, filepath.Join(dir, "done", filepath.Base(f)))
+					}
+				}
+				bfState.Done++
+				bfState.mu.Unlock()
+			}
+		}()
+	}
+	for _, f := range files {
+		fileCh <- f
+	}
+	close(fileCh)
+	wg.Wait()
 }
 
 // tournamentSlug: arşiv adından turnuva ham etiketi — uzantı, HLTV kuyruk
