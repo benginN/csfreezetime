@@ -51,7 +51,8 @@ export default function App() {
         <a href="/insights" style={{ whiteSpace: 'nowrap' }}>🧠 ML Lab</a>
         {!isStatic && <a href="/patterns" style={{ whiteSpace: 'nowrap' }}>🧭 Patterns</a>}
         {!isStatic && <a href="/scenarios" style={{ whiteSpace: 'nowrap' }}>🔬 Scenarios</a>}
-        {!isStatic && <a href="/mydb" style={{ whiteSpace: 'nowrap' }}>🗄 Create DB</a>}
+        {/* Create DB nav'dan kaldırıldı (2026-07-12): sayfa /mydb adresinde
+            yaşamaya devam ediyor (Help'te belgeli), ana akış backfill/Analyze */}
         {localStorage.getItem('tm_admin') && (
           <a href="/upload" style={{ whiteSpace: 'nowrap' }}>⬆ Upload</a>
         )}
