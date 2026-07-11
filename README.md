@@ -354,12 +354,20 @@ deploy from branch `main`) — that last step is one-time.
 >
 > 1. Plug in the archive SSD, then `scripts/start-all.sh` (brings up the VM,
 >    databases and all services).
-> 2. Drop the week's demo archives (`.rar`/`.zip` straight from HLTV) into
->    `backfill/`. The watcher picks them up automatically — no button.
-> 3. Wait for the queue to settle (home-page match count stops climbing;
->    ml-auto recomputes analysis on its own).
-> 4. Run `scripts/publish.sh`. It bundles only the **new** matches, uploads
+> 2. **Download first, then feed.** Point the download manager at the SSD's
+>    `downloads/` folder (never straight into `backfill/` — partially
+>    downloaded files could be picked up half-written). When the week's
+>    archives (`.rar`/`.zip` from HLTV) have finished downloading, move them
+>    into `backfill/` — the watcher takes it from there, no button.
+> 3. Avoid hammering the disk from two sides: for big batches, let the
+>    downloads finish before the heavy processing starts (an external SSD
+>    throttles under hours of simultaneous write load — the pipeline
+>    self-heals with retries, but it's slower than just sequencing the work).
+> 4. Wait for the queue to settle (home-page match count stops climbing;
+>    ml-auto recomputes tendencies/predictions on its own).
+> 5. Run `scripts/publish.sh`. It bundles only the **new** matches, uploads
 >    them to Releases, refreshes every page JSON and pushes the site.
+> 6. Unplugging the SSD? `scripts/stop-all.sh` first, always.
 >
 > That's it — two commands and a folder drop.
 
