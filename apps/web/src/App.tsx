@@ -71,7 +71,7 @@ function NavMenu() {
           {!isStatic && <a href="/patterns" style={item}>🧭 Patterns</a>}
           {!isStatic && <a href="/scenarios" style={item}>🔬 Scenarios</a>}
           {/* Create DB kaldırıldı (2026-07-12): /mydb adresi yaşıyor, Help'te belgeli */}
-          {localStorage.getItem('tm_admin') && <a href="/upload" style={item}>⬆ Upload</a>}
+          {localStorage.getItem('tm_admin') && <a href="/archive" style={item}>🗂 Archive</a>}
           <a href="/help" style={item}>? Help</a>
           <a href="https://ko-fi.com/bengin" target="_blank" rel="noreferrer" style={item}
             title="enjoying Freezetime? support the project">
@@ -98,8 +98,9 @@ export default function App() {
           <Route path="/" element={<Home />} />
           <Route path="/match/:id" element={<MatchPage />} />
           <Route path="/match/:id/round/:n" element={<OldRoundRedirect />} />
-          <Route path="/upload" element={studioOnly('Upload', <Upload />)} />
-          <Route path="/yukle" element={studioOnly('Upload', <Upload />)} />
+          <Route path="/archive" element={studioOnly('Archive', <Upload />)} />
+          <Route path="/upload" element={<Navigate to="/archive" replace />} />
+          <Route path="/yukle" element={<Navigate to="/archive" replace />} />
           <Route path="/report/:teamId" element={<Report />} />
           <Route path="/team/:teamId" element={<Team />} />
           <Route path="/moments" element={studioOnly('Moments — DSL search', <Moments />)} />
