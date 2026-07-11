@@ -49,6 +49,10 @@ services:
     environment:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER:-cs2minio}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-cs2miniodev}
+      # Harici SSD'de (VM diski T7'de) anlık G/Ç takılmaları MinIO'nun
+      # varsayılan 30 sn disk sağlık eşiğini aşıp diski "offline" işaretletiyor
+      # (SlowDownRead/Write fırtınası). Eşiği gevşetip dalgayı atlatıyoruz.
+      MINIO_DRIVE_MAX_TIMEOUT: "120s"
     ports:
       - "9100:9000"   # S3 API (host 9100, CH native 9000 ile çakışmasın)
       - "9101:9001"   # console
