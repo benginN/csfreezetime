@@ -63,7 +63,7 @@ function NavMenu() {
           }}
         >
           {!isStatic && <a href="/moments" style={item}>🔎 Moments</a>}
-          <a href="/compare" style={item}>⚔ Compare</a>
+          <a href="/compare" style={item}>⚔️ Compare</a>
           <a href="/leaderboards" style={item}>🏆 Boards</a>
           {!isStatic && <a href="/playlists" style={item}>🎬 Playlists</a>}
           {!isStatic && <a href="/analyze" style={item}>⚡ Analyze</a>}
@@ -72,7 +72,7 @@ function NavMenu() {
           {!isStatic && <a href="/scenarios" style={item}>🔬 Scenarios</a>}
           {/* Create DB kaldırıldı (2026-07-12): /mydb adresi yaşıyor, Help'te belgeli */}
           {localStorage.getItem('tm_admin') && <a href="/archive" style={item}>🗂 Archive</a>}
-          <a href="/help" style={item}>? Help</a>
+          <a href="/help" style={item}>❓ Help</a>
           <a href="https://ko-fi.com/bengin" target="_blank" rel="noreferrer" style={item}
             title="enjoying Freezetime? support the project">
             ☕ Support
