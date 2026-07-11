@@ -61,6 +61,7 @@ CREATE TABLE IF NOT EXISTS matches (
     tournament      TEXT,
     tick_purged     BOOLEAN NOT NULL DEFAULT false,
     is_private      BOOLEAN NOT NULL DEFAULT false,  -- kullanıcı özel DB'si: ready yerine private, ana arşive girmez  -- saklama: ham+tick silindi, meta kaldı  -- backfill arşiv adından; ml-jobs takım adlarını ayıklar
+    raw_vault       BOOLEAN NOT NULL DEFAULT false,  -- ham kasası: TRUE ise MinIO'daki ham kopya KORUNUR (parser evrimi sigortası); FALSE + RAW_DELETE_AFTER_READY=1 → ready sonrası ham silinir
     parser_version  TEXT NOT NULL,
     status          TEXT NOT NULL DEFAULT 'queued'
                     CHECK (status = ANY (ARRAY['queued','parsing','enriching','ready','failed','private']))

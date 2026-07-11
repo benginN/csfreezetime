@@ -50,10 +50,34 @@ on your own machine ([step-by-step setup](#step-by-step-setup-from-zero)).
 | Notes, playlists, My DB (private demos), raw demo download | — | ✅ |
 | **Feeding it your own demos** | — | ✅ |
 
-> ⚠️ **Self-hosting? You bring the demos.** The repo ships the *engine*, not any
-> match data — no demos, no database dumps. Drop your own `.dem` files into
-> `backfill/` and it builds your archive (see
-> [Feeding it demos](#feeding-it-demos)). Everything is local and private.
+### If you just want to use the site (visitors)
+
+Nothing to install, no account:
+
+1. Open **https://benginN.github.io**.
+2. Pick a match from the home page (search by team, player or tournament).
+   The first time you open a match its replay bundle (a few MB) downloads and
+   is cached by your browser — after that it works instantly, even offline.
+3. Watch the **2D replay** (play/pause, speeds, kill feed, grenade arcs),
+   switch tabs for **heatmaps** and **ghost rounds**.
+4. Dig into a team via **⚔ Compare**, the **opponent report** (the 📊 link on
+   a team), **🏆 Boards** and the **🧠 ML Lab**.
+5. Features that need live database queries (Moments search, Pattern Finder,
+   Scenarios, veto sim, custom heatmap time windows) are marked as
+   **self-host only** — for those, run the studio yourself (next section).
+
+The archive is updated in batches (roughly weekly) by the maintainer.
+
+### If you want to run it yourself (self-hosting)
+
+Clone this repo and follow **[Step-by-step setup](#step-by-step-setup-from-zero)**.
+You get every feature, and the archive is whatever **you** feed it:
+
+> ⚠️ **You bring the demos.** The repo ships the *engine*, not any match data —
+> no demos, no database dumps. Drop your own `.dem` files into `backfill/` and
+> it builds your archive (see [Feeding it demos](#feeding-it-demos)).
+> Everything is local and private. You can even publish your own static copy
+> of your archive (see [Publishing a static copy](#publishing-a-static-copy-github-pages)).
 
 📖 Prefer a narrative tour? See **[docs/how-it-works.md](docs/how-it-works.md)**.
 

@@ -605,6 +605,12 @@ maliyetli **"stüdyo + statik yayın"** modeli benimsendi:
 - **Ölçek/T7 taşması:** yayınlanmış maçların ağır tick satırları
   ClickHouse'dan budanır (agrega tablolar kalır); geri dönüş = demoyu
   HLTV'den yeniden indirip işlemek.
+- **Ham kasası (2026-07-11):** kuruluş arşivinin (Jul'25-Jul'26 S-tier)
+  ham kopyaları MinIO'da `matches.raw_vault=TRUE` işaretiyle ömür boyu
+  korunur — parser evrimi sigortası ("büyük değişimde yeniden indirme").
+  Kasadan sonra işlenen maçların hamı, `RAW_DELETE_AFTER_READY=1` iken
+  maç ready olunca silinir (stats-svc rawCleaner, 10 dk periyot);
+  ham demo indirme düğmesi bu maçlarda 410 döner (kaynak: HLTV).
 - **v1'de statikte olmayanlar:** Moments DSL, Pattern Finder, global arama
   tam sürümü — self-host'ta çalışır etiketiyle; v2'de sınırlı istemci
   sürümleri (raunt metadata indeksi) hedeflenir.

@@ -157,6 +157,7 @@ func main() {
 
 	go srv.backfillWatch() // backfill klasörünü otomatik işle
 	go srv.mlAutoRun()     // kuyruk durulunca istatistikleri tazele
+	go srv.rawCleaner()    // kasa dışı hazır maçların ham kopyasını sil (env kapılı)
 	if srv.up != nil {
 		go srv.retentionLoop()  // eşik üstü: ham+tick sil, meta kalsın
 		go srv.orphanJanitor() // ara durumda takılı maçları requeue et

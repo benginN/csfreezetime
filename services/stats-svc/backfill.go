@@ -512,6 +512,10 @@ func (s *server) demoDownload(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, 410, fmt.Errorf("archived match — the raw demo was removed by the retention policy"))
 		return
 	}
+	if key == "" { // raw cleaner sildi (kasa dışı maç): kaynak HLTV
+		writeErr(w, 410, fmt.Errorf("the raw demo is not stored for this match — re-download it from HLTV"))
+		return
+	}
 	if _, err := s.up.mc.StatObject(r.Context(), s.up.bucket, key, minio.StatObjectOptions{}); err != nil {
 		writeErr(w, 404, fmt.Errorf("demo file missing from storage"))
 		return
@@ -854,4 +858,51 @@ func (s *server) coverage(w http.ResponseWriter, r *http.Request) {
 		    GROUP BY t.name
 		) x`)
 	writeJSON(w, 200, out)
+}
+
+// rawCleaner — "ham kasası" düzeni (mimari §11.1, 2026-07-11): raw_vault
+// işaretli maçların ham kopyası MinIO'da ömür boyu korunur (parser evrimi
+// sigortası); işaretsiz (kasadan sonra işlenen) maçların hamı, maç ready
+// olduktan sonra periyodik olarak silinir — ham demo replay için gerekmez,
+// yalnız yeniden parse için gerekirdi ve o maçlar HLTV'den yeniden inebilir.
+// RAW_DELETE_AFTER_READY=1 değilse hiçbir şey yapmaz (varsayılan: kapalı).
+func (s *server) rawCleaner() {
+	if s.up == nil || os.Getenv("RAW_DELETE_AFTER_READY") != "1" {
+		return
+	}
+	log.Printf("raw cleaner aktif: kasada olmayan hazır maçların ham kopyası silinecek")
+	for {
+		time.Sleep(10 * time.Minute)
+		ctx := context.Background()
+		rows, err := s.pg.Query(ctx, `
+			SELECT match_id::text, demo_object_key FROM matches
+			WHERE status = 'ready' AND NOT raw_vault AND NOT is_private
+			  AND demo_object_key <> ''
+			LIMIT 100`)
+		if err != nil {
+			continue
+		}
+		type victim struct{ id, key string }
+		var victims []victim
+		for rows.Next() {
+			var v victim
+			if rows.Scan(&v.id, &v.key) == nil {
+				victims = append(victims, v)
+			}
+		}
+		rows.Close()
+		for _, v := range victims {
+			if err := s.up.mc.RemoveObject(ctx, s.up.bucket, v.key, minio.RemoveObjectOptions{}); err != nil {
+				log.Printf("raw cleaner: %s silinemedi: %v", v.key, err)
+				continue // sonraki turda yeniden denenir
+			}
+			if _, err := s.pg.Exec(ctx,
+				`UPDATE matches SET demo_object_key = '' WHERE match_id = $1`, v.id); err != nil {
+				log.Printf("raw cleaner: %s key temizlenemedi: %v", v.id, err)
+			}
+		}
+		if len(victims) > 0 {
+			log.Printf("raw cleaner: %d ham kopya silindi", len(victims))
+		}
+	}
 }
