@@ -23,7 +23,8 @@ internal docs (`docs/mimari.md`) and code comments are in Turkish.
 > 💬 **Why it's free:** I was going to launch this as a subscription website and
 > try to make some money selling monthly plans. But — what the hell. It's more
 > fun to just put it out there. Use it, learn from it, build on it. If it helps
-> your team, that's payment enough. If you like it, a ⭐ makes my day.
+> your team, that's payment enough. If you like it, a ⭐ makes my day —
+> and if it *really* helps, you can [buy me a coffee](https://ko-fi.com/bengin) ☕.
 
 ---
 

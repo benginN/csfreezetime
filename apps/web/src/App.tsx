@@ -56,6 +56,10 @@ export default function App() {
           <a href="/upload" style={{ whiteSpace: 'nowrap' }}>⬆ Upload</a>
         )}
         <a href="/help" style={{ whiteSpace: 'nowrap' }}>? Help</a>
+        <a href="https://ko-fi.com/bengin" target="_blank" rel="noreferrer"
+          style={{ whiteSpace: 'nowrap' }} title="enjoying Freezetime? support the project">
+          ☕ Support
+        </a>
       </nav>
       <main>
         <Routes>
