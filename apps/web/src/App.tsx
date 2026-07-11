@@ -35,6 +35,54 @@ if (adminParam) {
   window.history.replaceState(null, '', u.toString());
 }
 
+// Nav menüsü: tüm sayfalar tek dropdown'da — düz link dizisi dar pencerede
+// taşıp son öğeleri (Help/Support) kesiyordu; menü hem sade hem taşmasız.
+function NavMenu() {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const close = (e: MouseEvent) => {
+      if (!ref.current?.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener('click', close);
+    return () => document.removeEventListener('click', close);
+  }, []);
+  const item = { display: 'block', padding: '9px 16px', whiteSpace: 'nowrap' } as const;
+  return (
+    <div ref={ref} style={{ position: 'relative', marginLeft: 'auto' }}>
+      <button className="ghost" onClick={() => setOpen(!open)} style={{ whiteSpace: 'nowrap' }}>
+        ☰ Menu
+      </button>
+      {open && (
+        <div
+          onClick={() => setOpen(false)}
+          style={{
+            position: 'absolute', right: 0, top: 'calc(100% + 6px)', zIndex: 1000,
+            background: '#1a201c', border: '1px solid #2c332e', borderRadius: 8,
+            minWidth: 190, boxShadow: '0 10px 28px rgba(0,0,0,.55)', padding: '4px 0',
+          }}
+        >
+          {!isStatic && <a href="/moments" style={item}>🔎 Moments</a>}
+          <a href="/compare" style={item}>⚔ Compare</a>
+          <a href="/leaderboards" style={item}>🏆 Boards</a>
+          {!isStatic && <a href="/playlists" style={item}>🎬 Playlists</a>}
+          {!isStatic && <a href="/analyze" style={item}>⚡ Analyze</a>}
+          <a href="/insights" style={item}>🧠 ML Lab</a>
+          {!isStatic && <a href="/patterns" style={item}>🧭 Patterns</a>}
+          {!isStatic && <a href="/scenarios" style={item}>🔬 Scenarios</a>}
+          {/* Create DB kaldırıldı (2026-07-12): /mydb adresi yaşıyor, Help'te belgeli */}
+          {localStorage.getItem('tm_admin') && <a href="/upload" style={item}>⬆ Upload</a>}
+          <a href="/help" style={item}>? Help</a>
+          <a href="https://ko-fi.com/bengin" target="_blank" rel="noreferrer" style={item}
+            title="enjoying Freezetime? support the project">
+            ☕ Support
+          </a>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function App() {
   return (
     <>
@@ -43,24 +91,7 @@ export default function App() {
           Freezetime
         </span>
         <SearchBar />
-        {!isStatic && <a href="/moments" style={{ whiteSpace: 'nowrap' }}>🔎 Moments</a>}
-        <a href="/compare" style={{ whiteSpace: 'nowrap' }}>⚔ Compare</a>
-        <a href="/leaderboards" style={{ whiteSpace: 'nowrap' }}>🏆 Boards</a>
-        {!isStatic && <a href="/playlists" style={{ whiteSpace: 'nowrap' }}>🎬 Playlists</a>}
-        {!isStatic && <a href="/analyze" style={{ whiteSpace: 'nowrap' }}>⚡ Analyze</a>}
-        <a href="/insights" style={{ whiteSpace: 'nowrap' }}>🧠 ML Lab</a>
-        {!isStatic && <a href="/patterns" style={{ whiteSpace: 'nowrap' }}>🧭 Patterns</a>}
-        {!isStatic && <a href="/scenarios" style={{ whiteSpace: 'nowrap' }}>🔬 Scenarios</a>}
-        {/* Create DB nav'dan kaldırıldı (2026-07-12): sayfa /mydb adresinde
-            yaşamaya devam ediyor (Help'te belgeli), ana akış backfill/Analyze */}
-        {localStorage.getItem('tm_admin') && (
-          <a href="/upload" style={{ whiteSpace: 'nowrap' }}>⬆ Upload</a>
-        )}
-        <a href="/help" style={{ whiteSpace: 'nowrap' }}>? Help</a>
-        <a href="https://ko-fi.com/bengin" target="_blank" rel="noreferrer"
-          style={{ whiteSpace: 'nowrap' }} title="enjoying Freezetime? support the project">
-          ☕ Support
-        </a>
+        <NavMenu />
       </nav>
       <main>
         <Routes>
