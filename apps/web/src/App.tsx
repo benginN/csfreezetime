@@ -59,7 +59,7 @@ export default function App() {
         <a href={B + 'playlists'} style={nl}>🎬 Playlists</a>
         <a href={B + 'analyze'} style={nl}>⚡ Analyze</a>
         <a href={B + 'insights'} style={nl}>🧠 ML Lab</a>
-        {!isStatic && <a href={B + 'patterns'} style={nl}>🧭 Patterns</a>}
+        <a href={B + 'patterns'} style={nl}>🧭 Patterns</a>
         {!isStatic && <a href={B + 'scenarios'} style={nl}>🔬 Scenarios</a>}
         {/* Create DB kaldırıldı (2026-07-12): /mydb adresi yaşıyor, Help'te belgeli */}
         {localStorage.getItem('tm_admin') && <a href={B + 'archive'} style={nl}>🗂 Archive</a>}
@@ -91,7 +91,8 @@ export default function App() {
           {/* statikte Analyze = WASM (tarayıcıda parse); stüdyoda sunuculu sürüm */}
           <Route path="/analyze" element={isStatic ? <WasmAnalyze /> : <Analyze />} />
           <Route path="/insights" element={<Insights />} />
-          <Route path="/patterns" element={studioOnly('Pattern Finder', <Patterns />)} />
+          {/* Patterns statikte harita-başına export dosyasıyla çalışır (api.ts) */}
+          <Route path="/patterns" element={<Patterns />} />
           <Route path="/scenarios" element={studioOnly('Scenario Lab', <Scenarios />)} />
           {/* My DB statikte de çalışır (2026-07-12): parse = WASM (localingest
               statik dalı), depo = IndexedDB, rapor/kümeleme = TS portları */}

@@ -251,7 +251,10 @@ func main() {
 			"/api/v1/clusters?map="+q+"&side=T", "/api/v1/clusters?map="+q+"&side=CT",
 			// Moments-lite: harita-başına kompakt olay dizini (istemci DSL'i
 			// bunun üzerinde koşar; GH Pages'ın hat-üstü gzip'i sıkıştırır)
-			"/api/v1/export/moments-index?map="+q)
+			"/api/v1/export/moments-index?map="+q,
+			// Pattern Finder: son 20k granat yörüngesi + team_id/date
+			// (side/team/since filtreleri istemcide uygulanır)
+			"/api/v1/patterns?export=1&map="+q)
 	}
 	for _, t := range teams {
 		if t.Matches == 0 {

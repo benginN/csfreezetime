@@ -188,7 +188,7 @@ export default function Patterns() {
         <span className="meta">
           {nadesQ.isFetching ? 'loading…'
             : `${selected.length} grenades${box ? ' in box' : ''} · ${rounds.length} rounds`}
-          {nadesQ.data?.truncated && ' · ⚠ showing newest 8000 — narrow the filters'}
+          {nadesQ.data?.truncated && ' · ⚠ showing the newest slice of the archive — narrow the filters'}
         </span>
       </div>
 

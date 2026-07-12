@@ -51,8 +51,9 @@ on your own machine ([step-by-step setup](#step-by-step-setup-from-zero)).
 | **Veto simulator** (computed in-browser on the public site) | ✅ | ✅ |
 | **Notes & playlists** (stored in your browser, export/import as a file) | ✅ | ✅ |
 | **Moments** — structured event search (kills, grenades, bombs, economy) | ✅ per map | ✅ |
-| Presence queries (players in an area), Pattern Finder, Scenarios | — | ✅ |
-| Free-range heatmap time windows, cross-match round overlay | — | ✅ |
+| **Pattern Finder** — grenade trajectory explorer | ✅ newest 20k/map | ✅ |
+| Team positioning heatmaps | ✅ preset windows | ✅ free-range |
+| Presence queries (players in an area), Scenarios, round overlay | — | ✅ |
 | **Feeding it your own demos** | — | ✅ |
 
 ### If you just want to use the site (visitors)
@@ -71,8 +72,9 @@ Nothing to install, no account:
    nothing is uploaded anywhere — and shows it as a full match page.
 6. **🔎 Moments** searches the archive for structured events (opening kills,
    early flashes, B plants, eco rounds…) right in your browser — pick a map
-   first. A few of the heaviest features (presence queries, Pattern Finder,
-   Scenarios, custom heatmap time windows) are marked **self-host only** —
+   first. **🧭 Patterns** explores grenade trajectories the same way. A few
+   of the heaviest features (presence queries, Scenarios, free-range heatmap
+   time windows, cross-match round overlays) are marked **self-host only** —
    for those, run the studio yourself (next section).
 
 The archive is updated in batches (roughly weekly) by the maintainer.

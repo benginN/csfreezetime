@@ -13,12 +13,18 @@ import (
 
 // GET /api/v1/patterns?map=&side=&team_id=&player_id=&since=
 // type filtresi istemcide (tümü tek yanıtta gelir; aç/kapat anlıktır).
+// export=1: statik site için harita-başına dosya modu — limit 20000'e
+// çıkar; side/team/since filtrelerini istemci team_id+date ile uygular.
 func (s *server) patterns(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
 	mapName := q.Get("map")
 	if mapName == "" {
 		writeErr(w, 400, fmt.Errorf("map is required"))
 		return
+	}
+	limit := 8000
+	if q.Get("export") == "1" {
+		limit = 20000
 	}
 	args := []any{mapName}
 	sql := `
@@ -28,7 +34,10 @@ func (s *server) patterns(w http.ResponseWriter, r *http.Request) {
 	       round(((g.det_x - mp.radar_pos_x) / mp.radar_scale)::numeric, 1),
 	       round(((mp.radar_pos_y - g.det_y) / mp.radar_scale)::numeric, 1),
 	       round(((g.throw_tick - r.freeze_end_tick) / 64.0)::numeric, 1),
-	       g.match_id::text, g.round_number
+	       g.match_id::text, g.round_number,
+	       COALESCE((CASE WHEN g.side = 'T' THEN r.t_team_id
+	                 ELSE r.ct_team_id END)::text, ''),
+	       COALESCE(to_char(m.played_at, 'YYYY-MM-DD'), '')
 	FROM grenades g
 	JOIN rounds  r ON (r.match_id, r.round_number) = (g.match_id, g.round_number)
 	JOIN matches m ON m.match_id = g.match_id AND m.status = 'ready'
@@ -53,7 +62,7 @@ func (s *server) patterns(w http.ResponseWriter, r *http.Request) {
 		args = append(args, since)
 		sql += fmt.Sprintf(" AND m.played_at >= $%d::date", len(args))
 	}
-	sql += " ORDER BY m.played_at DESC, g.match_id, g.round_number LIMIT 8000"
+	sql += fmt.Sprintf(" ORDER BY m.played_at DESC, g.match_id, g.round_number LIMIT %d", limit)
 
 	rows, err := s.pg.Query(r.Context(), sql, args...)
 	if err != nil {
@@ -73,14 +82,16 @@ func (s *server) patterns(w http.ResponseWriter, r *http.Request) {
 		TSec    float32 `json:"t"`
 		MatchID string  `json:"match_id"`
 		Round   int16   `json:"round_number"`
+		TeamID  string  `json:"team_id"`
+		Date    string  `json:"date"`
 	}
 	out := []nade{}
 	for rows.Next() {
 		var n nade
 		if rows.Scan(&n.Type, &n.Side, &n.Thrower, &n.PID, &n.TRX, &n.TRY,
-			&n.DRX, &n.DRY, &n.TSec, &n.MatchID, &n.Round) == nil {
+			&n.DRX, &n.DRY, &n.TSec, &n.MatchID, &n.Round, &n.TeamID, &n.Date) == nil {
 			out = append(out, n)
 		}
 	}
-	writeJSON(w, 200, map[string]any{"nades": out, "truncated": len(out) == 8000})
+	writeJSON(w, 200, map[string]any{"nades": out, "truncated": len(out) == limit})
 }

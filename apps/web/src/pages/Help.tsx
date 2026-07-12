@@ -22,9 +22,10 @@ export default function Help() {
         database from a folder of demos, <b>🔎 Moments</b> searches per-map
         event indexes right in your browser, the <b>veto simulator</b> runs
         client-side, and <b>notes &amp; playlists</b> live in your browser
-        (with file export/import). Only the heaviest tick-level tools —
-        presence queries, <b>Pattern Finder</b>, <b>Scenarios</b> and
-        free-range heatmap time windows — need the <b>self-hosted studio</b>:
+        (with file export/import), and <b>🧭 Patterns</b> explores grenade
+        trajectories from per-map indexes. Only the heaviest tick-level tools
+        — presence queries, <b>Scenarios</b>, free-range heatmap time windows
+        and cross-match round overlays — need the <b>self-hosted studio</b>:
         clone the open-source repo at{' '}
         <a href="https://github.com/benginN/csfreezetime" target="_blank" rel="noreferrer">
           <b>github.com/benginN/csfreezetime</b>
@@ -119,6 +120,7 @@ export default function Help() {
         <li>Finds a team&apos;s grenade <b>habits</b>: every grenade on a map as landing dots, with the <b>top repeated spots</b> ranked for you ("smoke → TopMid ×47, usually at 1:39 ±5s").</li>
         <li><b>Drag a box</b> on the map to isolate an area; the timing histogram shows exactly when in the round those grenades come, and the round list jumps into the replay.</li>
         <li>Filter by team, side, thrower, period and grenade type; turn on trajectory lines when you want to see the throws.</li>
+        <li>On the public site each map carries its newest ~20k trajectories (filters apply within that slice); the studio queries the full archive live.</li>
       </ul>
 
       <h2>7. 🔬 Scenarios</h2>

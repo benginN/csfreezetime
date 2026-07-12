@@ -470,6 +470,7 @@ export interface PatternNade {
   type: string; side: 'T' | 'CT'; thrower: string; player_id: string;
   trx: number; try: number; drx: number; dry: number;
   t: number; match_id: string; round_number: number;
+  team_id?: string; date?: string; // statik filtreler için (export=1 modu)
 }
 
 export interface PlaylistItem {
@@ -549,8 +550,22 @@ export const api = {
         top_places: { place: string; weight: number }[];
         n: number; share: number; base_share: number; lift: number }[] }>(
       '/api/v1/scenario?' + p),
-  patterns: (p: URLSearchParams) =>
-    get<{ nades: PatternNade[]; truncated: boolean }>('/api/v1/patterns?' + p),
+  patterns: async (p: URLSearchParams): Promise<{ nades: PatternNade[]; truncated: boolean }> => {
+    if (isStatic) {
+      // harita-başına export dosyası (son 20k yörünge, team_id+date ile);
+      // side/team/since filtreleri burada uygulanır — sunucu semantiğiyle aynı
+      const map = p.get('map') ?? '';
+      const r = await staticGet<{ nades: PatternNade[]; truncated: boolean }>(
+        `/api/v1/patterns?export=1&map=${encodeURIComponent(map)}`);
+      const side = p.get('side'), team = p.get('team_id'), since = p.get('since');
+      let nades = r.nades;
+      if (side) nades = nades.filter((n) => n.side === side);
+      if (team) nades = nades.filter((n) => n.team_id === team);
+      if (since) nades = nades.filter((n) => (n.date ?? '') >= since);
+      return { nades, truncated: r.truncated };
+    }
+    return get<{ nades: PatternNade[]; truncated: boolean }>('/api/v1/patterns?' + p);
+  },
   matches: (teamId?: string, since = '', roster = 0) =>
     get<MatchSummary[]>('/api/v1/matches' + (teamId ? `?team_id=${teamId}&since=${since}&roster_min=${roster}` : '')),
   matchDetail: async (id: string): Promise<MatchDetail> => {
