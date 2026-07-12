@@ -595,10 +595,13 @@ maliyetli **"stüdyo + statik yayın"** modeli benimsendi:
   (b) önceden hesaplanmış sayfa JSON'ları (ana sayfa, turnuva, takım,
   oyuncu, leaderboard, rakip raporu, ML Lab, winprob), (c) manifest +
   istemci arama indeksi üretilir.
-- **Barınma:** frontend + sayfa JSON'ları → GitHub Pages (`csfreezetime-data`
-  reposu); maç paketleri → GitHub Releases (2GB/dosya sınırına göre turnuva
-  bazlı gruplama). Toplam paket verisi 50-100 GB'ı aşarsa paketler
-  Cloudflare R2'ye taşınır (~1-2 $/ay); mimari değişmez.
+- **Barınma (güncel, 2026-07-12):** frontend + sayfa JSON'ları →
+  `csfreezetime` reposunun `gh-pages` dalı (site:
+  benginn.github.io/csfreezetime); maç paketleri → **Cloudflare R2**
+  (~0.20 $/ay). GitHub Releases denendi ve elendi: indirme uçları CORS
+  başlığı göndermediğinden tarayıcı fetch'i bloke oluyor. Site dalı her
+  yayında ebeveynsiz tek commit olarak force-push edilir (repo tarihçesi
+  sayfa verisiyle şişmez).
 - **Frontend statik mod:** `api.ts`'te üçüncü veri yolu — sayfa verisi
   Pages'tan, maç paketleri Releases'tan; mevcut `localcompute` katmanı
   yeniden kullanılır. 2D replay ham demo gerektirmez. My DB aynen çalışır.
@@ -611,9 +614,17 @@ maliyetli **"stüdyo + statik yayın"** modeli benimsendi:
   Kasadan sonra işlenen maçların hamı, `RAW_DELETE_AFTER_READY=1` iken
   maç ready olunca silinir (stats-svc rawCleaner, 10 dk periyot);
   ham demo indirme düğmesi bu maçlarda 410 döner (kaynak: HLTV).
-- **v1'de statikte olmayanlar:** Moments DSL, Pattern Finder, global arama
-  tam sürümü — self-host'ta çalışır etiketiyle; v2'de sınırlı istemci
-  sürümleri (raunt metadata indeksi) hedeflenir.
+- **Taşınabilir istemci sürümleri (v2, 2026-07-12'de tamamlandı):** statik
+  site artık şunları tarayıcıda koşar — WASM Analyze (demo hiç yüklenmez),
+  My DB (IndexedDB), **Moments-lite** (`/api/v1/export/moments-index?map=`
+  sütunlu indeksi + TS motoru; sunucu DSL'iyle parity-testli, presence
+  hariç), **Pattern Finder** (patterns `export=1` modu: harita başına en
+  yeni 20k yörünge + team_id/date, filtreler istemcide), takım ısı
+  haritası **pencere önayarları** (≥3 maçlık takım-harita başına 8 dosya),
+  veto simülatörü (TS portu), notlar+playlist'ler (localStorage/IndexedDB,
+  JSON export/import), global arama (search-index.json). Statikte
+  KALMAYANLAR: presence sorguları, Scenario Lab, serbest heatmap zaman
+  penceresi, maçlar-arası raunt bindirmesi (hepsi canlı ClickHouse ister).
 - **İptal:** auth/üyelik, Stripe/fiyatlandırma, ham demo indirme, sunucu
   kiralama. §9'daki Kubernetes/SSO tablosu tarihsel tasarımdır; güncel
   işletim modeli bu bölümdür.
@@ -628,10 +639,13 @@ Filtre boyutları: `map`, `side`, `team_scope`, `player_scope`, `buy_type`, `rou
 İlk 25 sn'nin utility-nokta kümesi şablon anahtarıdır; ≥3 tekrar eden şablonlar site dağılımı ve kazanma oranıyla saklanır (ml/templates.py, deterministik).
 
 ### Saklama politikası (2026-07-05, ürün kararı)
-Katmanlı: ham .dem (MinIO) ve tick verisi (CH player_ticks/shots) 12 ay
-saklanır; sonrasında otomatik silinir (matches.tick_purged=true). PG meta
-ve istatistikler SÜRESİZ kalır — leaderboard/kariyer geriye dönük bozulmaz.
-Sonuç: >12 ay maçlarda replay/heatmap kapalı ("archived"); CH okuyan ml
+Katmanlı: ham .dem (MinIO) ve tick verisi (CH player_ticks/shots) 18 ay
+saklanır (RETENTION_MONTHS=18, 2026-07-12'de 12→18; kasa istisnası:
+`matches.raw_vault=TRUE` hamları korunur); sonrasında otomatik silinir
+(matches.tick_purged=true). PG meta ve istatistikler SÜRESİZ kalır —
+leaderboard/kariyer geriye dönük bozulmaz. Statik sitedeki yayınlanmış
+paketler de süresizdir (retention onları etkilemez).
+Sonuç: eşiği aşan maçlarda stüdyoda replay/heatmap kapalı ("archived"); CH okuyan ml
 işleri (setups/roles/rotations/flash) o maçları doğal olarak dışarıda
 bırakır. RETENTION_MONTHS env (varsayılan 12; 0=kapalı). 2026-07-05: 24→12 ay (ürün kararı — 1 yıldan eski meta analitik değer taşımıyor, depolama yarıya iner). 2026-07-06: arşiv kapsamı kararı "son 1 yılın S+A tier maçları" — 12 ay pencere kesinleşti (aynı gün denenen 18 ay ara kararı iptal; zaman-azalımı 12+ ay öncesine zaten ~0.06 ağırlık verir).
 
