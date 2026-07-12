@@ -32,7 +32,7 @@ export default function Help() {
         <li><b>Tournament strip:</b> right below it, every tournament in the archive, most recent first. Click one and the search locks to that event.</li>
         <li><b>Search box:</b> type anything — team ("spirit"), player ("donk"), map ("mirage"), tournament ("cologne") or combinations ("spirit mirage"). Matching team, player and 🏆 tournament chips appear above the results; the list filters live.</li>
         <li>The default list shows the most recent 100 <b>encounters</b> — a BO3/BO5 counts as one entry with its maps grouped inside, so a series is never cut in half at the bottom. Search reaches the entire database (the total is in the header).</li>
-        <li><b>Download a demo</b> (self-host): the ⬇ on a match row downloads the raw <code>.dem</code> (watchable in CS2) while the studio still stores it — for cleaned-up or archived matches it points you to HLTV instead. The public site doesn&apos;t store raw demos at all.</li>
+        <li><b>Raw demos aren&apos;t served here:</b> Freezetime works from parsed data, so there is no .dem download — grab demos from HLTV if you want to watch one inside CS2.</li>
         <li><b>Split recordings:</b> when a server restart split a map into two demos, the list shows ONE row with the combined score and an "N parts" badge; inside, round numbers continue across the parts.</li>
       </ul>
 
