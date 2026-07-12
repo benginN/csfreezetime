@@ -16,6 +16,19 @@ API="${FREEZETIME_API:-http://localhost:8090}"
 # WORK oraya çözülüp paketleri yanlış klasöre yazıyordu (2026-07-12 vakası)
 WORK="$(pwd)/.publish/site"
 BUNDLE_BASE="https://github.com/${SITE_REPO}/releases/download"
+# R2 modu (2026-07-12 CORS pivotu): GitHub Releases indirmeleri CORS başlığı
+# taşımıyor → tarayıcı paketleri çekemiyor. infra/.env'de R2_* dolu ise
+# paketler Cloudflare R2'ye gider ve manifest R2 URL'leri yazar.
+# Gerekli env: R2_ENDPOINT, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY,
+#              R2_BUCKET, R2_PUBLIC_BASE (pub-….r2.dev veya özel domain)
+if [ -n "${R2_PUBLIC_BASE:-}" ]; then
+  BUNDLE_BASE="$R2_PUBLIC_BASE"
+fi
+r2_upload_dir() { # $1 = yerel dizin, $2 = hedef önek (turnuva tag'i)
+  docker run --rm -v "$1":/data:ro --entrypoint sh minio/mc -c \
+    "mc alias set r2 '$R2_ENDPOINT' '$R2_ACCESS_KEY_ID' '$R2_SECRET_ACCESS_KEY' >/dev/null && \
+     mc cp --recursive /data/ 'r2/$R2_BUCKET/$2/'"
+}
 
 command -v gh >/dev/null || { echo "gh CLI gerekli (brew install gh)"; exit 1; }
 curl -sf "${API}/api/v1/teams" >/dev/null || { echo "stats-svc yanıt vermiyor (${API}) — stüdyoyu başlat"; exit 1; }
@@ -48,18 +61,23 @@ EXPORT_FLAGS=(-api "$API" -out "$WORK" -bundle-base "$BUNDLE_BASE")
 [ "${1:-}" = "--pages-only" ] && EXPORT_FLAGS+=(-skip-bundles)
 (cd services/stats-svc && go run ./cmd/export "${EXPORT_FLAGS[@]}")
 
-# --- yeni paketleri Releases'a yükle (manifest URL'leri canlanmadan site
-# push edilmez; başarısız yükleme = script durur, manifest push edilmez) ----
+# --- yeni paketleri yükle: R2 (varsa) yoksa GitHub Releases ---------------
+# (manifest URL'leri canlanmadan site push edilmez; başarısız yükleme =
+#  script durur, manifest push edilmez)
 if [ -d "$WORK/bundles-new" ]; then
   for dir in "$WORK"/bundles-new/*/; do
     [ -d "$dir" ] || continue
     tag="$(basename "$dir")"
-    if ! gh release view "$tag" -R "$SITE_REPO" >/dev/null 2>&1; then
-      gh release create "$tag" -R "$SITE_REPO" --title "$tag" \
-        --notes "match replay bundles (auto-published)"
+    if [ -n "${R2_PUBLIC_BASE:-}" ]; then
+      r2_upload_dir "$dir" "$tag"
+    else
+      if ! gh release view "$tag" -R "$SITE_REPO" >/dev/null 2>&1; then
+        gh release create "$tag" -R "$SITE_REPO" --title "$tag" \
+          --notes "match replay bundles (auto-published)"
+      fi
+      find "$dir" -name '*.json.gz' -print0 | xargs -0 -n 50 \
+        gh release upload "$tag" -R "$SITE_REPO" --clobber
     fi
-    find "$dir" -name '*.json.gz' -print0 | xargs -0 -n 50 \
-      gh release upload "$tag" -R "$SITE_REPO" --clobber
     rm -rf "$dir"
     echo "uploaded bundles: $tag"
   done
