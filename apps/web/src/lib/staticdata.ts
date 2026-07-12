@@ -109,10 +109,13 @@ export async function staticSearch(q: string): Promise<SearchResult> {
   indexP ??= fetch(BASE + 'data/search-index.json').then((r) => r.json());
   const idx = await indexP;
   const tokens = q.toLowerCase().split(/\s+/).filter(Boolean);
-  // boş sorgu = tüm maç listesi (sunucu davranışıyla uyumlu; MatchPage
-  // parça-kardeş tespiti bunu kullanır)
+  // boş sorgu = tüm maç listesi + turnuva şeridi (sunucu davranışıyla
+  // uyumlu; MatchPage parça-kardeş tespiti ve Home TournamentStrip kullanır)
   if (!tokens.length) {
-    return { total: idx.matches.length, teams: [], players: [], tournaments: [], matches: idx.matches };
+    return {
+      total: idx.matches.length, teams: [], players: [],
+      tournaments: idx.tournaments ?? [], matches: idx.matches,
+    };
   }
   const teams = (idx.teams ?? []).filter((t) => matchesAll(t.name, tokens)).slice(0, 8);
   const players = (idx.players ?? []).filter((p) => matchesAll(p.name, tokens)).slice(0, 8);

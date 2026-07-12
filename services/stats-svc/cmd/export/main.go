@@ -455,9 +455,13 @@ func writeSearchIndex(out string, teams []team, players map[string]string, match
 		Name string `json:"name"`
 	}
 	tCount := map[string]int{}
+	tLast := map[string]string{} // turnuva → en yeni played_at (şerit sırası)
 	for _, m := range matches {
 		if m.Tournament != nil && *m.Tournament != "" {
 			tCount[*m.Tournament]++
+			if d := str(m.PlayedAt); d > tLast[*m.Tournament] {
+				tLast[*m.Tournament] = d
+			}
 		}
 	}
 	idx := struct {
@@ -484,7 +488,14 @@ func writeSearchIndex(out string, teams []team, players map[string]string, match
 			Matches int    `json:"matches"`
 		}{name, n})
 	}
-	sort.Slice(idx.Tournaments, func(i, j int) bool { return idx.Tournaments[i].Name < idx.Tournaments[j].Name })
+	// sunucu search'ün boş-sorgu davranışıyla aynı: en güncel etkinlik önde
+	sort.Slice(idx.Tournaments, func(i, j int) bool {
+		a, b := idx.Tournaments[i], idx.Tournaments[j]
+		if tLast[a.Name] != tLast[b.Name] {
+			return tLast[a.Name] > tLast[b.Name]
+		}
+		return a.Name < b.Name
+	})
 	b, _ := json.Marshal(idx)
 	must(os.MkdirAll(filepath.Join(out, "data"), 0o755))
 	must(os.WriteFile(filepath.Join(out, "data", "search-index.json"), b, 0o644))
