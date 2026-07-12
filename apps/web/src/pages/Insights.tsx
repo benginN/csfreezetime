@@ -91,6 +91,29 @@ export default function Insights() {
         recent ones) before they are allowed to serve you a prediction.
       </p>
 
+      {/* 1 — envanter (kullanıcı isteğiyle sayfanın tepesinde, 2026-07-12) */}
+      <h2>Data inventory</h2>
+      <p className="meta" style={{ maxWidth: 720 }}>
+        What the models are fed. More rounds per team &amp; map = sharper, more
+        trustworthy predictions.
+      </p>
+      {inv && (
+        <div className="grid cards" style={{ marginTop: 12 }}>
+          {([
+            [inv.matches, 'matches parsed'], [inv.rounds, 'rounds analyzed'],
+            [inv.clusters, 'strategy clusters'], [inv.tendency_rows, 'team tendencies'],
+            [inv.vs_rows, 'opponent-calibrated rows'], [inv.winprob_cells, 'win-prob states'],
+            [inv.anomaly_flags, 'anomaly flags'], [inv.exec_templates, 'execute templates'],
+            [inv.clutches, 'clutch situations'],
+          ] as [number, string][]).map(([n, label]) => (
+            <div key={label} className="card" style={{ textAlign: 'center', padding: '10px 6px' }}>
+              <div style={{ fontSize: 22, fontWeight: 700 }}>{n.toLocaleString('en-US')}</div>
+              <div className="meta">{label}</div>
+            </div>
+          ))}
+        </div>
+      )}
+
       {/* 4 — tahmin laboratuvarı */}
       <h2>Prediction lab — pick a team, see what the site would predict</h2>
       <p className="meta" style={{ maxWidth: 720 }}>
@@ -262,29 +285,6 @@ export default function Insights() {
           beats the baseline somewhere. It re-enters the race on every archive
           update, so this can change as data grows.
         </p>
-      )}
-
-      {/* 1 — envanter */}
-      <h2>Data inventory</h2>
-      <p className="meta" style={{ maxWidth: 720 }}>
-        What the models are fed. More rounds per team &amp; map = sharper, more
-        trustworthy predictions.
-      </p>
-      {inv && (
-        <div className="grid cards" style={{ marginTop: 12 }}>
-          {([
-            [inv.matches, 'matches parsed'], [inv.rounds, 'rounds analyzed'],
-            [inv.clusters, 'strategy clusters'], [inv.tendency_rows, 'team tendencies'],
-            [inv.vs_rows, 'opponent-calibrated rows'], [inv.winprob_cells, 'win-prob states'],
-            [inv.anomaly_flags, 'anomaly flags'], [inv.exec_templates, 'execute templates'],
-            [inv.clutches, 'clutch situations'],
-          ] as [number, string][]).map(([n, label]) => (
-            <div key={label} className="card" style={{ textAlign: 'center', padding: '10px 6px' }}>
-              <div style={{ fontSize: 22, fontWeight: 700 }}>{n.toLocaleString('en-US')}</div>
-              <div className="meta">{label}</div>
-            </div>
-          ))}
-        </div>
       )}
 
       {/* 5 — küme gezgini */}
