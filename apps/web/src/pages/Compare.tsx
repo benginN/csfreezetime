@@ -160,7 +160,8 @@ function CompareBody({
 
       {/* Isı karşılaştırma statikte yok (sürekli t0/t1 penceresi canlı sorgu
           ister); veto ise artık statikte TARAYICIDA hesaplanıyor (vetosim.ts) */}
-      {!isStatic && <HeatCompare aId={aId} bId={bId} aName={A.team} bName={B.team} mapName={mapName} />}
+      {/* statikte de çalışır: exporter takım-harita başına pencere önayarlarını döker */}
+      <HeatCompare aId={aId} bId={bId} aName={A.team} bName={B.team} mapName={mapName} />
 
       <VetoSim aId={aId} bId={bId} aName={A.team} bName={B.team} />
     </>
@@ -627,7 +628,9 @@ function HeatMini({
     <div className="card">
       <div className="teams">
         <span>{name}</span>
-        <span className="meta">{heat.data?.round_count ?? '…'} rounds</span>
+        <span className="meta">
+          {heat.isError ? 'not published — needs 3+ matches on this map' : `${heat.data?.round_count ?? '…'} rounds`}
+        </span>
       </div>
       <canvas ref={cvRef} className="flat" width={MAPW} height={MAPW} style={{ marginTop: 6 }} />
     </div>

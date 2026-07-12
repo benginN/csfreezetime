@@ -267,6 +267,27 @@ func main() {
 			pages = append(pages,
 				"/api/v1/teams/"+id+"/control?map="+q+"&since=&roster_min=0",
 				"/api/v1/report?team_id="+t.TeamID+"&map="+q+"&since=&roster_min=0")
+			// Takım ısı haritaları (Compare + Report pencere önayarları).
+			// Yalnız ≥3 maçlık takım-harita kombinasyonları: altı istatistiksel
+			// gürültü, hacim de kontrolde kalsın (pencere başına ~40 KB).
+			nOnMap := 0
+			for _, m := range matches {
+				if m.MapName != nil && *m.MapName == mp &&
+					((m.TeamAID != nil && *m.TeamAID == t.TeamID) ||
+						(m.TeamBID != nil && *m.TeamBID == t.TeamID)) {
+					nOnMap++
+				}
+			}
+			if nOnMap >= 3 {
+				for _, side := range []string{"T", "CT"} {
+					for _, w := range [][2]string{{"0", "25"}, {"25", "115"}, {"0", "115"}} {
+						pages = append(pages, "/api/v1/teams/"+id+"/heatmap?map="+q+
+							"&side="+side+"&t0="+w[0]+"&t1="+w[1]+"&since=&roster_min=0")
+					}
+					pages = append(pages, "/api/v1/teams/"+id+"/heatmap?map="+q+
+						"&side="+side+"&anchor=plant&t0=0&t1=40&since=&roster_min=0")
+				}
+			}
 			for _, side := range []string{"T", "CT"} {
 				pages = append(pages, "/api/v1/predict?team_id="+t.TeamID+"&map="+q+"&side="+side)
 				for _, buy := range []string{"pistol", "eco", "semi", "force", "full"} {

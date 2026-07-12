@@ -119,12 +119,21 @@ cp "$WORK/index.html" "$WORK/404.html"
 touch "$WORK/.nojekyll"
 
 # --- push ---------------------------------------------------------------------
+# Site tarihçesi değersizdir ama her yayın ~300 MB sayfa verisini yeniden
+# yazar; normal commit'lerle .git sınırsız büyür. Bu yüzden her yayın TEK
+# amend'lenmiş commit olarak force-push edilir (Pages için sorunsuz).
 matches=$(python3 -c "import json;print(len(json.load(open('$WORK/data/manifest.json'))['matches']))" 2>/dev/null || echo '?')
 git -C "$WORK" add -A
 if git -C "$WORK" diff --cached --quiet; then
   echo "değişiklik yok — push atlanıyor"
 else
-  git -C "$WORK" commit -m "publish $(date -u +%Y-%m-%dT%H:%MZ) (${matches} matches)"
-  git -C "$WORK" push -u origin "HEAD:$SITE_BRANCH"
+  # ebeveynsiz commit: dal her yayında tek commit'e iner, eski tarihçe
+  # gc ile atılır (yoksa amend bile eski ataları rehin tutar)
+  TREE=$(git -C "$WORK" write-tree)
+  NEW=$(git -C "$WORK" commit-tree "$TREE" -m "publish $(date -u +%Y-%m-%dT%H:%MZ) (${matches} matches)")
+  git -C "$WORK" reset -q --soft "$NEW"
+  git -C "$WORK" push -q --force -u origin "HEAD:$SITE_BRANCH"
+  git -C "$WORK" reflog expire --expire=now --all 2>/dev/null || true
+  git -C "$WORK" gc -q --prune=now 2>/dev/null || true
 fi
 echo "✔ publish tamam — ${matches} maç manifestte"

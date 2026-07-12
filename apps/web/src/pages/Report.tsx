@@ -333,11 +333,9 @@ export default function Report() {
         </div>
       </div>
 
-      {/* 6 — Positioning heatmaps (kullanıcı seçimli pencere + hizalama).
-          Statikte yok: sürekli t0/t1 penceresi canlı ClickHouse ister. */}
-      {!isStatic && (
-        <PositioningSection teamId={teamId} mapName={mapName} windowNote={d.window_since} />
-      )}
+      {/* 6 — Positioning heatmaps. Stüdyoda serbest t0/t1 penceresi; statikte
+          exporter'ın döktüğü pencere önayarları (≥3 maçlık kombinasyonlar). */}
+      <PositioningSection teamId={teamId} mapName={mapName} windowNote={d.window_since} />
 
       {/* 6.4 — Raunt bindirmesi: tüm maçlarda aynı raunt, ghost izleri.
           Statikte yok: maçlar-arası stack sunucu işidir. */}
@@ -893,21 +891,40 @@ function PositioningSection({ teamId, mapName, windowNote }: {
   const [anchor, setAnchor] = useState<'start' | 'plant'>('start');
   const [t0, setT0] = useState(0);
   const [t1, setT1] = useState(25);
+  // statikte yalnız dökülen pencereler seçilebilir (exporter ile sözleşme)
+  const PRESETS: { label: string; a: 'start' | 'plant'; w: [number, number] }[] = [
+    { label: 'first 25 s', a: 'start', w: [0, 25] },
+    { label: 'after 25 s', a: 'start', w: [25, 115] },
+    { label: 'whole round', a: 'start', w: [0, 115] },
+    { label: 'post-plant 0-40 s', a: 'plant', w: [0, 40] },
+  ];
+  const preset = PRESETS.findIndex((p) => p.a === anchor && p.w[0] === t0 && p.w[1] === t1);
   return (
     <>
       <h2>
         Positioning <span className="meta">({windowNote ? `rounds since ${windowNote}` : 'all archived rounds'})</span>
         <span className="toolbar" style={{ display: 'inline-flex', marginLeft: 10, gap: 6 }}>
-          <select value={anchor} onChange={(e) => setAnchor(e.target.value as 'start' | 'plant')}>
-            <option value="start">from round start</option>
-            <option value="plant">after bomb plant</option>
-          </select>
-          <input type="number" min={0} max={110} style={{ width: 54 }} value={t0}
-            onChange={(e) => setT0(Math.max(0, Number(e.target.value)))} />
-          <span className="meta">→</span>
-          <input type="number" min={1} max={115} style={{ width: 54 }} value={t1}
-            onChange={(e) => setT1(Math.max(1, Number(e.target.value)))} />
-          <span className="meta">s</span>
+          {isStatic ? (
+            <select value={preset === -1 ? 0 : preset} onChange={(e) => {
+              const p = PRESETS[Number(e.target.value)];
+              setAnchor(p.a); setT0(p.w[0]); setT1(p.w[1]);
+            }}>
+              {PRESETS.map((p, i) => <option key={p.label} value={i}>{p.label}</option>)}
+            </select>
+          ) : (
+            <>
+              <select value={anchor} onChange={(e) => setAnchor(e.target.value as 'start' | 'plant')}>
+                <option value="start">from round start</option>
+                <option value="plant">after bomb plant</option>
+              </select>
+              <input type="number" min={0} max={110} style={{ width: 54 }} value={t0}
+                onChange={(e) => setT0(Math.max(0, Number(e.target.value)))} />
+              <span className="meta">→</span>
+              <input type="number" min={1} max={115} style={{ width: 54 }} value={t1}
+                onChange={(e) => setT1(Math.max(1, Number(e.target.value)))} />
+              <span className="meta">s</span>
+            </>
+          )}
         </span>
       </h2>
       <div className="grid cards heatgrid">
@@ -937,9 +954,11 @@ function TeamHeat({
   const [roster] = useRoster();
   const heat = useQuery({
     queryKey: ['teamHeat', teamId, mapName, side, t0, t1, since, roster, anchor],
+    // anchor=start URL'e yazılmaz: sunucu varsayılanı zaten start ve böylece
+    // start pencereleri Compare'in dosyalarıyla (statik export) aynı ada düşer
     queryFn: () => api.teamHeatmap(teamId, new URLSearchParams({
       map: mapName, side, t0: String(t0), t1: String(t1), since,
-      roster_min: String(roster), anchor,
+      roster_min: String(roster), ...(anchor === 'plant' ? { anchor } : {}),
     })),
   });
   useEffect(() => {
@@ -953,7 +972,9 @@ function TeamHeat({
     <div className="card">
       <div className="teams">
         <span><span className={`badge ${side}`}>{side}</span> {tag}</span>
-        <span className="meta">{heat.data?.round_count ?? '…'} rounds</span>
+        <span className="meta">
+          {heat.isError ? 'not published — needs 3+ matches on this map' : `${heat.data?.round_count ?? '…'} rounds`}
+        </span>
       </div>
       <canvas ref={cvRef} className="flat" width={MAPW} height={MAPW} style={{ marginTop: 6 }} />
     </div>
