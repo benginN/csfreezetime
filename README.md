@@ -26,6 +26,20 @@ internal docs (`docs/mimari.md`) and code comments are in Turkish.
 > your team, that's payment enough. If you like it, a ⭐ makes my day —
 > and if it *really* helps, you can [buy me a coffee](https://ko-fi.com/bengin) ☕.
 
+<table>
+<tr>
+<td><a href="docs/screenshots/replay.png"><img src="docs/screenshots/replay.png" alt="2D replay with HUD, kill feed and round list"></a><br><sub><b>2D replay</b> — positions, HP/economy HUD, nade markers, ghost rounds</sub></td>
+<td><a href="docs/screenshots/report.png"><img src="docs/screenshots/report.png" alt="Opponent report utility habits section"></a><br><sub><b>Opponent report</b> — utility habits, setups, roles, predictions</sub></td>
+</tr>
+<tr>
+<td><a href="docs/screenshots/patterns.png"><img src="docs/screenshots/patterns.png" alt="Pattern Finder grenade landing spots and timing histogram"></a><br><sub><b>Pattern Finder</b> — grenade habits with round-clock timing</sub></td>
+<td><a href="docs/screenshots/moments.png"><img src="docs/screenshots/moments.png" alt="Moment search results"></a><br><sub><b>Moments</b> — structured event search, one click into the replay</sub></td>
+</tr>
+<tr>
+<td colspan="2"><a href="docs/screenshots/home.png"><img src="docs/screenshots/home.png" alt="Home page with tournament strip and match series"></a><br><sub><b>Home</b> — 2,600+ pro matches, grouped by series, searchable</sub></td>
+</tr>
+</table>
+
 ---
 
 ## Two ways to use Freezetime
