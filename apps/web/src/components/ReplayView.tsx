@@ -6,6 +6,20 @@ import { DPR, insetGeom, isVectorBase, loadMapBase, renderMapBaseCanvas, RADAR, 
 import { renderHeatLayer } from '../lib/heatpaint';
 import { chipTitle, roundDividers, winnerTeamClass } from '../lib/rounds';
 import { isStatic } from '../lib/staticdata';
+import { getNoteAudio } from '../lib/localdb';
+
+// statik sitede sesli not: blob IndexedDB'den okunur (localcollab kaydeder)
+function StaticNoteAudio({ id }: { id: number }) {
+  const [url, setUrl] = useState<string | null>(null);
+  useEffect(() => {
+    let u: string | null = null;
+    getNoteAudio(id).then((b) => { if (b) { u = URL.createObjectURL(b); setUrl(u); } });
+    return () => { if (u) URL.revokeObjectURL(u); };
+  }, [id]);
+  return url
+    ? <audio controls preload="none" src={url} style={{ height: 24, width: 130 }} />
+    : null;
+}
 
 const W = 860;
 // Zemin dokusu için aşırı örnekleme: zoom'da bloklaşmayı azaltır
@@ -1777,7 +1791,7 @@ export default function ReplayView({
                 </Fragment>
               ))}
             </div>
-            {!localMode && !isStatic && (
+            {!localMode && (
             <div className="row">
               <label style={{ minWidth: 0 }}>🎬</label>
               <select value={plSel} onChange={(e) => setPlSel(e.target.value)}>
@@ -1972,8 +1986,8 @@ export default function ReplayView({
 
 
         {/* Notlar: raunt+saniyeye bağlı metin/sesli koç notları
-            (statik sitede sunucu yok → panel gizli) */}
-        {!localMode && !isStatic && (
+            (statik sitede tarayıcıda yaşarlar — localcollab.ts) */}
+        {!localMode && (
         <div className="layerpanel">
           <label className="layerhead">📝 Notes {roundNotes.length > 0 && <span className="meta">({roundNotes.length} this round)</span>}</label>
           <div className="layerbody">
@@ -1988,8 +2002,10 @@ export default function ReplayView({
                   {n.author && <span className="meta"> — {n.author}</span>}
                 </span>
                 {n.has_audio && (
-                  <audio controls preload="none" src={`/api/v1/notes/${n.note_id}/audio`}
-                    style={{ height: 24, width: 130 }} />
+                  isStatic
+                    ? <StaticNoteAudio id={n.note_id} />
+                    : <audio controls preload="none" src={`/api/v1/notes/${n.note_id}/audio`}
+                        style={{ height: 24, width: 130 }} />
                 )}
                 <button className="ghost" style={{ padding: '0 6px' }}
                   onClick={async () => { await api.noteDelete(n.note_id); qc.invalidateQueries({ queryKey: ['notes', matchId] }); }}>

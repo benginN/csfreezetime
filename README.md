@@ -46,11 +46,12 @@ on your own machine ([step-by-step setup](#step-by-step-setup-from-zero)).
 | 2D replay, match heatmaps, ghost rounds | ✅ | ✅ |
 | Opponent reports, predictions, ML Lab, leaderboards, compare | ✅ | ✅ |
 | Search (teams / players / tournaments / matches) | ✅ | ✅ |
-| Moments (structured round search), Pattern Finder, Scenarios | — | ✅ |
-| Veto simulator, free-range heatmap time windows, round overlay | — | ✅ |
 | **Analyze your own demo** (parsed in-browser, never uploaded) | ✅ | ✅ |
 | **My DB** — your own private demo database, with local team reports | ✅ | ✅ |
-| Notes, playlists | — | ✅ |
+| **Veto simulator** (computed in-browser on the public site) | ✅ | ✅ |
+| **Notes & playlists** (stored in your browser, export/import as a file) | ✅ | ✅ |
+| Moments (structured round search), Pattern Finder, Scenarios | — | ✅ |
+| Free-range heatmap time windows, cross-match round overlay | — | ✅ |
 | **Feeding it your own demos** | — | ✅ |
 
 ### If you just want to use the site (visitors)

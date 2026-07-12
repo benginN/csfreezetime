@@ -56,7 +56,7 @@ export default function App() {
         {!isStatic && <a href={B + 'moments'} style={nl}>🔎 Moments</a>}
         <a href={B + 'compare'} style={nl}>⚔️ Compare</a>
         <a href={B + 'leaderboards'} style={nl}>🏆 Boards</a>
-        {!isStatic && <a href={B + 'playlists'} style={nl}>🎬 Playlists</a>}
+        <a href={B + 'playlists'} style={nl}>🎬 Playlists</a>
         <a href={B + 'analyze'} style={nl}>⚡ Analyze</a>
         <a href={B + 'insights'} style={nl}>🧠 ML Lab</a>
         {!isStatic && <a href={B + 'patterns'} style={nl}>🧭 Patterns</a>}
@@ -84,7 +84,8 @@ export default function App() {
           <Route path="/player/:playerId" element={<Player />} />
           <Route path="/help" element={<Help />} />
           <Route path="/leaderboards" element={<Leaderboards />} />
-          <Route path="/playlists" element={studioOnly('Playlists', <Playlists />)} />
+          {/* Playlist'ler + notlar statikte tarayıcıda yaşar (localcollab.ts) */}
+          <Route path="/playlists" element={<Playlists />} />
           {/* statikte Analyze = WASM (tarayıcıda parse); stüdyoda sunuculu sürüm */}
           <Route path="/analyze" element={isStatic ? <WasmAnalyze /> : <Analyze />} />
           <Route path="/insights" element={<Insights />} />

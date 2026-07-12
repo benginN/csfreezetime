@@ -494,23 +494,37 @@ export interface Note {
   created_at: string;
 }
 
+// statikte notlar & playlist'ler tarayıcıda yaşar (localcollab.ts)
+const collab = () => import('./lib/localcollab');
+
 export const api = {
-  playlists: () =>
-    get<{ playlists: { playlist_id: number; name: string; items: number }[] }>('/api/v1/playlists'),
-  playlistCreate: (name: string) => post<{ playlist_id: number }>('/api/v1/playlists', { name }),
-  playlist: (id: number | string) =>
-    get<{ name: string; items: PlaylistItem[] }>(`/api/v1/playlists/${id}`),
-  playlistAdd: (id: number, item: { match_id: string; round_number: number; t_sec?: number; note?: string }) =>
-    post<{ item_id: number }>(`/api/v1/playlists/${id}/items`, item),
-  playlistDeleteItem: (id: number | string, item: number) =>
-    fetch(`/api/v1/playlists/${id}/items/${item}`, { method: 'DELETE' }).then((r) => r.json()),
-  playlistDelete: (id: number) =>
-    fetch(`/api/v1/playlists/${id}`, { method: 'DELETE' }).then((r) => r.json()),
-  notes: (matchId: string) => get<{ notes: Note[] }>(`/api/v1/matches/${matchId}/notes`),
-  noteCreate: (matchId: string, form: FormData) =>
-    fetch(`/api/v1/matches/${matchId}/notes`, { method: 'POST', body: form }).then((r) => r.json()),
-  noteDelete: (id: number) =>
-    fetch(`/api/v1/notes/${id}`, { method: 'DELETE' }).then((r) => r.json()),
+  playlists: async () => isStatic
+    ? (await collab()).localPlaylists.list()
+    : get<{ playlists: { playlist_id: number; name: string; items: number }[] }>('/api/v1/playlists'),
+  playlistCreate: async (name: string) => isStatic
+    ? (await collab()).localPlaylists.create(name)
+    : post<{ playlist_id: number }>('/api/v1/playlists', { name }),
+  playlist: async (id: number | string) => isStatic
+    ? (await collab()).localPlaylists.get(id)
+    : get<{ name: string; items: PlaylistItem[] }>(`/api/v1/playlists/${id}`),
+  playlistAdd: async (id: number, item: { match_id: string; round_number: number; t_sec?: number; note?: string }) => isStatic
+    ? (await collab()).localPlaylists.addItem(id, item)
+    : post<{ item_id: number }>(`/api/v1/playlists/${id}/items`, item),
+  playlistDeleteItem: async (id: number | string, item: number) => isStatic
+    ? (await collab()).localPlaylists.deleteItem(id, item)
+    : fetch(`/api/v1/playlists/${id}/items/${item}`, { method: 'DELETE' }).then((r) => r.json()),
+  playlistDelete: async (id: number) => isStatic
+    ? (await collab()).localPlaylists.delete(id)
+    : fetch(`/api/v1/playlists/${id}`, { method: 'DELETE' }).then((r) => r.json()),
+  notes: async (matchId: string) => isStatic
+    ? (await collab()).localNotes.list(matchId)
+    : get<{ notes: Note[] }>(`/api/v1/matches/${matchId}/notes`),
+  noteCreate: async (matchId: string, form: FormData) => isStatic
+    ? (await collab()).localNotes.create(matchId, form)
+    : fetch(`/api/v1/matches/${matchId}/notes`, { method: 'POST', body: form }).then((r) => r.json()),
+  noteDelete: async (id: number) => isStatic
+    ? (await collab()).localNotes.delete(id)
+    : fetch(`/api/v1/notes/${id}`, { method: 'DELETE' }).then((r) => r.json()),
   search: (q: string) =>
     isStatic ? staticSearch(q) : get<SearchResult>('/api/v1/search?q=' + encodeURIComponent(q)),
   teams: () => get<Team[]>('/api/v1/teams'),

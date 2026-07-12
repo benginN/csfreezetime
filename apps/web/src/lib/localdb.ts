@@ -87,6 +87,14 @@ export const listVoiceIds = () =>
     .then((ks) => new Set(ks.map(String)
       .filter((k) => k.startsWith('voice:')).map((k) => k.slice(6))));
 
+// sesli not blob'ları (statik sitede notlar tarayıcıda yaşar — localcollab.ts)
+export const putNoteAudio = (id: number, f: Blob) =>
+  tx('misc', 'readwrite', (s) => s.put(f, `noteaudio:${id}`));
+export const getNoteAudio = (id: number) =>
+  tx<Blob | undefined>('misc', 'readonly', (s) => s.get(`noteaudio:${id}`));
+export const deleteNoteAudio = (id: number) =>
+  tx('misc', 'readwrite', (s) => s.delete(`noteaudio:${id}`));
+
 // klasör tutamacı (File System Access API) — IndexedDB tutamaç saklayabilir
 export const saveDirHandle = (h: unknown) =>
   tx('misc', 'readwrite', (s) => s.put(h, 'dirHandle'));

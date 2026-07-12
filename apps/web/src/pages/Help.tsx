@@ -17,12 +17,13 @@ export default function Help() {
         Freezetime runs in two ways. The <b>public site</b> (hosted free on
         GitHub) is a read-only copy of a curated pro archive: replays,
         heatmaps, reports, predictions, leaderboards and search all work right
-        here — and <b>⚡ Analyze</b> even parses <b>your own demo inside your
-        browser</b> (nothing is uploaded). Features that need a live database —
-        <b> Moments</b> search, <b>Pattern Finder</b>, <b>Scenarios</b>, the
-        veto simulator, custom heatmap time windows, playlists &amp; notes, and
-        building a private <b>archive</b> of your own demos — need the
-        <b> self-hosted studio</b>:
+        here — plus <b>⚡ Analyze</b> parses <b>your own demo inside your
+        browser</b> (nothing is uploaded), <b>My DB</b> builds a private
+        database from a folder of demos, the <b>veto simulator</b> runs
+        client-side, and <b>notes &amp; playlists</b> live in your browser
+        (with file export/import). Only the heaviest archive-wide tools —
+        <b> Moments</b> search, <b>Pattern Finder</b>, <b>Scenarios</b> and
+        free-range heatmap time windows — need the <b>self-hosted studio</b>:
         clone the open-source repo at{' '}
         <a href="https://github.com/benginN/csfreezetime" target="_blank" rel="noreferrer">
           <b>github.com/benginN/csfreezetime</b>

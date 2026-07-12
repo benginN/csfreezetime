@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../api';
+import { isStatic } from '../lib/staticdata';
 
 // Playlist'ler: an koleksiyonları. "Play all" ilk öğeye gider; replay her
 // raunt bitişinde playlist modunda otomatik sıradakine geçer (VOD review).
@@ -18,9 +19,33 @@ export default function Playlists() {
     qc.invalidateQueries({ queryKey: ['playlists'] });
   }
 
+  const importRef = useRef<HTMLInputElement>(null);
+  async function doExport() {
+    const { exportCollab } = await import('../lib/localcollab');
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(exportCollab());
+    a.download = 'freezetime-playlists-notes.json';
+    a.click();
+    URL.revokeObjectURL(a.href);
+  }
+  async function doImport(f: File) {
+    const { importCollab } = await import('../lib/localcollab');
+    try {
+      importCollab(await f.text());
+      qc.invalidateQueries({ queryKey: ['playlists'] });
+    } catch (err) { window.alert(String(err)); }
+  }
+
   return (
     <>
       <h1>Playlists <span className="meta">— moment collections for VOD review</span></h1>
+      {isStatic && (
+        <p className="meta" style={{ maxWidth: 640 }}>
+          Playlists and notes live <b>in this browser</b> (nothing is stored on
+          any server). Use <b>Export</b> to save them as a file — back it up or
+          move it to another machine — and <b>Import</b> to load one.
+        </p>
+      )}
       <div className="toolbar">
         <input
           style={{ width: 220 }}
@@ -30,6 +55,14 @@ export default function Playlists() {
           onKeyDown={(e) => e.key === 'Enter' && create()}
         />
         <button disabled={!name.trim()} onClick={create}>Create</button>
+        {isStatic && (
+          <>
+            <button className="ghost" onClick={doExport}>⬇ Export</button>
+            <button className="ghost" onClick={() => importRef.current?.click()}>⬆ Import</button>
+            <input ref={importRef} type="file" accept=".json" style={{ display: 'none' }}
+              onChange={(e) => e.target.files?.[0] && doImport(e.target.files[0])} />
+          </>
+        )}
       </div>
       <div className="grid cards">
         {(lists.data?.playlists ?? []).map((p) => (
