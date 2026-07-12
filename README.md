@@ -33,8 +33,8 @@ internal docs (`docs/mimari.md`) and code comments are in Turkish.
 **1. 🌐 Browse the public archive — nothing to install.** A free, read-only
 copy of the site with a curated pro-match archive is published on GitHub Pages:
 
-> **https://benginN.github.io** — 2D replays, opponent reports, predictions,
-> ML Lab and leaderboards, straight from your browser.
+> **https://benginn.github.io/csfreezetime** — 2D replays, opponent reports,
+> predictions, ML Lab and leaderboards, straight from your browser.
 
 **2. 🖥 Self-host the full studio.** The public site is a *static snapshot*; the
 live-query features below need the real databases running. For those — or to
@@ -55,7 +55,7 @@ on your own machine ([step-by-step setup](#step-by-step-setup-from-zero)).
 
 Nothing to install, no account:
 
-1. Open **https://benginN.github.io**.
+1. Open **https://benginn.github.io/csfreezetime**.
 2. Pick a match from the home page (search by team, player or tournament).
    The first time you open a match its replay bundle (a few MB) downloads and
    is cached by your browser — after that it works instantly, even offline.
@@ -129,7 +129,6 @@ Once you've fed it some demos, the web app (`http://localhost:8090`) gives you:
     still lost) and **surprise rounds** (a strategy the model gave <15%).
   - **Win probability** sparkline above the timeline, computed from archive
     history (alive counts, bomb state, clock).
-  - **Download the raw demo** straight from any match row.
 - **Heatmap.** Football-style position density for any set of rounds you pick,
   one side or both, one player or everyone. Lower levels (Nuke) render in an
   inset.
@@ -442,7 +441,7 @@ deploy from branch `main`) — that last step is one-time.
 >   auto-pushed to the private `freezetime-claudememoryforbackup` repo on
 >   every commit).
 > - **On GitHub:** code (`csfreezetime`), the live site + page data + replay
->   bundles (`benginN.github.io` + its Releases), assistant memory (private).
+>   bundles (the code repo's `gh-pages` branch; replay bundles live in Cloudflare R2), assistant memory (private).
 > - **If the SSD dies:** nothing irreplaceable is lost — code, the published
 >   archive and the memory are on GitHub; raw demos re-download from HLTV.
 > - **New machine / recovery:** clone the code repo, clone the private

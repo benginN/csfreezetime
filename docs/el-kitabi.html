@@ -36,7 +36,7 @@ nerede yaşadığı, haftalık rutin ve sorun reçeteleri. Güncellemek için: C
 <p><b>Freezetime</b>, CS2 turnuva demolarını koç-seviyesi istihbarata çeviren açık kaynak
 platform. İki yüzü var:</p>
 <table>
-<tr><th></th><th>🖥 Stüdyo (senin Mac + T7 SSD)</th><th>🌐 Site (benginN.github.io)</th></tr>
+<tr><th></th><th>🖥 Stüdyo (senin Mac + T7 SSD)</th><th>🌐 Site (benginn.github.io/csfreezetime)</th></tr>
 <tr><td><b>Ne yapar</b></td><td>Demoları işler, veritabanlarını ve ML'i besler</td>
 <td>Herkese açık, salt-okunur arşiv: replay, rapor, tahmin</td></tr>
 <tr><td><b>Ne zaman çalışır</b></td><td>Sadece sen açınca (T7 takılıyken)</td>
@@ -88,8 +88,8 @@ backfill dışına taşı, HLTV'den yeniden indir; script kendiliğinden devam e
 <tr><td>İndirme sahası</td><td><code>…/downloads/</code> (indirme yöneticisinin hedefi)</td></tr>
 <tr><td>Hafıza yedeği (T7)</td><td><code>…/memory-backup/</code> (her commit'te otomatik senkron)</td></tr>
 <tr><td>Bu rehberin PDF'i</td><td><code>/Volumes/T7/cs2-freezetime/FREEZETIME-REHBER.pdf</code></td></tr>
-<tr><td>Canlı site + sayfa verileri</td><td>github.com/benginN/<b>benginN.github.io</b> (site: https://benginN.github.io)</td></tr>
-<tr><td>Replay paketleri (maç başına ~6-9MB)</td><td>aynı reponun <b>Releases</b> bölümü (turnuva başına bir release)</td></tr>
+<tr><td>Canlı site + sayfa verileri</td><td><b>csfreezetime</b> reposunun gh-pages dalı (site: benginn.github.io/csfreezetime); replay paketleri Cloudflare R2'de</td></tr>
+<tr><td>Replay paketleri (maç başına ~6-9MB)</td><td>Cloudflare <b>R2</b>, bucket <code>freezetime-bundles</code> (~0.20$/ay; eski Releases yedeği kök repo silinince tarihe karışır — R2 tek canlı kaynak)</td></tr>
 <tr><td>Kod yedeği (public, MIT)</td><td>github.com/benginN/<b>csfreezetime</b> (her commit otomatik itilir)</td></tr>
 <tr><td>Claude hafıza yedeği (private)</td><td>github.com/benginN/<b>freezetime-claudememoryforbackup</b></td></tr>
 <tr><td>Şifreler/token (ADMIN_TOKEN vb.)</td><td><code>cs2-platform/infra/.env</code> (git'e girmez)</td></tr>
