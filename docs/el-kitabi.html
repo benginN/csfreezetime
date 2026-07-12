@@ -44,9 +44,15 @@ platform. İki yüzü var:</p>
 <tr><td><b>Veri akışı</b></td><td>HLTV rar → backfill/ → işlenir</td>
 <td><code>publish</code> anında stüdyodan "basılır"</td></tr>
 </table>
-<p>Model: <b>yuvarlanan 1 yıl</b> — stüdyo son 12 ayı tutar (eskiler kendiliğinden temizlenir),
-site ise yayınlanan her maçı <b>sonsuza dek</b> sunar. S-tier kuruluş arşivinin (Tem'25–Tem'26)
-ham demoları MinIO'da "kasa"da; sonrakilerin hamı işlenince otomatik silinir.</p>
+<p>Model: <b>yuvarlanan arşiv</b> — stüdyo son <b>18 ayı</b> tutar (eskiler kendiliğinden
+temizlenir; RETENTION_MONTHS=18, infra/.env), site ise yayınlanan her maçı <b>sonsuza dek</b>
+sunar. S-tier kuruluş arşivinin (Tem'25–Tem'26) ham demoları MinIO'da "kasa"da; sonrakilerin
+hamı işlenince otomatik silinir.</p>
+<p><b>Sitede artık istemci-tarafı da çok şey var</b> (2026-07-12): ziyaretçiler kendi
+demolarını tarayıcıda analiz eder (⚡ Analyze), kendi özel veritabanını kurar (My DB),
+Moments araması, Pattern Finder, takım ısı haritası önayarları, veto simülatörü ve
+notlar/playlistler (tarayıcıda, dosya olarak dışa/içe aktarılır) çalışır. Bunların hepsi
+haftalık <code>publish</code> ile otomatik güncellenir — rutinde değişiklik yok.</p>
 
 <h2>2. 📅 Haftalık rutin (cumartesi ~5 dk el emeği)</h2>
 <div class="box">
