@@ -21,8 +21,12 @@ export default function Help() {
         <b> Pattern Finder</b>, <b>Scenarios</b>, the veto simulator, custom
         heatmap time windows, playlists &amp; notes, analyzing <b>your own
         demos</b>, and raw demo downloads — need the <b>self-hosted studio</b>:
-        clone the open-source repo and run everything on your own machine
-        (see the README). Pages that need the studio say so instead of
+        clone the open-source repo at{' '}
+        <a href="https://github.com/benginN/csfreezetime" target="_blank" rel="noreferrer">
+          <b>github.com/benginN/csfreezetime</b>
+        </a>{' '}
+        and run everything on your own machine (the README walks you through
+        it step by step). Pages that need the studio say so instead of
         breaking. Everything below describes the full feature set.
       </p>
 
