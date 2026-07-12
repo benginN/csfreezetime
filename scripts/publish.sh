@@ -31,6 +31,14 @@ if [ ! -d "$WORK/.git" ]; then
 fi
 git -C "$WORK" pull --ff-only 2>/dev/null || true
 
+# Boş repoya GitHub Release açılamaz (422) — ilk commit'i garanti et
+if ! git -C "$WORK" rev-parse HEAD >/dev/null 2>&1; then
+  touch "$WORK/.nojekyll"
+  git -C "$WORK" add -A
+  git -C "$WORK" commit -q -m "init site"
+  git -C "$WORK" push -q origin HEAD
+fi
+
 # --- export -----------------------------------------------------------------
 EXPORT_FLAGS=(-api "$API" -out "$WORK" -bundle-base "$BUNDLE_BASE")
 [ "${1:-}" = "--pages-only" ] && EXPORT_FLAGS+=(-skip-bundles)
