@@ -99,7 +99,7 @@ export interface Bundle {
   detail: MatchDetail;
   players: LocalMatchMeta['players'];
   rounds: Record<number, RoundTicks>;
-  origin?: 'folder' | 'archive' | 'static'; // arşiv kopyaları rozetini pakette de korur
+  origin?: 'single' | 'folder' | 'archive' | 'static'; // arşiv kopyaları rozetini pakette de korur
 }
 
 // paketleri IndexedDB'ye aç (klasörden hızlı içe aktarma)
