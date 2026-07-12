@@ -9,6 +9,9 @@
 # önce bir kez: site reposunu oluştur ve Settings→Pages→main branşını aç.
 set -euo pipefail
 cd "$(dirname "$0")/.."
+# .env'i KENDİSİ yükler — weekly.sh'tan bağımsız koşulduğunda R2 ayarlarının
+# görünmemesi paketleri yanlışlıkla Releases'a gönderiyordu (2026-07-12)
+set -a; source infra/.env 2>/dev/null || true; set +a
 
 SITE_REPO="${FREEZETIME_SITE_REPO:-benginN/csfreezetime}"
 SITE_BRANCH="${FREEZETIME_SITE_BRANCH:-gh-pages}"
