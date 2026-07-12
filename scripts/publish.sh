@@ -40,6 +40,15 @@ r2_upload_dir() { # $1 = yerel dizin, $2 = hedef önek (turnuva tag'i)
   mc cp --recursive "$1"/ "fzr2/$R2_BUCKET/$2/"
 }
 
+# tek yayın kilidi: eşzamanlı iki publish aynı çalışma kopyasında yarışır
+# (2026-07-12'de yaşandı) — mkdir atomiktir, sahibi çıkınca kalkar
+LOCK="$(pwd)/.publish/lock"
+mkdir -p "$(pwd)/.publish"
+if ! mkdir "$LOCK" 2>/dev/null; then
+  echo "başka bir publish koşuyor ($LOCK) — bitmesini bekle"; exit 1
+fi
+trap 'rmdir "$LOCK" 2>/dev/null' EXIT
+
 command -v gh >/dev/null || { echo "gh CLI gerekli (brew install gh)"; exit 1; }
 curl -sf "${API}/api/v1/teams" >/dev/null || { echo "stats-svc yanıt vermiyor (${API}) — stüdyoyu başlat"; exit 1; }
 

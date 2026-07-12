@@ -9,7 +9,7 @@
 set -uo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
-SITE_URL="${FREEZETIME_SITE_URL:-https://benginN.github.io}"
+SITE_URL="${FREEZETIME_SITE_URL:-https://benginn.github.io/csfreezetime}"
 
 ./scripts/start-all.sh
 set -a; source infra/.env; set +a
