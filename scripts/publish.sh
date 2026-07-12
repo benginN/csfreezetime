@@ -12,7 +12,9 @@ cd "$(dirname "$0")/.."
 
 SITE_REPO="${FREEZETIME_SITE_REPO:-benginN/benginN.github.io}"
 API="${FREEZETIME_API:-http://localhost:8090}"
-WORK=".publish/site"
+# MUTLAK yol şart: exporter services/stats-svc içinden koşuyor — göreli
+# WORK oraya çözülüp paketleri yanlış klasöre yazıyordu (2026-07-12 vakası)
+WORK="$(pwd)/.publish/site"
 BUNDLE_BASE="https://github.com/${SITE_REPO}/releases/download"
 
 command -v gh >/dev/null || { echo "gh CLI gerekli (brew install gh)"; exit 1; }
