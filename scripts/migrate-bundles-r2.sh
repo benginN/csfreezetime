@@ -19,7 +19,11 @@ set -a; source infra/.env; set +a
 
 SITE_REPO="${FREEZETIME_SITE_REPO:-benginN/benginN.github.io}"
 WORK="$(pwd)/.publish/site"
-TMP="$(mktemp -d)"
+# DİKKAT: mktemp /var/folders'a düşer ve Colima VM'i orayı GÖREMEZ
+# (yalnız /Users ve /Volumes paylaşımlı) → docker -v boş klasör bağlar.
+# Geçici alan bu yüzden T7'de (2026-07-12 vakası).
+TMP="/Volumes/T7/cs2-freezetime/.migrate-tmp"
+mkdir -p "$TMP"
 trap 'rm -rf "$TMP"' EXIT
 
 MC() { docker run --rm -v "$TMP":/work --entrypoint sh minio/mc -c \
@@ -35,13 +39,19 @@ MC "mc cors set r2/$R2_BUCKET /work/cors.json" \
 
 echo "→ Releases'tan indirilip R2'ye taşınıyor…"
 gh release list -R "$SITE_REPO" --limit 200 --json tagName --jq '.[].tagName' | while read -r tag; do
+  want=$(gh release view "$tag" -R "$SITE_REPO" --json assets --jq '.assets | length')
+  have=$(MC "mc ls 'r2/$R2_BUCKET/$tag/' 2>/dev/null | wc -l" || echo 0); have=$(echo "$have" | tr -dc '0-9'); have=${have:-0}
+  if [ "$have" -ge "$want" ] && [ "$want" -gt 0 ]; then
+    echo "  ↷ $tag zaten R2'de ($have/$want) — atlandı"
+    continue
+  fi
   mkdir -p "$TMP/dl/$tag"
   gh release download "$tag" -R "$SITE_REPO" --pattern '*.json.gz' --dir "$TMP/dl/$tag"
   docker run --rm -v "$TMP/dl/$tag":/data:ro --entrypoint sh minio/mc -c \
     "mc alias set r2 '$R2_ENDPOINT' '$R2_ACCESS_KEY_ID' '$R2_SECRET_ACCESS_KEY' >/dev/null && \
      mc cp --recursive /data/ 'r2/$R2_BUCKET/$tag/'"
   rm -rf "$TMP/dl/$tag"
-  echo "  ✓ $tag"
+  echo "  ✓ $tag ($want paket)"
 done
 
 echo "→ manifest R2'ye çevriliyor…"
