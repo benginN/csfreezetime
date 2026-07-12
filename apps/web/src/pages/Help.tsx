@@ -19,8 +19,8 @@ export default function Help() {
         heatmaps, reports, predictions, leaderboards and search all work right
         here. Features that need a live database — <b>Moments</b> search,
         <b> Pattern Finder</b>, <b>Scenarios</b>, the veto simulator, custom
-        heatmap time windows, playlists &amp; notes, analyzing <b>your own
-        demos</b>, and raw demo downloads — need the <b>self-hosted studio</b>:
+        heatmap time windows, playlists &amp; notes, and analyzing <b>your own
+        demos</b> — need the <b>self-hosted studio</b>:
         clone the open-source repo at{' '}
         <a href="https://github.com/benginN/csfreezetime" target="_blank" rel="noreferrer">
           <b>github.com/benginN/csfreezetime</b>

@@ -48,7 +48,7 @@ on your own machine ([step-by-step setup](#step-by-step-setup-from-zero)).
 | Search (teams / players / tournaments / matches) | ✅ | ✅ |
 | Moments (structured round search), Pattern Finder, Scenarios | — | ✅ |
 | Veto simulator, free-range heatmap time windows, round overlay | — | ✅ |
-| Notes, playlists, My DB (private demos), raw demo download | — | ✅ |
+| Notes, playlists, My DB (private demos) | — | ✅ |
 | **Feeding it your own demos** | — | ✅ |
 
 ### If you just want to use the site (visitors)
@@ -402,15 +402,23 @@ of a self-hosted studio, published to GitHub for free. The pipeline:
 
 1. `services/stats-svc/cmd/export` walks the running API and writes every page
    as a JSON file, plus one gzipped **replay bundle** per match (a few MB each).
-2. Page JSONs and the web app go to a GitHub **Pages** repo; match bundles go to
-   GitHub **Releases** (grouped by tournament). The site downloads a match's
-   bundle on first view and caches it in the browser.
+2. Page JSONs and the web app are pushed to this repo's **`gh-pages` branch**
+   (served by GitHub Pages); match bundles go to **Cloudflare R2** (pennies per
+   month — GitHub Releases can't serve browser `fetch()` requests, their
+   downloads carry no CORS headers). The site downloads a match's bundle on
+   first view and caches it in the browser.
 3. `scripts/publish.sh` does all of the above in one command, **incrementally**
-   — already-published matches are never re-exported.
+   — already-published matches are never re-exported, and an interrupted run
+   resumes where it left off.
 
-Fork-friendly: set `FREEZETIME_SITE_REPO=you/you.github.io`, run
-`scripts/publish.sh`, and enable Pages on that repo (Settings → Pages →
-deploy from branch `main`) — that last step is one-time.
+Fork-friendly: set `FREEZETIME_SITE_REPO=you/yourrepo` (the URL base is derived
+from the repo name automatically), put your R2 credentials in `infra/.env`
+(`R2_ENDPOINT`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET`,
+`R2_PUBLIC_BASE` — and add a CORS policy allowing your site's origin in the
+R2 dashboard), run `scripts/publish.sh`, then enable Pages once
+(Settings → Pages → deploy from branch `gh-pages`). Without R2 credentials
+bundles fall back to GitHub Releases, which works for `curl` but **not** for
+the in-browser replay.
 
 > ### 📝 Maintainer note — the weekly routine (one command)
 >
@@ -508,6 +516,4 @@ of the box (see [Map backgrounds](#map-backgrounds-radar-images)).
 
 ## TODO
 
-- [ ] Update the in-app **Help** page to explain the public-site vs self-hosted
-      split (which features need the studio).
 - [ ] Add screenshots to the README (`docs/screenshots/`).
