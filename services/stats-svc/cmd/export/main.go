@@ -340,6 +340,21 @@ func main() {
 // writeBundle bir maçın paketini üretir: localdb.ts Bundle formatı
 // (match_id, name, detail, players, rounds{n: RoundTicks}).
 func (c *client) writeBundle(out string, m matchSummary, playersRaw []byte) (manifestEntry, error) {
+	tag := "untagged"
+	if m.Tournament != nil && *m.Tournament != "" {
+		tag = slugPart(strings.ToLower(*m.Tournament))
+	}
+	file := m.MatchID + ".json.gz"
+	dst := filepath.Join(out, "bundles-new", tag, file)
+	// kaldığı yerden devam: önceki (yarıda kesilmiş) koşunun ürettiği paket
+	// duruyorsa yeniden üretme — dosyalar atomik yazılır, var = tam demektir
+	if st, err := os.Stat(dst); err == nil && st.Size() > 0 {
+		return manifestEntry{
+			Tag: tag, File: file, Tournament: m.Tournament, MapName: m.MapName,
+			Name: m.Name, TeamA: m.TeamA, TeamB: m.TeamB, Rounds: m.Rounds,
+			PlayedAt: m.PlayedAt, Bytes: st.Size(),
+		}, nil
+	}
 	detailRaw, err := c.getRaw("/api/v1/matches/" + m.MatchID)
 	if err != nil {
 		return manifestEntry{}, err
@@ -356,6 +371,13 @@ func (c *client) writeBundle(out string, m matchSummary, playersRaw []byte) (man
 	for _, r := range detail.Rounds {
 		t, err := c.getRaw(fmt.Sprintf("/api/v1/rounds/%s/%d/ticks", m.MatchID, r.RoundNumber))
 		if err != nil {
+			// dejenere raunt (parça sınırında tick'siz) tüm yayını
+			// durdurmasın: raunt paketten düşer, replay onu atlar
+			if strings.Contains(err.Error(), "no tick data") {
+				log.Printf("uyarı: %s r%d tick verisi yok — pakette atlandı (%s)",
+					str(m.Name), r.RoundNumber, m.MatchID)
+				continue
+			}
 			return manifestEntry{}, err
 		}
 		rounds[fmt.Sprint(r.RoundNumber)] = t
@@ -367,16 +389,13 @@ func (c *client) writeBundle(out string, m matchSummary, playersRaw []byte) (man
 		"players":  json.RawMessage(playersRaw),
 		"rounds":   rounds,
 	}
-	tag := "untagged"
-	if m.Tournament != nil && *m.Tournament != "" {
-		tag = slugPart(strings.ToLower(*m.Tournament))
-	}
-	file := m.MatchID + ".json.gz"
-	dst := filepath.Join(out, "bundles-new", tag, file)
 	if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
 		return manifestEntry{}, err
 	}
-	f, err := os.Create(dst)
+	// atomik yazım: tmp'ye yaz, bitince adlandır — kesilen koşu yarım dosya
+	// bırakamaz, yukarıdaki "var = tam" devam mantığı buna güvenir
+	tmp := dst + ".tmp"
+	f, err := os.Create(tmp)
 	if err != nil {
 		return manifestEntry{}, err
 	}
@@ -390,6 +409,9 @@ func (c *client) writeBundle(out string, m matchSummary, playersRaw []byte) (man
 		return manifestEntry{}, err
 	}
 	if err := f.Close(); err != nil {
+		return manifestEntry{}, err
+	}
+	if err := os.Rename(tmp, dst); err != nil {
 		return manifestEntry{}, err
 	}
 	st, _ := os.Stat(dst)
