@@ -17,10 +17,12 @@ export default function Help() {
         Freezetime runs in two ways. The <b>public site</b> (hosted free on
         GitHub) is a read-only copy of a curated pro archive: replays,
         heatmaps, reports, predictions, leaderboards and search all work right
-        here. Features that need a live database — <b>Moments</b> search,
-        <b> Pattern Finder</b>, <b>Scenarios</b>, the veto simulator, custom
-        heatmap time windows, playlists &amp; notes, and analyzing <b>your own
-        demos</b> — need the <b>self-hosted studio</b>:
+        here — and <b>⚡ Analyze</b> even parses <b>your own demo inside your
+        browser</b> (nothing is uploaded). Features that need a live database —
+        <b> Moments</b> search, <b>Pattern Finder</b>, <b>Scenarios</b>, the
+        veto simulator, custom heatmap time windows, playlists &amp; notes, and
+        building a private <b>archive</b> of your own demos — need the
+        <b> self-hosted studio</b>:
         clone the open-source repo at{' '}
         <a href="https://github.com/benginN/csfreezetime" target="_blank" rel="noreferrer">
           <b>github.com/benginN/csfreezetime</b>
@@ -148,9 +150,9 @@ export default function Help() {
         <li><b>Cluster explorer:</b> browse the strategies themselves — each cluster is a recurring way a side opens a round, with example rounds that jump into the replay.</li>
       </ul>
 
-      <h2>11. Your own demos (self-host): Analyze &amp; My DB</h2>
+      <h2>11. Your own demos: Analyze &amp; My DB</h2>
       <ul>
-        <li><b>Analyze</b> is the front door for a single demo: drop a <code>.dem</code>, it&apos;s processed <i>privately</i> (never joins the archive) and opens as a full match page. Find it in the ☰ menu on a self-hosted studio.</li>
+        <li><b>Analyze (works right here):</b> drop a single <code>.dem</code> and it&apos;s parsed <b>inside your browser</b> with WebAssembly — the file never leaves your machine, nothing joins the public archive, and the result opens as a full match page (replay, kill feed, grenades, heatmap). Stored only in this browser. Big demos (500&nbsp;MB+) take ~15-30&nbsp;s and a few GB of RAM.</li>
         <li><b>My DB</b> is the power tool for a whole folder of demos (scrims, officials, POV) — it lives at <code>/mydb</code> (no menu button). Pick your folder once (Chrome/Edge); unprocessed demos are parsed one by one — stop anytime, it resumes.</li>
         <li><b>Privacy by design:</b> your demo visits the server only to be parsed, never joins the public site, and the server copy is deleted the instant your browser saves the result. Results live in a <code>.freezetime/</code> folder next to your demos — portable, re-importable on any machine in seconds.</li>
         <li><b>Compose with public matches:</b> the archive picker pulls chosen public matches into your database (e.g. your next opponent&apos;s official maps next to your scrims). They live locally with a 🌐 badge, count in your team report and clustering, and can be removed without touching the public site.</li>

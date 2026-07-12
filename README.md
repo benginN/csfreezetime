@@ -48,6 +48,7 @@ on your own machine ([step-by-step setup](#step-by-step-setup-from-zero)).
 | Search (teams / players / tournaments / matches) | ✅ | ✅ |
 | Moments (structured round search), Pattern Finder, Scenarios | — | ✅ |
 | Veto simulator, free-range heatmap time windows, round overlay | — | ✅ |
+| **Analyze your own demo** (parsed in-browser, never uploaded) | ✅ | ✅ |
 | Notes, playlists, My DB (private demos) | — | ✅ |
 | **Feeding it your own demos** | — | ✅ |
 
@@ -63,17 +64,19 @@ Nothing to install, no account:
    switch tabs for **heatmaps** and **ghost rounds**.
 4. Dig into a team via **⚔ Compare**, the **opponent report** (the 📊 link on
    a team), **🏆 Boards** and the **🧠 ML Lab**.
-5. Features that need live database queries (Moments search, Pattern Finder,
+5. Got a demo of your own? **⚡ Analyze** parses it right in your browser —
+   nothing is uploaded anywhere — and shows it as a full match page.
+6. Features that need live database queries (Moments search, Pattern Finder,
    Scenarios, veto sim, custom heatmap time windows) are marked as
    **self-host only** — for those, run the studio yourself (next section).
 
 The archive is updated in batches (roughly weekly) by the maintainer.
 
-> **Want your own database?** Analyzing your own demos (scrims, FACEIT
-> matches, a private team archive) is not possible on the public site —
-> parsing a demo needs the real engine. Clone the repo and run it locally
-> instead: drop your demos into `backfill/` for a full archive, or use
-> **My DB** to keep private demos separate. See the next section.
+> **Your own demos?** The ⚡ **Analyze** page parses a single demo **inside
+> your browser** (WebAssembly — the file never leaves your machine) and opens
+> it as a normal match page. For a whole *archive* of your own demos (scrims,
+> a private team database with reports and predictions), self-host: drop demos
+> into `backfill/`, or use **My DB** to keep them separate. Next section.
 
 ### If you want to run it yourself (self-hosting)
 

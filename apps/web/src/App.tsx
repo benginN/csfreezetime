@@ -17,6 +17,7 @@ import Insights from './pages/Insights';
 import Patterns from './pages/Patterns';
 import Scenarios from './pages/Scenarios';
 import LocalReportPage from './pages/LocalReport';
+import WasmAnalyze from './pages/WasmAnalyze';
 import StudioOnly from './components/StudioOnly';
 import { isStatic } from './lib/staticdata';
 
@@ -70,7 +71,7 @@ function NavMenu() {
           <a href={B + 'compare'} style={item}>⚔️ Compare</a>
           <a href={B + 'leaderboards'} style={item}>🏆 Boards</a>
           {!isStatic && <a href={B + 'playlists'} style={item}>🎬 Playlists</a>}
-          {!isStatic && <a href={B + 'analyze'} style={item}>⚡ Analyze</a>}
+          <a href={B + 'analyze'} style={item}>⚡ Analyze</a>
           <a href={B + 'insights'} style={item}>🧠 ML Lab</a>
           {!isStatic && <a href={B + 'patterns'} style={item}>🧭 Patterns</a>}
           {!isStatic && <a href={B + 'scenarios'} style={item}>🔬 Scenarios</a>}
@@ -113,7 +114,8 @@ export default function App() {
           <Route path="/help" element={<Help />} />
           <Route path="/leaderboards" element={<Leaderboards />} />
           <Route path="/playlists" element={studioOnly('Playlists', <Playlists />)} />
-          <Route path="/analyze" element={studioOnly('Analyze a demo', <Analyze />)} />
+          {/* statikte Analyze = WASM (tarayıcıda parse); stüdyoda sunuculu sürüm */}
+          <Route path="/analyze" element={isStatic ? <WasmAnalyze /> : <Analyze />} />
           <Route path="/insights" element={<Insights />} />
           <Route path="/patterns" element={studioOnly('Pattern Finder', <Patterns />)} />
           <Route path="/scenarios" element={studioOnly('Scenario Lab', <Scenarios />)} />

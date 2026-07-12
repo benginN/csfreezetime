@@ -38,8 +38,11 @@ export interface ShapeResult {
   warnings: string[];
 }
 
-export function shapeDemo(api: ParserApi, bytes: Uint8Array, sourceName: string): ShapeResult {
+export function shapeDemo(api: ParserApi, bytes: Uint8Array, sourceName: string,
+                          onPhase?: (s: string) => void): ShapeResult {
   const warnings: string[] = [];
+  const phase = (s: string) => onPhase?.(s);
+  phase('reading header');
   const header = row(api.parseHeader(bytes));
   const mapName = String(header.map_name ?? '');
   const cal = MAP_CAL[mapName];
@@ -48,6 +51,7 @@ export function shapeDemo(api: ParserApi, bytes: Uint8Array, sourceName: string)
   const toRy = (y: number) => (cal.pos_y - y) / cal.scale;
 
   // ---- rauntlar --------------------------------------------------------
+  phase('extracting rounds & kills');
   const evs = api.parseEvents(bytes, ['round_start', 'round_freeze_end', 'round_end'])
     .map(row)
     .sort((a, b) => Number(a.tick) - Number(b.tick));
@@ -80,6 +84,7 @@ export function shapeDemo(api: ParserApi, bytes: Uint8Array, sourceName: string)
   for (const s of spans) {
     for (let t = s.start; t <= s.end; t += GRID_STEP) grid.push(t);
   }
+  phase('parsing player positions (the long part)');
   const props = ['X', 'Y', 'Z', 'yaw', 'pitch', 'health', 'armor',
                  'is_alive', 'active_weapon_name', 'team_num', 'team_clan_name'];
   const tickRows = api.parseTicks(bytes, props, grid, null, false).map(row);
@@ -143,6 +148,7 @@ export function shapeDemo(api: ParserApi, bytes: Uint8Array, sourceName: string)
   // gruplu (atış noktası buradan); (b) patlama EVENT'leri — tip + konum +
   // atıcı buradan (bu pinli wasm binding'i granat tipini iz satırlarına
   // koymuyor, event adı tek güvenilir tip kaynağı).
+  phase('tracing grenades');
   interface Trail { sid: string; firstTick: number; lastTick: number;
                     fx: number; fy: number; fz: number | null }
   const trailsByEnt = new Map<string, Trail>();
@@ -198,6 +204,7 @@ export function shapeDemo(api: ParserApi, bytes: Uint8Array, sourceName: string)
   };
 
   // ---- raunt başına RoundTicks ------------------------------------------
+  phase('assembling replay');
   const rounds: Record<number, RoundTicks> = {};
   const roundRows: RoundRow[] = [];
   for (const s of spans) {
