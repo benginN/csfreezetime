@@ -35,8 +35,11 @@ export function staticApiPath(rawUrl: string): string {
   return [...segs.slice(0, -1), name + '.json'].join('/');
 }
 
+// taban yol: alt-yol yayınında (/csfreezetime/) veriler oradan okunur
+const BASE = import.meta.env.BASE_URL;
+
 export async function staticGet<T>(url: string): Promise<T> {
-  const r = await fetch('/data/api/' + staticApiPath(url));
+  const r = await fetch(BASE + 'data/api/' + staticApiPath(url));
   if (!r.ok) throw new Error(STATIC_UNAVAILABLE);
   return r.json() as Promise<T>;
 }
@@ -47,7 +50,7 @@ interface Manifest { bundle_base: string; matches: Record<string, ManifestEntry>
 
 let manifestP: Promise<Manifest> | null = null;
 export function getManifest(): Promise<Manifest> {
-  manifestP ??= fetch('/data/manifest.json').then((r) => {
+  manifestP ??= fetch(BASE + 'data/manifest.json').then((r) => {
     if (!r.ok) throw new Error('manifest missing');
     return r.json();
   });
@@ -103,7 +106,7 @@ function matchesAll(hay: string, tokens: string[]): boolean {
 }
 
 export async function staticSearch(q: string): Promise<SearchResult> {
-  indexP ??= fetch('/data/search-index.json').then((r) => r.json());
+  indexP ??= fetch(BASE + 'data/search-index.json').then((r) => r.json());
   const idx = await indexP;
   const tokens = q.toLowerCase().split(/\s+/).filter(Boolean);
   // boş sorgu = tüm maç listesi (sunucu davranışıyla uyumlu; MatchPage

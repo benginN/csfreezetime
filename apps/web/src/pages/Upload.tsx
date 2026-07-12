@@ -17,7 +17,7 @@ export default function Upload() {
         Tournament-by-tournament coverage of the public archive. The archive is
         fed by dropping demo archives into the server's <code>backfill/</code>{' '}
         folder (processed automatically); personal demos go through{' '}
-        <a href="/analyze">Analyze</a> and never appear here.
+        <a href={import.meta.env.BASE_URL + 'analyze'}>Analyze</a> and never appear here.
       </p>
       <CoveragePanel />
     </>

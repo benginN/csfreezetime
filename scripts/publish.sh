@@ -10,8 +10,14 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-SITE_REPO="${FREEZETIME_SITE_REPO:-benginN/benginN.github.io}"
+SITE_REPO="${FREEZETIME_SITE_REPO:-benginN/csfreezetime}"
+SITE_BRANCH="${FREEZETIME_SITE_BRANCH:-gh-pages}"
 API="${FREEZETIME_API:-http://localhost:8090}"
+# taban yol: kullanıcı sitesi (*.github.io) kökten, proje sitesi /<repo>/ altından yayınlanır
+case "$SITE_REPO" in
+  */*.github.io) VITE_BASE="/" ;;
+  *)             VITE_BASE="/$(basename "$SITE_REPO")/" ;;
+esac
 # MUTLAK yol şart: exporter services/stats-svc içinden koşuyor — göreli
 # WORK oraya çözülüp paketleri yanlış klasöre yazıyordu (2026-07-12 vakası)
 WORK="$(pwd)/.publish/site"
@@ -24,25 +30,27 @@ BUNDLE_BASE="https://github.com/${SITE_REPO}/releases/download"
 if [ -n "${R2_PUBLIC_BASE:-}" ]; then
   BUNDLE_BASE="$R2_PUBLIC_BASE"
 fi
+# host mc kullanılır (brew install minio-mc) — docker -v Colima'da yalnız
+# $HOME'u görür, T7 yolları konteynerde BOŞ görünür (2026-07-12 dersi)
 r2_upload_dir() { # $1 = yerel dizin, $2 = hedef önek (turnuva tag'i)
-  docker run --rm -v "$1":/data:ro --entrypoint sh minio/mc -c \
-    "mc alias set r2 '$R2_ENDPOINT' '$R2_ACCESS_KEY_ID' '$R2_SECRET_ACCESS_KEY' >/dev/null && \
-     mc cp --recursive /data/ 'r2/$R2_BUCKET/$2/'"
+  mc alias set fzr2 "$R2_ENDPOINT" "$R2_ACCESS_KEY_ID" "$R2_SECRET_ACCESS_KEY" >/dev/null
+  mc cp --recursive "$1"/ "fzr2/$R2_BUCKET/$2/"
 }
 
 command -v gh >/dev/null || { echo "gh CLI gerekli (brew install gh)"; exit 1; }
 curl -sf "${API}/api/v1/teams" >/dev/null || { echo "stats-svc yanıt vermiyor (${API}) — stüdyoyu başlat"; exit 1; }
 
-# --- site reposu çalışma kopyası -------------------------------------------
+# --- site çalışma kopyası: SITE_REPO'nun SITE_BRANCH dalı -------------------
+# (kod reposunun gh-pages dalı olabilir — kodu klonlamamak için çıplak init)
 if [ ! -d "$WORK/.git" ]; then
-  mkdir -p .publish
-  gh repo clone "$SITE_REPO" "$WORK" || {
-    echo "site reposu yok — oluşturuluyor: $SITE_REPO"
-    gh repo create "$SITE_REPO" --public --description "Freezetime — CS2 tactical archive (static site)"
-    gh repo clone "$SITE_REPO" "$WORK"
-  }
+  mkdir -p "$WORK"
+  git -C "$WORK" init -q -b "$SITE_BRANCH"
+  git -C "$WORK" remote add origin "https://github.com/${SITE_REPO}.git"
+  git -C "$WORK" config user.name  "$(git config user.name  || echo freezetime)"
+  git -C "$WORK" config user.email "$(git config user.email || echo freezetime@localhost)"
 fi
-git -C "$WORK" pull --ff-only 2>/dev/null || true
+git -C "$WORK" fetch -q origin "$SITE_BRANCH" 2>/dev/null \
+  && git -C "$WORK" reset -q --hard "origin/$SITE_BRANCH" || true
 
 # bundles-new asla git'e girmez (Releases'a gider) — .gitignore garanti
 grep -qs '^bundles-new/$' "$WORK/.gitignore" 2>/dev/null || printf 'bundles-new/\n' >> "$WORK/.gitignore"
@@ -53,7 +61,7 @@ if ! git -C "$WORK" rev-parse HEAD >/dev/null 2>&1; then
   touch "$WORK/.nojekyll"
   git -C "$WORK" add .nojekyll .gitignore
   git -C "$WORK" commit -q -m "init site"
-  git -C "$WORK" push -q origin HEAD
+  git -C "$WORK" push -q -u origin "$SITE_BRANCH"
 fi
 
 # --- export -----------------------------------------------------------------
@@ -84,8 +92,8 @@ if [ -d "$WORK/bundles-new" ]; then
   rmdir "$WORK/bundles-new" 2>/dev/null || true
 fi
 
-# --- frontend (statik mod) ---------------------------------------------------
-(cd apps/web && VITE_STATIC=1 npm run build)
+# --- frontend (statik mod, taban yollu) --------------------------------------
+(cd apps/web && VITE_STATIC=1 VITE_BASE="$VITE_BASE" npm run build)
 
 # dist → site kökü (data/ ve .git korunur; eski asset'ler temizlenir)
 rsync -a --delete \
@@ -105,6 +113,6 @@ if git -C "$WORK" diff --cached --quiet; then
   echo "değişiklik yok — push atlanıyor"
 else
   git -C "$WORK" commit -m "publish $(date -u +%Y-%m-%dT%H:%MZ) (${matches} matches)"
-  git -C "$WORK" push origin HEAD
+  git -C "$WORK" push -u origin "HEAD:$SITE_BRANCH"
 fi
 echo "✔ publish tamam — ${matches} maç manifestte"

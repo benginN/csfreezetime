@@ -28,7 +28,8 @@ export function getRadarImage(map: string): Promise<HTMLImageElement | null> {
       img.onerror = () => resolve(null);
       img.src = src;
     });
-    p = tryLoad(`/radars/${map}.svg`).then((svg) => svg ?? tryLoad(`/radars/${map}.png`));
+    const base = import.meta.env.BASE_URL; // alt-yol yayınında radarlar da oradan
+    p = tryLoad(`${base}radars/${map}.svg`).then((svg) => svg ?? tryLoad(`${base}radars/${map}.png`));
     imgCache.set(map, p);
   }
   return p;

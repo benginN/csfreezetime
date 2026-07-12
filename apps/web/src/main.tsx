@@ -26,7 +26,7 @@ class ErrorBoundary extends React.Component<
         <div style={{ padding: 24 }}>
           <h1>Something went wrong</h1>
           <p className="error">{String(this.state.error)}</p>
-          <button onClick={() => { this.setState({ error: null }); window.location.href = '/'; }}>
+          <button onClick={() => { this.setState({ error: null }); window.location.href = import.meta.env.BASE_URL; }}>
             Back to home
           </button>
         </div>
@@ -40,7 +40,9 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <ErrorBoundary>
       <QueryClientProvider client={qc}>
-        <BrowserRouter>
+        {/* basename: site alt yolda yayınlanınca (/csfreezetime/) rotalar
+            oradan başlar; lokalde BASE_URL='/' olduğundan davranış aynı */}
+        <BrowserRouter basename={import.meta.env.BASE_URL}>
           <App />
         </BrowserRouter>
       </QueryClientProvider>

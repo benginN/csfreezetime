@@ -20,6 +20,9 @@ import LocalReportPage from './pages/LocalReport';
 import StudioOnly from './components/StudioOnly';
 import { isStatic } from './lib/staticdata';
 
+// taban yol: vite base'inden gelir; hep '/' ile biter
+const B = import.meta.env.BASE_URL;
+
 // Statik yayında (GitHub Pages) canlı ClickHouse isteyen sayfalar
 // StudioOnly notuna düşer; nav'da da gizlenirler.
 const studioOnly = (feature: string, el: JSX.Element) =>
@@ -62,17 +65,18 @@ function NavMenu() {
             minWidth: 190, boxShadow: '0 10px 28px rgba(0,0,0,.55)', padding: '4px 0',
           }}
         >
-          {!isStatic && <a href="/moments" style={item}>🔎 Moments</a>}
-          <a href="/compare" style={item}>⚔️ Compare</a>
-          <a href="/leaderboards" style={item}>🏆 Boards</a>
-          {!isStatic && <a href="/playlists" style={item}>🎬 Playlists</a>}
-          {!isStatic && <a href="/analyze" style={item}>⚡ Analyze</a>}
-          <a href="/insights" style={item}>🧠 ML Lab</a>
-          {!isStatic && <a href="/patterns" style={item}>🧭 Patterns</a>}
-          {!isStatic && <a href="/scenarios" style={item}>🔬 Scenarios</a>}
+          {/* B = taban yol: lokalde '/', statik yayında '/csfreezetime/' */}
+          {!isStatic && <a href={B + 'moments'} style={item}>🔎 Moments</a>}
+          <a href={B + 'compare'} style={item}>⚔️ Compare</a>
+          <a href={B + 'leaderboards'} style={item}>🏆 Boards</a>
+          {!isStatic && <a href={B + 'playlists'} style={item}>🎬 Playlists</a>}
+          {!isStatic && <a href={B + 'analyze'} style={item}>⚡ Analyze</a>}
+          <a href={B + 'insights'} style={item}>🧠 ML Lab</a>
+          {!isStatic && <a href={B + 'patterns'} style={item}>🧭 Patterns</a>}
+          {!isStatic && <a href={B + 'scenarios'} style={item}>🔬 Scenarios</a>}
           {/* Create DB kaldırıldı (2026-07-12): /mydb adresi yaşıyor, Help'te belgeli */}
-          {localStorage.getItem('tm_admin') && <a href="/archive" style={item}>🗂 Archive</a>}
-          <a href="/help" style={item}>❓ Help</a>
+          {localStorage.getItem('tm_admin') && <a href={B + 'archive'} style={item}>🗂 Archive</a>}
+          <a href={B + 'help'} style={item}>❓ Help</a>
           <a href="https://ko-fi.com/bengin" target="_blank" rel="noreferrer" style={item}
             title="enjoying Freezetime? support the project">
             ☕ Support
@@ -87,7 +91,7 @@ export default function App() {
   return (
     <>
       <nav>
-        <span className="brand" style={{ cursor: 'pointer' }} onClick={() => (window.location.href = '/')}>
+        <span className="brand" style={{ cursor: 'pointer' }} onClick={() => (window.location.href = B)}>
           Freezetime
         </span>
         <SearchBar />
