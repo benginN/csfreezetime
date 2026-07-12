@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<title>FREEZETIME — Cumartesi Rehberi</title>
+<style>
+  @page { margin: 18mm; }
+  body { font-family: -apple-system, "Helvetica Neue", sans-serif; line-height: 1.55;
+         color: #1a221c; max-width: 800px; margin: 0 auto; font-size: 13px; }
+  h1 { font-size: 24px; border-bottom: 3px solid #2f6b38; padding-bottom: 6px; }
+  h2 { font-size: 17px; color: #2f6b38; margin-top: 26px; border-bottom: 1px solid #cfd8d0;
+       padding-bottom: 3px; page-break-after: avoid; }
+  h3 { font-size: 14px; margin-bottom: 4px; }
+  code, pre { font-family: "SF Mono", Menlo, monospace; background: #eef2ee;
+              border-radius: 4px; font-size: 12px; }
+  code { padding: 1px 5px; }
+  pre { padding: 10px 14px; overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; margin: 8px 0; }
+  th, td { border: 1px solid #cfd8d0; padding: 5px 9px; text-align: left; vertical-align: top; }
+  th { background: #eef2ee; }
+  .meta { color: #5a675c; font-size: 12px; }
+  .box { border: 1.5px solid #2f6b38; border-radius: 8px; padding: 10px 16px;
+         background: #f4f8f4; margin: 10px 0; page-break-inside: avoid; }
+  .warn { border-color: #a05c20; background: #fdf6ee; }
+  li { margin: 3px 0; }
+</style>
+</head>
+<body>
+
+<h1>🧊 FREEZETIME — Cumartesi Rehberi</h1>
+<p class="meta">Sürüm: Temmuz 2026 · Bu belge projenin tek sayfalık hafızasıdır: ne olduğu,
+nerede yaşadığı, haftalık rutin ve sorun reçeteleri. Güncellemek için: Claude Code'a
+"rehberi güncelle" de — kaynak repoda <code>docs/el-kitabi.html</code>.</p>
+
+<h2>1. Bu proje nedir? (30 saniyelik hatırlatma)</h2>
+<p><b>Freezetime</b>, CS2 turnuva demolarını koç-seviyesi istihbarata çeviren açık kaynak
+platform. İki yüzü var:</p>
+<table>
+<tr><th></th><th>🖥 Stüdyo (senin Mac + T7 SSD)</th><th>🌐 Site (benginN.github.io)</th></tr>
+<tr><td><b>Ne yapar</b></td><td>Demoları işler, veritabanlarını ve ML'i besler</td>
+<td>Herkese açık, salt-okunur arşiv: replay, rapor, tahmin</td></tr>
+<tr><td><b>Ne zaman çalışır</b></td><td>Sadece sen açınca (T7 takılıyken)</td>
+<td>7/24, bakımsız, bedava (GitHub barındırır)</td></tr>
+<tr><td><b>Veri akışı</b></td><td>HLTV rar → backfill/ → işlenir</td>
+<td><code>publish</code> anında stüdyodan "basılır"</td></tr>
+</table>
+<p>Model: <b>yuvarlanan 1 yıl</b> — stüdyo son 12 ayı tutar (eskiler kendiliğinden temizlenir),
+site ise yayınlanan her maçı <b>sonsuza dek</b> sunar. S-tier kuruluş arşivinin (Tem'25–Tem'26)
+ham demoları MinIO'da "kasa"da; sonrakilerin hamı işlenince otomatik silinir.</p>
+
+<h2>2. 📅 Haftalık rutin (cumartesi ~5 dk el emeği)</h2>
+<div class="box">
+<ol>
+<li><b>T7'yi tak</b>, terminali aç:
+<pre>cd /Volumes/T7/cs2-freezetime/cs2-platform && ./scripts/weekly.sh --shutdown</pre></li>
+<li>Haftanın demolarını HLTV'den <b>önce indir</b> (hedef: <code>T7/cs2-freezetime/downloads/</code>
+— asla doğrudan backfill'e indirme!), inenler bitince <b>backfill/ klasörüne sürükle</b>,
+terminalde <b>ENTER</b>'a bas.</li>
+<li>Script gerisini yapar: işler → istatistikleri tazeler → GitHub'a yayınlar →
+<b>sağlık raporu</b> basar → (--shutdown ile) her şeyi kapatır.</li>
+<li>Sağlık raporu 5 satırını oku (aşağıda) → T7'yi çıkar → bitti.</li>
+</ol>
+</div>
+<h3>Sağlık raporu nasıl okunur?</h3>
+<table>
+<tr><th>Satır</th><th>İyi görünüm</th><th>Kötüyse ne yap</th></tr>
+<tr><td>1. Maç sayısı</td><td>+N yeni, failed artmamış</td><td>failed arttıysa: bozuk kaynak dosya olabilir; Claude Code'a sor</td></tr>
+<tr><td>2. Canlı site listesi</td><td>toplam sayıyla eşit</td><td>"ERİŞİLEMEDİ": internet/publish sorunu — script'i yeniden koş</td></tr>
+<tr><td>3. Örnek paket</td><td>HTTP 200, sağlam</td><td>GitHub Releases sorunu — Claude Code'a sor</td></tr>
+<tr><td>4. ML tazeliği</td><td>sayı artmış</td><td>artmadıysa ml-auto koşmamış — 10 dk bekle, tekrar bak</td></tr>
+<tr><td>5. Disk</td><td>%85 altı</td><td>%85+: retention'ın yetişmesini bekle ya da Claude Code'a sor</td></tr>
+</table>
+<p class="meta">Takılı dosya uyarısı görürsen ("X 10 dk'dır işleniyor"): o rar bozuk/yarım inmiş —
+backfill dışına taşı, HLTV'den yeniden indir; script kendiliğinden devam eder.</p>
+
+<h2>3. 🗺 Ne nerede?</h2>
+<table>
+<tr><th>Şey</th><th>Yer</th></tr>
+<tr><td>Kod + Claude Code çalışma yeri</td><td><code>/Volumes/T7/cs2-freezetime/cs2-platform/</code> — <b>yardım gerekince Claude Code'u BURADAN aç</b>; tüm proje hafızası yanında gelir</td></tr>
+<tr><td>Veritabanları (PG + ClickHouse + MinIO/ham kasası)</td><td><code>…/colima/</code> içindeki sanal makine diski</td></tr>
+<tr><td>Demo atma kapısı</td><td><code>…/backfill/</code> (izleyici 20 sn'de bir tarar)</td></tr>
+<tr><td>İndirme sahası</td><td><code>…/downloads/</code> (indirme yöneticisinin hedefi)</td></tr>
+<tr><td>Hafıza yedeği (T7)</td><td><code>…/memory-backup/</code> (her commit'te otomatik senkron)</td></tr>
+<tr><td>Bu rehberin PDF'i</td><td><code>/Volumes/T7/cs2-freezetime/FREEZETIME-REHBER.pdf</code></td></tr>
+<tr><td>Canlı site + sayfa verileri</td><td>github.com/benginN/<b>benginN.github.io</b> (site: https://benginN.github.io)</td></tr>
+<tr><td>Replay paketleri (maç başına ~6-9MB)</td><td>aynı reponun <b>Releases</b> bölümü (turnuva başına bir release)</td></tr>
+<tr><td>Kod yedeği (public, MIT)</td><td>github.com/benginN/<b>csfreezetime</b> (her commit otomatik itilir)</td></tr>
+<tr><td>Claude hafıza yedeği (private)</td><td>github.com/benginN/<b>freezetime-claudememoryforbackup</b></td></tr>
+<tr><td>Şifreler/token (ADMIN_TOKEN vb.)</td><td><code>cs2-platform/infra/.env</code> (git'e girmez)</td></tr>
+<tr><td>Servis logları</td><td><code>/tmp/stats-svc.log</code>, <code>/tmp/parser-*.log</code>, <code>/tmp/enrichment.log</code></td></tr>
+<tr><td>Admin panosu (Archive kapsamı)</td><td>localhost:8090 → ☰ menü → 🗂 Archive (yalnız senin tarayıcında görünür)</td></tr>
+</table>
+
+<h2>4. 🧰 Komut kartı</h2>
+<table>
+<tr><td><code>./scripts/weekly.sh [--shutdown]</code></td><td>Haftalık rutinin tamamı (önerilen tek komut)</td></tr>
+<tr><td><code>./scripts/start-all.sh</code></td><td>Sadece platformu aç (site+izleyici dahil)</td></tr>
+<tr><td><code>./scripts/stop-all.sh</code></td><td><b>SSD'yi çıkarmadan önce ŞART</b> — her şeyi kapat</td></tr>
+<tr><td><code>./scripts/publish.sh</code></td><td>Sadece yayın (weekly zaten çağırır); yarıda kesilse kaldığı yerden sürer</td></tr>
+<tr><td><code>./scripts/sync-memory.sh</code></td><td>Hafıza yedeğini elle senkronla (commit'lerde otomatik)</td></tr>
+</table>
+
+<h2>5. 🚑 Sorun reçeteleri</h2>
+<div class="box warn">
+<h3>«Backfill dondu / bir dosyada takıldı»</h3>
+<p>Neredeyse hep bozuk/yarım inmiş rar'dır. Dosyayı <code>backfill/</code> dışına taşı
+(ör. <code>../corrupt-redownload/</code>), HLTV'den yeniden indir. Sistem kendiliğinden devam eder.</p>
+<h3>«Bir maç failed oldu»</h3>
+<p>Adı <code>-p1</code>/<code>-p2</code> ile bitiyorsa muhtemelen HLTV'nin bozuk parça kırıntısı —
+kurtarılamaz, umursama (meta durur, seri sağlamdır). Değilse: Claude Code'a "şu maç failed,
+requeue eder misin" de; demo sağlamsa tek komutla döner.</p>
+<h3>«Site güncellenmedi»</h3>
+<p>Site yalnız <code>publish</code> anında güncellenir. weekly.sh'ın sonunu bekle;
+sağlık raporunun 2. satırına bak. Gerekirse <code>./scripts/publish.sh</code>'ı tek başına koş.</p>
+<h3>«SSD'yi çekmişim / elektrik gitti»</h3>
+<p>Panik yok: veritabanları günlüklüdür, publish kaldığı yerden sürer, izleyici kuyruğu
+kaldığı yerden işler. Tak → <code>start-all.sh</code> → gerekirse <code>publish.sh</code>.</p>
+<h3>Her şey için genel kural</h3>
+<p><b>Claude Code'u T7'deki repodan aç, sorunu tarif et.</b> Proje hafızası (bu rehberin çok
+daha detaylısı + tüm geçmiş vakalar) otomatik yüklenir; teşhis ve onarım oradan yürür.</p>
+</div>
+
+<h2>6. 🔥 Felaket kurtarma</h2>
+<table>
+<tr><th>Senaryo</th><th>Kayıp</th><th>Dönüş</th></tr>
+<tr><td>T7 SSD ölür</td><td>Stüdyo verisi (yeniden üretilebilir)</td>
+<td>Yeni disk → <code>csfreezetime</code>'ı klonla → kurulum (README) → demoları HLTV'den
+yeniden indir → backfill. <b>Site bu sırada kesintisiz yayında kalır.</b></td></tr>
+<tr><td>Mac ölür / yeni Mac</td><td>Hiçbir şey</td>
+<td>Claude Code + araçları kur → T7'yi tak → repo zaten T7'de →
+private hafıza reposunu klonla, <code>memory/</code> içeriğini
+<code>~/.claude/projects/-Volumes-T7-cs2-freezetime-cs2-platform/memory/</code> altına kopyala →
+kaldığın yerden devam.</td></tr>
+<tr><td>GitHub hesabı sorunu</td><td>—</td><td>Kod+site+hafıza üç ayrı repo; hepsinin kopyası T7'de de var.</td></tr>
+</table>
+
+<p class="meta" style="margin-top:24px">Bu rehber <code>docs/el-kitabi.html</code>'den üretilir.
+İçerik değişince: Claude Code'a "rehber PDF'ini yeniden bas" demen yeterli.</p>
+
+</body>
+</html>
