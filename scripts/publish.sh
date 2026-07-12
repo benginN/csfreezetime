@@ -31,10 +31,14 @@ if [ ! -d "$WORK/.git" ]; then
 fi
 git -C "$WORK" pull --ff-only 2>/dev/null || true
 
-# Boş repoya GitHub Release açılamaz (422) — ilk commit'i garanti et
+# bundles-new asla git'e girmez (Releases'a gider) — .gitignore garanti
+grep -qs '^bundles-new/$' "$WORK/.gitignore" 2>/dev/null || printf 'bundles-new/\n' >> "$WORK/.gitignore"
+
+# Boş repoya GitHub Release açılamaz (422) — ilk commit'i garanti et.
+# DİKKAT: add -A DEĞİL — export çıktıları (12GB paket) staging'de olabilir
 if ! git -C "$WORK" rev-parse HEAD >/dev/null 2>&1; then
   touch "$WORK/.nojekyll"
-  git -C "$WORK" add -A
+  git -C "$WORK" add .nojekyll .gitignore
   git -C "$WORK" commit -q -m "init site"
   git -C "$WORK" push -q origin HEAD
 fi
