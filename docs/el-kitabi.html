@@ -50,15 +50,21 @@ ham demoları MinIO'da "kasa"da; sonrakilerin hamı işlenince otomatik silinir.
 
 <h2>2. 📅 Haftalık rutin (cumartesi ~5 dk el emeği)</h2>
 <div class="box">
+<p><b>Altın kural:</b> script seni bekler, acele ettirmez — <b>ENTER'a yalnızca
+demolar backfill klasörüne girdikten SONRA</b> basılır.</p>
 <ol>
-<li><b>T7'yi tak</b>, terminali aç:
-<pre>cd /Volumes/T7/cs2-freezetime/cs2-platform && ./scripts/weekly.sh --shutdown</pre></li>
-<li>Haftanın demolarını HLTV'den <b>önce indir</b> (hedef: <code>T7/cs2-freezetime/downloads/</code>
-— asla doğrudan backfill'e indirme!), inenler bitince <b>backfill/ klasörüne sürükle</b>,
-terminalde <b>ENTER</b>'a bas.</li>
-<li>Script gerisini yapar: işler → istatistikleri tazeler → GitHub'a yayınlar →
-<b>sağlık raporu</b> basar → (--shutdown ile) her şeyi kapatır.</li>
-<li>Sağlık raporu 5 satırını oku (aşağıda) → T7'yi çıkar → bitti.</li>
+<li><b>T7'yi tak</b>; haftanın demolarını HLTV'den indirmeye başlat.
+Hedef klasör: <code>T7/cs2-freezetime/downloads/</code> — <b>asla doğrudan
+backfill'e indirme</b> (yarım inen dosya bozuk işlenir).</li>
+<li>Terminali aç, script'i başlat:
+<pre>cd /Volumes/T7/cs2-freezetime/cs2-platform && ./scripts/weekly.sh --shutdown</pre>
+Platform ayağa kalkar ve script <b>"demoları at, bitince ENTER'a bas"</b>
+diyerek beklemeye geçer — istediğin kadar bekleyebilir.</li>
+<li>İndirmeler <b>tamamen bitince</b>: dosyaları <code>downloads/</code>'tan
+<code>backfill/</code>'e sürükle → <b>şimdi ENTER'a bas.</b></li>
+<li>Gerisi otomatik: işleme → istatistik tazeleme → siteye yayın →
+<b>sağlık raporu</b> → (<code>--shutdown</code>) her şeyi kapatır.</li>
+<li>Raporun 5 satırını oku (aşağıda) → T7'yi çıkar → bitti ✔</li>
 </ol>
 </div>
 <h3>Sağlık raporu nasıl okunur?</h3>
@@ -121,17 +127,48 @@ daha detaylısı + tüm geçmiş vakalar) otomatik yüklenir; teşhis ve onarım
 </div>
 
 <h2>6. 🔥 Felaket kurtarma</h2>
+<p><b>Önce sakinleştirici gerçek:</b> hangi parça ölürse ölsün <u>site yayında
+kalır ve ziyaretçiler hiçbir şey fark etmez</u> — GitHub + R2 senin donanımından
+bağımsız yaşar. Kaybedeceğin tek şey <b>geçici olarak haftalık besleme
+yeteneği</b>dir (yeni maç ekleyememek); aşağıdaki adımlar onu geri kazanma
+sırasıyla yazıldı.</p>
+
+<div class="box warn">
+<h3>Senaryo: T7 SSD öldü</h3>
+<p><b>Ne kaybettim?</b> Stüdyoyu (veritabanları + ham kasası) — yani cumartesi
+backfill'i yapamıyorum. <b>Site, arşiv, kod, hafıza: hepsi güvende</b> (GitHub+R2).</p>
+<p><b>Siteyi tekrar besleyebilir hale dönüş</b> (öncelik sırasıyla):</p>
+<ol>
+<li>Yeni bir disk al (SSD şart değil ama iyi olur), üstüne
+<code>cs2-freezetime</code> klasörü aç.</li>
+<li><b>Claude Code'dan yardım almak için:</b> önce kodu klonla:
+<pre>git clone https://github.com/benginN/csfreezetime.git
+git clone https://github.com/benginN/freezetime-claudememoryforbackup.git</pre>
+İkinci repodaki <code>memory/</code> içeriğini şuraya kopyala
+(yol, kod klasörünü açtığın yere göre değişir — klasör adının
+tireli hâli):
+<pre>~/.claude/projects/&lt;klasör-yolunun-tireli-hali&gt;/memory/</pre>
+Sonra kod klasöründe <code>claude</code> yaz ve aç; şunu demen yeterli:
+<b>"SSD öldü, yeni diskteyim — kurtarmayı yürüt."</b> Claude bu rehberin
+çok daha ayrıntılısını (tüm geçmiş kararlar, komutlar, tuzaklar dahil)
+hafızasında taşır ve kurulumu seninle adım adım yapar.</li>
+<li>Kurulum (README "step-by-step setup") → Claude zaten yönlendirecek.</li>
+<li>Cumartesi rutinine dön: yeni maçları indir → backfill → publish.
+<b>Eski maçları yeniden indirmene gerek YOK</b> — onlar sitede yaşıyor;
+stüdyo sadece YENİ maçlar için gerekiyor. (Eski bir maçı yeniden işlemen
+gerekirse o zaman HLTV'den çekersin.)</li>
+</ol>
+</div>
+
 <table>
-<tr><th>Senaryo</th><th>Kayıp</th><th>Dönüş</th></tr>
-<tr><td>T7 SSD ölür</td><td>Stüdyo verisi (yeniden üretilebilir)</td>
-<td>Yeni disk → <code>csfreezetime</code>'ı klonla → kurulum (README) → demoları HLTV'den
-yeniden indir → backfill. <b>Site bu sırada kesintisiz yayında kalır.</b></td></tr>
-<tr><td>Mac ölür / yeni Mac</td><td>Hiçbir şey</td>
-<td>Claude Code + araçları kur → T7'yi tak → repo zaten T7'de →
-private hafıza reposunu klonla, <code>memory/</code> içeriğini
-<code>~/.claude/projects/-Volumes-T7-cs2-freezetime-cs2-platform/memory/</code> altına kopyala →
-kaldığın yerden devam.</td></tr>
-<tr><td>GitHub hesabı sorunu</td><td>—</td><td>Kod+site+hafıza üç ayrı repo; hepsinin kopyası T7'de de var.</td></tr>
+<tr><th>Diğer senaryolar</th><th>Kayıp</th><th>Dönüş</th></tr>
+<tr><td>Mac ölür / yeni Mac (T7 sağlam)</td><td>Hiçbir şey</td>
+<td>Claude Code + araçları kur (README adım 0) → T7'yi tak → repo zaten
+T7'de → hafıza reposunu klonla, <code>memory/</code> içeriğini
+<code>~/.claude/projects/-Volumes-T7-cs2-freezetime-cs2-platform/memory/</code>
+altına kopyala → T7'deki repodan <code>claude</code> aç: "yeni Mac, devam edelim".</td></tr>
+<tr><td>GitHub hesabı sorunu</td><td>—</td><td>Kod+site+hafıza üç ayrı repo; hepsinin kopyası T7'de de var.
+R2'deki paketler Cloudflare'de, GitHub'dan bağımsız.</td></tr>
 </table>
 
 <p class="meta" style="margin-top:24px">Bu rehber <code>docs/el-kitabi.html</code>'den üretilir.

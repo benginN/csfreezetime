@@ -215,17 +215,51 @@ itself rather than guess. 🧠 marks anything derived from the ML pipeline.
 
 Follow these in order. Everything runs on your own machine.
 
-**0. Install the prerequisites** (once):
+**0. Install the prerequisites** (once). Freezetime is built from several
+languages, so a handful of tools must exist on your machine first. You don't
+need to know any of them — just install and move on:
 
-- [Docker](https://docs.docker.com/get-docker/) + Docker Compose
-- A **Rust** toolchain (`cargo`) and `protoc` (Protocol Buffers compiler)
-- **Go** 1.22+
-- **Node** 18+
-- **Python** 3.11+ and [`uv`](https://docs.astral.sh/uv/)
-- Optional but recommended: `unar` (recovers the occasional broken `.rar` demo
-  archive), `ffmpeg` (only if you'll make GIFs)
+| Tool | What it's for here |
+|---|---|
+| **Docker** (+Compose) | runs the four databases in containers |
+| **Rust** (`cargo`) + `protoc` | builds the demo parser |
+| **Go** 1.22+ | builds the query/API service |
+| **Node** 18+ | builds the web UI |
+| **Python** 3.11+ + [`uv`](https://docs.astral.sh/uv/) | runs the stats/ML jobs |
+| `unar` *(optional)* | rescues the occasional broken `.rar` from HLTV |
 
-Then clone the repo and `cd` into it.
+**macOS** — install [Homebrew](https://brew.sh) if you don't have it, then
+copy-paste:
+
+```bash
+brew install --cask docker        # or: brew install colima docker docker-compose
+brew install rustup protobuf go node uv unar
+rustup-init -y                    # one-time Rust setup; then reopen the terminal
+```
+
+**Ubuntu/Debian** — roughly:
+
+```bash
+sudo apt install docker.io docker-compose-v2 protobuf-compiler golang nodejs npm unar
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh   # Rust
+curl -LsSf https://astral.sh/uv/install.sh | sh                  # uv
+```
+
+**Check everything landed** (each line should print a version, not an error):
+
+```bash
+docker --version && cargo --version && protoc --version \
+  && go version && node --version && uv --version
+```
+
+> Using Docker Desktop on macOS? Just open it once so the whale icon appears.
+> Using colima instead? `colima start --cpu 4 --memory 8` first.
+
+Then clone the repo and `cd` into it:
+
+```bash
+git clone https://github.com/benginN/csfreezetime.git && cd csfreezetime
+```
 
 **1. Start the databases and message queue.** This brings up PostgreSQL,
 ClickHouse, MinIO and NATS in Docker, then creates the database tables:
