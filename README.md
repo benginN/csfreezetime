@@ -49,7 +49,8 @@ on your own machine ([step-by-step setup](#step-by-step-setup-from-zero)).
 | Moments (structured round search), Pattern Finder, Scenarios | — | ✅ |
 | Veto simulator, free-range heatmap time windows, round overlay | — | ✅ |
 | **Analyze your own demo** (parsed in-browser, never uploaded) | ✅ | ✅ |
-| Notes, playlists, My DB (private demos) | — | ✅ |
+| **My DB** — your own private demo database, with local team reports | ✅ | ✅ |
+| Notes, playlists | — | ✅ |
 | **Feeding it your own demos** | — | ✅ |
 
 ### If you just want to use the site (visitors)

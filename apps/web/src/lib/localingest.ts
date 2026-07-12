@@ -3,6 +3,7 @@
 // saklar, sunucu kopyası silinir.
 import { api } from '../api';
 import { putMatch, putRound } from './localdb';
+import { isStatic } from './staticdata';
 
 export type FileHandle = { getFile(): Promise<File>; name: string };
 export type DirHandle = {
@@ -35,6 +36,34 @@ export async function processDem(
   onPhase: (p: string) => void,
 ): Promise<string> {
   const file = await fh.getFile();
+
+  // Statik site: sunucu yok — demo TARAYICIDA parse edilir (WASM). Çıktı
+  // sözleşmesi aynı: IndexedDB + .freezetime paketi + match_id döner.
+  if (isStatic) {
+    const { parseDemoInBrowser } = await import('./analyze/client');
+    const bundle = await parseDemoInBrowser(file, onPhase);
+    const baseName = fh.name.replace(/\.dem$/i, '');
+    onPhase('saving');
+    for (const [n, t] of Object.entries(bundle.rounds)) {
+      await putRound(bundle.match_id, Number(n), t);
+    }
+    await putMatch({
+      match_id: bundle.match_id, detail: bundle.detail, players: bundle.players,
+      saved_at: new Date().toISOString(),
+      rounds: bundle.detail.rounds.length, bytes: file.size,
+      name: baseName, origin,
+    });
+    if (dir) {
+      onPhase('writing bundle');
+      const bd = await dir.getDirectoryHandle(BUNDLE_DIR, { create: true });
+      const out = await bd.getFileHandle(baseName + '.json.gz', { create: true });
+      const w = await out.createWritable();
+      await w.write(await gzipJson({ ...bundle, name: baseName, origin }));
+      await w.close();
+    }
+    return bundle.match_id;
+  }
+
   onPhase('uploading');
   const form = new FormData();
   form.set('private', '1');

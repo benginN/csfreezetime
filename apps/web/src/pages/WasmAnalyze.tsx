@@ -2,9 +2,9 @@
 // hiçbir sunucuya gitmez, sonuç My DB altyapısına (IndexedDB) yazılır ve
 // normal maç sayfasında izlenir. Stüdyodaki /analyze bundan ayrıdır.
 import { useEffect, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { importBundle, localIds } from '../lib/localdb';
-import type { Bundle } from '../lib/localdb';
+import { parseDemoInBrowser } from '../lib/analyze/client';
 
 const MB = 1048576;
 const WARN_MB = 500;   // tek çekirdekte ~10+ sn ve belirgin RAM
@@ -20,8 +20,6 @@ export default function WasmAnalyze() {
   const [ph, setPh] = useState<Phase>({ s: 'idle' });
   const [drag, setDrag] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
-  const workerRef = useRef<Worker | null>(null);
-  useEffect(() => () => workerRef.current?.terminate(), []);
 
   // gizli E2E kancası: ?auto=/ayni-origin/dosya.dem → dosyayı çekip akışı
   // otomatik koşar, sonucu konsola yazar (headless test/CI için; yalnız
@@ -58,39 +56,24 @@ export default function WasmAnalyze() {
       `${mb.toFixed(0)} MB demo: parsing may take ~15-30 s and use a few GB of RAM. Continue?`)) return;
 
     setPh({ s: 'working', note: 'reading file', file: file.name });
-    const bytes = await file.arrayBuffer();
-    const worker = new Worker(new URL('../lib/analyze/analyze.worker.ts', import.meta.url), { type: 'module' });
-    workerRef.current = worker;
-    const wasmBase = new URL(`${import.meta.env.BASE_URL}analyze-wasm/`, window.location.origin).href;
-
-    worker.onmessage = async (e) => {
-      const m = e.data as { phase?: string; error?: string; done?: boolean; bundle?: Bundle };
-      if (m.phase) setPh({ s: 'working', note: m.phase, file: file.name });
-      if (m.error) {
-        setPh({ s: 'error', note: m.error });
-        if (document.title.startsWith('AUTOTEST')) document.title = `AUTOTEST_FAIL ${m.error}`.slice(0, 120);
-        worker.terminate();
+    try {
+      const bundle = await parseDemoInBrowser(file,
+        (p) => setPh({ s: 'working', note: p, file: file.name }));
+      setPh({ s: 'working', note: 'saving to your browser', file: file.name });
+      await importBundle({ ...bundle, name: file.name.replace(/\.dem$/i, '') }, file.size);
+      localIds.add(bundle.match_id);
+      console.log('AUTOTEST_OK', bundle.match_id,
+        'rounds=' + bundle.detail.rounds.length, 'kills=' + bundle.detail.kills.length);
+      if (document.title.startsWith('AUTOTEST')) {
+        document.title = `AUTOTEST_OK ${bundle.match_id} r=${bundle.detail.rounds.length} k=${bundle.detail.kills.length}`;
       }
-      if (m.done && m.bundle) {
-        setPh({ s: 'working', note: 'saving to your browser', file: file.name });
-        try {
-          await importBundle({ ...m.bundle, name: file.name.replace(/\.dem$/i, '') }, bytes.byteLength);
-          localIds.add(m.bundle.match_id);
-          console.log('AUTOTEST_OK', m.bundle.match_id,
-            'rounds=' + m.bundle.detail.rounds.length, 'kills=' + m.bundle.detail.kills.length);
-          if (document.title.startsWith('AUTOTEST')) {
-            document.title = `AUTOTEST_OK ${m.bundle.match_id} r=${m.bundle.detail.rounds.length} k=${m.bundle.detail.kills.length}`;
-          }
-          nav(`/match/${m.bundle.match_id}`);
-        } catch (err) {
-          console.log('AUTOTEST_FAIL', String(err));
-          setPh({ s: 'error', note: String(err) });
-        }
-        worker.terminate();
-      }
-    };
-    worker.onerror = (err) => { setPh({ s: 'error', note: err.message || 'worker crashed' }); };
-    worker.postMessage({ bytes, name: file.name, wasmBase }, [bytes]);
+      nav(`/match/${bundle.match_id}`);
+    } catch (err) {
+      const note = err instanceof Error ? err.message : String(err);
+      console.log('AUTOTEST_FAIL', note);
+      if (document.title.startsWith('AUTOTEST')) document.title = `AUTOTEST_FAIL ${note}`.slice(0, 120);
+      setPh({ s: 'error', note });
+    }
   }
 
   const busy = ph.s === 'working';
@@ -143,6 +126,11 @@ export default function WasmAnalyze() {
         archive matches. Big demos (500 MB+) take longer and use a few GB of
         RAM while parsing. Your analyzed matches stay in this browser until you
         clear site data.
+      </p>
+      <p className="meta" style={{ maxWidth: 640 }}>
+        Got a whole <b>folder</b> of demos (scrims, a team archive)?{' '}
+        <Link to="/mydb"><b>Build your own database →</b></Link> — same
+        in-browser engine, plus local team reports and strategy clustering.
       </p>
     </>
   );

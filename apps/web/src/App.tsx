@@ -90,8 +90,10 @@ export default function App() {
           <Route path="/insights" element={<Insights />} />
           <Route path="/patterns" element={studioOnly('Pattern Finder', <Patterns />)} />
           <Route path="/scenarios" element={studioOnly('Scenario Lab', <Scenarios />)} />
-          <Route path="/mydb" element={studioOnly('Create DB (My DB)', <MyDb />)} />
-          <Route path="/mydb/report" element={studioOnly('My DB report', <LocalReportPage />)} />
+          {/* My DB statikte de çalışır (2026-07-12): parse = WASM (localingest
+              statik dalı), depo = IndexedDB, rapor/kümeleme = TS portları */}
+          <Route path="/mydb" element={<MyDb />} />
+          <Route path="/mydb/report" element={<LocalReportPage />} />
         </Routes>
       </main>
     </>

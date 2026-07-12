@@ -86,7 +86,9 @@ export function shapeDemo(api: ParserApi, bytes: Uint8Array, sourceName: string,
   }
   phase('parsing player positions (the long part)');
   const props = ['X', 'Y', 'Z', 'yaw', 'pitch', 'health', 'armor',
-                 'is_alive', 'active_weapon_name', 'team_num', 'team_clan_name'];
+                 'is_alive', 'active_weapon_name', 'team_num', 'team_clan_name',
+                 'balance', 'inventory', 'has_helmet', 'flash_duration',
+                 'current_equip_value', 'start_balance'];
   const tickRows = api.parseTicks(bytes, props, grid, null, false).map(row);
 
   // steamid → oyuncu; tick → (steamid → satır)
@@ -241,8 +243,20 @@ export function shapeDemo(api: ParserApi, bytes: Uint8Array, sourceName: string,
         tr.armor[i] = r.armor != null ? Number(r.armor) : null;
         tr.alive[i] = r.is_alive != null ? r.is_alive === true : null;
         tr.weapon[i] = r.active_weapon_name != null ? String(r.active_weapon_name) : null;
+        tr.money[i] = r.balance != null ? Number(r.balance) : null;
+        tr.inv[i] = Array.isArray(r.inventory) ? (r.inventory as string[]) : null;
+        tr.helmet[i] = r.has_helmet != null ? r.has_helmet === true : null;
+        tr.flash[i] = r.flash_duration != null ? Number(r.flash_duration) : null;
         if (cal.has_lower && r.Z != null && cal.split_z != null) {
           tr.lower![i] = Number(r.Z) < cal.split_z;
+        }
+        if (tr.money_start == null && r.start_balance != null) {
+          tr.money_start = Number(r.start_balance);
+        }
+        // ekipman değeri: freeze bitimindeki (satın alma sonrası) ilk örnek
+        if (s.freeze != null && t >= s.freeze && tr.equip_value == null
+            && r.current_equip_value != null) {
+          tr.equip_value = Number(r.current_equip_value);
         }
       });
       if (seen) tracks.push(tr);
