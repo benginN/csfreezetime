@@ -53,7 +53,7 @@ export default function App() {
           Freezetime
         </span>
         <SearchBar />
-        {!isStatic && <a href={B + 'moments'} style={nl}>🔎 Moments</a>}
+        <a href={B + 'moments'} style={nl}>🔎 Moments</a>
         <a href={B + 'compare'} style={nl}>⚔️ Compare</a>
         <a href={B + 'leaderboards'} style={nl}>🏆 Boards</a>
         <a href={B + 'playlists'} style={nl}>🎬 Playlists</a>
@@ -79,7 +79,9 @@ export default function App() {
           <Route path="/yukle" element={<Navigate to="/archive" replace />} />
           <Route path="/report/:teamId" element={<Report />} />
           <Route path="/team/:teamId" element={<Team />} />
-          <Route path="/moments" element={studioOnly('Moments — DSL search', <Moments />)} />
+          {/* Moments statikte lite motorla çalışır (momentslite.ts):
+              kill/grenade/bomb/economy tam; presence stüdyoda kalır */}
+          <Route path="/moments" element={<Moments />} />
           <Route path="/compare" element={<Compare />} />
           <Route path="/player/:playerId" element={<Player />} />
           <Route path="/help" element={<Help />} />

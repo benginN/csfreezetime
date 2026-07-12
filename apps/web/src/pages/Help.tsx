@@ -19,10 +19,11 @@ export default function Help() {
         heatmaps, reports, predictions, leaderboards and search all work right
         here — plus <b>⚡ Analyze</b> parses <b>your own demo inside your
         browser</b> (nothing is uploaded), <b>My DB</b> builds a private
-        database from a folder of demos, the <b>veto simulator</b> runs
+        database from a folder of demos, <b>🔎 Moments</b> searches per-map
+        event indexes right in your browser, the <b>veto simulator</b> runs
         client-side, and <b>notes &amp; playlists</b> live in your browser
-        (with file export/import). Only the heaviest archive-wide tools —
-        <b> Moments</b> search, <b>Pattern Finder</b>, <b>Scenarios</b> and
+        (with file export/import). Only the heaviest tick-level tools —
+        presence queries, <b>Pattern Finder</b>, <b>Scenarios</b> and
         free-range heatmap time windows — need the <b>self-hosted studio</b>:
         clone the open-source repo at{' '}
         <a href="https://github.com/benginN/csfreezetime" target="_blank" rel="noreferrer">
@@ -138,7 +139,7 @@ export default function Help() {
       <h2>9. Leaderboards &amp; Moments</h2>
       <ul>
         <li><b>Leaderboards:</b> archive-wide top-20s — ADR, opening-duel net, clutch wins, flash effectiveness, trade kills. Every board states its minimum sample.</li>
-        <li><b>Moments:</b> a structured search over every round ever parsed ("AWP kills through smoke on eco"), with presets and savable searches. Results deep-link into replays.</li>
+        <li><b>Moments:</b> a structured search over every round ever parsed ("AWP kills through smoke on eco"), with presets and savable searches. Results deep-link into replays. On the public site searches run in your browser on a per-map event index — pick a map first; presence queries (players in an area) need the studio.</li>
       </ul>
 
       <h2>10. 🧠 ML Lab — the models behind the predictions</h2>

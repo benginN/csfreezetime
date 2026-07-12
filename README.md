@@ -50,7 +50,8 @@ on your own machine ([step-by-step setup](#step-by-step-setup-from-zero)).
 | **My DB** — your own private demo database, with local team reports | ✅ | ✅ |
 | **Veto simulator** (computed in-browser on the public site) | ✅ | ✅ |
 | **Notes & playlists** (stored in your browser, export/import as a file) | ✅ | ✅ |
-| Moments (structured round search), Pattern Finder, Scenarios | — | ✅ |
+| **Moments** — structured event search (kills, grenades, bombs, economy) | ✅ per map | ✅ |
+| Presence queries (players in an area), Pattern Finder, Scenarios | — | ✅ |
 | Free-range heatmap time windows, cross-match round overlay | — | ✅ |
 | **Feeding it your own demos** | — | ✅ |
 
@@ -68,9 +69,11 @@ Nothing to install, no account:
    a team), **🏆 Boards** and the **🧠 ML Lab**.
 5. Got a demo of your own? **⚡ Analyze** parses it right in your browser —
    nothing is uploaded anywhere — and shows it as a full match page.
-6. Features that need live database queries (Moments search, Pattern Finder,
-   Scenarios, veto sim, custom heatmap time windows) are marked as
-   **self-host only** — for those, run the studio yourself (next section).
+6. **🔎 Moments** searches the archive for structured events (opening kills,
+   early flashes, B plants, eco rounds…) right in your browser — pick a map
+   first. A few of the heaviest features (presence queries, Pattern Finder,
+   Scenarios, custom heatmap time windows) are marked **self-host only** —
+   for those, run the studio yourself (next section).
 
 The archive is updated in batches (roughly weekly) by the maintainer.
 

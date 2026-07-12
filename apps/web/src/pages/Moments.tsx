@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { api, type Clip, type QueryResult } from '../api';
+import { isStatic } from '../lib/staticdata';
 
 // An arama: DSL motorunun (find_moments) kullanıcı dostu yüzü.
 // Şablonlar formu doldurur; sonuç klipleri tek tıkla replay'e gider.
@@ -162,9 +163,16 @@ export default function Moments() {
   return (
     <>
       <h1>Moment search <span className="meta">— query the whole archive, jump straight into replay</span></h1>
+      {isStatic && (
+        <p className="meta" style={{ maxWidth: 640 }}>
+          Searches run in your browser on a per-map event index — pick a map
+          first. Presence queries (players in an area) need the self-hosted
+          studio.
+        </p>
+      )}
 
       <div className="toolbar">
-        {PRESETS.map((p) => (
+        {PRESETS.filter((p) => !isStatic || p.patch.eventType !== 'presence').map((p) => (
           <button key={p.name} className="ghost" title={p.hint}
             onClick={() => { setForm({ ...EMPTY, ...p.patch }); setResult(null); }}>
             {p.name}
@@ -185,9 +193,9 @@ export default function Moments() {
 
       <div className="panel">
         <div className="toolbar">
-          <label>map</label>
+          <label>map{isStatic ? ' (required)' : ''}</label>
           <select value={form.map} onChange={(e) => set({ map: e.target.value, area: '' })}>
-            <option value="">any</option>
+            <option value="">{isStatic ? 'pick a map…' : 'any'}</option>
             {maps.map((m) => <option key={m}>{m}</option>)}
           </select>
           <label>side</label>
@@ -216,7 +224,8 @@ export default function Moments() {
         <div className="toolbar">
           <label>event</label>
           <select value={form.eventType} onChange={(e) => set({ eventType: e.target.value })}>
-            {['kill', 'grenade', 'bomb', 'presence', 'economy'].map((t) => <option key={t}>{t}</option>)}
+            {['kill', 'grenade', 'bomb', ...(isStatic ? [] : ['presence']), 'economy']
+              .map((t) => <option key={t}>{t}</option>)}
           </select>
 
           {form.eventType === 'kill' && (

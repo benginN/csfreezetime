@@ -596,7 +596,14 @@ export const api = {
     return get<RoundTicks>(`/api/v1/rounds/${id}/${n}/ticks`);
   },
   mapLayout: (map: string) => get<MapLayout>(`/api/v1/maplayout?map=${map}`),
-  query: (dsl: unknown) => post<QueryResult>('/api/v1/query', dsl),
+  query: async (dsl: unknown): Promise<QueryResult> => {
+    if (isStatic) {
+      // Moments-lite: harita-başına yayınlanan indeks üzerinde istemci DSL'i
+      const { liteQuery } = await import('./lib/momentslite');
+      return liteQuery(dsl);
+    }
+    return post<QueryResult>('/api/v1/query', dsl);
+  },
   heatmap: (params: URLSearchParams) => get<HeatmapResp>('/api/v1/heatmap?' + params),
   stack: async (body: unknown): Promise<StackResp> => {
     const b = body as { rounds: { match_id: string; round_number: number }[]; align?: string; side?: string };

@@ -123,6 +123,7 @@ func main() {
 	r.Get("/api/v1/mlstatus", srv.mlStatus)
 	r.Get("/api/v1/leaderboards", srv.leaderboards)
 	r.Get("/api/v1/veto", srv.vetoSim)
+	r.Get("/api/v1/export/moments-index", srv.momentsIndexHandler)
 	r.Get("/api/v1/playlists", srv.playlistsList)
 	r.Post("/api/v1/playlists", srv.playlistCreate)
 	r.Get("/api/v1/playlists/{id}", srv.playlistGet)

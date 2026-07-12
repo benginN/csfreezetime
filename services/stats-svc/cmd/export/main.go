@@ -248,7 +248,10 @@ func main() {
 	for _, mp := range maps {
 		q := url.QueryEscape(mp)
 		pages = append(pages, "/api/v1/maplayout?map="+q,
-			"/api/v1/clusters?map="+q+"&side=T", "/api/v1/clusters?map="+q+"&side=CT")
+			"/api/v1/clusters?map="+q+"&side=T", "/api/v1/clusters?map="+q+"&side=CT",
+			// Moments-lite: harita-başına kompakt olay dizini (istemci DSL'i
+			// bunun üzerinde koşar; GH Pages'ın hat-üstü gzip'i sıkıştırır)
+			"/api/v1/export/moments-index?map="+q)
 	}
 	for _, t := range teams {
 		if t.Matches == 0 {
