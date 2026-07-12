@@ -19,10 +19,10 @@ set -a; source infra/.env; set +a
 
 SITE_REPO="${FREEZETIME_SITE_REPO:-benginN/benginN.github.io}"
 WORK="$(pwd)/.publish/site"
-# DİKKAT: mktemp /var/folders'a düşer ve Colima VM'i orayı GÖREMEZ
-# (yalnız /Users ve /Volumes paylaşımlı) → docker -v boş klasör bağlar.
-# Geçici alan bu yüzden T7'de (2026-07-12 vakası).
-TMP="/Volumes/T7/cs2-freezetime/.migrate-tmp"
+# DİKKAT: Colima VM'i yalnız EV DİZİNİNİ paylaşır — /var/folders da
+# /Volumes/T7 de konteynerden GÖRÜNMEZ (docker -v boş klasör bağlar).
+# Geçici alan bu yüzden $HOME altında (2026-07-12 vakası, iki deneme).
+TMP="$HOME/.freezetime-migrate-tmp"
 mkdir -p "$TMP"
 trap 'rm -rf "$TMP"' EXIT
 
