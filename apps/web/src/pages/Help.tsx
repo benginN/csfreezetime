@@ -12,13 +12,27 @@ export default function Help() {
         no external AI); hover it anywhere for a one-line explanation.
       </p>
 
+      <h2>0. Two flavors: this site vs the self-hosted studio</h2>
+      <p className="meta">
+        Freezetime runs in two ways. The <b>public site</b> (hosted free on
+        GitHub) is a read-only copy of a curated pro archive: replays,
+        heatmaps, reports, predictions, leaderboards and search all work right
+        here. Features that need a live database — <b>Moments</b> search,
+        <b> Pattern Finder</b>, <b>Scenarios</b>, the veto simulator, custom
+        heatmap time windows, playlists &amp; notes, analyzing <b>your own
+        demos</b>, and raw demo downloads — need the <b>self-hosted studio</b>:
+        clone the open-source repo and run everything on your own machine
+        (see the README). Pages that need the studio say so instead of
+        breaking. Everything below describes the full feature set.
+      </p>
+
       <h2>1. Finding matches — Home &amp; search</h2>
       <ul>
         <li><b>Team strip:</b> the top row lists every team alphabetically; scroll it sideways (mouse wheel works). Click a team for its page.</li>
         <li><b>Tournament strip:</b> right below it, every tournament in the archive, most recent first. Click one and the search locks to that event.</li>
         <li><b>Search box:</b> type anything — team ("spirit"), player ("donk"), map ("mirage"), tournament ("cologne") or combinations ("spirit mirage"). Matching team, player and 🏆 tournament chips appear above the results; the list filters live.</li>
         <li>The default list shows the most recent 100 <b>encounters</b> — a BO3/BO5 counts as one entry with its maps grouped inside, so a series is never cut in half at the bottom. Search reaches the entire database (the total is in the header).</li>
-        <li><b>Download a demo:</b> the ⬇ on any match row downloads the raw <code>.dem</code> (watchable in CS2).</li>
+        <li><b>Download a demo</b> (self-host): the ⬇ on a match row downloads the raw <code>.dem</code> (watchable in CS2) while the studio still stores it — for cleaned-up or archived matches it points you to HLTV instead. The public site doesn&apos;t store raw demos at all.</li>
         <li><b>Split recordings:</b> when a server restart split a map into two demos, the list shows ONE row with the combined score and an "N parts" badge; inside, round numbers continue across the parts.</li>
       </ul>
 
@@ -130,9 +144,10 @@ export default function Help() {
         <li><b>Cluster explorer:</b> browse the strategies themselves — each cluster is a recurring way a side opens a round, with example rounds that jump into the replay.</li>
       </ul>
 
-      <h2>11. My DB — your own demos, on your machine</h2>
+      <h2>11. Your own demos (self-host): Analyze &amp; My DB</h2>
       <ul>
-        <li>Keep your demos (scrims, officials, POV) in a folder; in <b>My DB</b> pick it once (Chrome/Edge). Unprocessed demos are parsed one by one — stop anytime, it resumes.</li>
+        <li><b>Analyze</b> is the front door for a single demo: drop a <code>.dem</code>, it&apos;s processed <i>privately</i> (never joins the archive) and opens as a full match page. Find it in the ☰ menu on a self-hosted studio.</li>
+        <li><b>My DB</b> is the power tool for a whole folder of demos (scrims, officials, POV) — it lives at <code>/mydb</code> (no menu button). Pick your folder once (Chrome/Edge); unprocessed demos are parsed one by one — stop anytime, it resumes.</li>
         <li><b>Privacy by design:</b> your demo visits the server only to be parsed, never joins the public site, and the server copy is deleted the instant your browser saves the result. Results live in a <code>.freezetime/</code> folder next to your demos — portable, re-importable on any machine in seconds.</li>
         <li><b>Compose with public matches:</b> the archive picker pulls chosen public matches into your database (e.g. your next opponent&apos;s official maps next to your scrims). They live locally with a 🌐 badge, count in your team report and clustering, and can be removed without touching the public site.</li>
         <li><b>Team voice comms:</b> attach a recording (mp3/ogg/wav) to any local match with the 🎙 button. It plays inside the replay locked to the match clock — scrubbing and speed keep it in sync, and an offset control lines the calls up with the action. The audio never leaves your machine.</li>

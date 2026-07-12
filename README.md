@@ -379,28 +379,42 @@ Fork-friendly: set `FREEZETIME_SITE_REPO=you/you.github.io`, run
 `scripts/publish.sh`, and enable Pages on that repo (Settings → Pages →
 deploy from branch `main`) — that last step is one-time.
 
-> ### 📝 Maintainer note — the weekly routine
+> ### 📝 Maintainer note — the weekly routine (one command)
 >
-> How new matches get onto the public site, start to finish:
+> 1. Plug in the archive SSD, open a terminal in the repo and run
+>    **`scripts/weekly.sh`** (add `--shutdown` to power everything down at
+>    the end). It brings the platform up and waits for you.
+> 2. Drop the week's demo archives (`.rar`/`.zip` from HLTV) into
+>    `backfill/` and press ENTER. **Download first, then feed** — never
+>    point the download manager straight at `backfill/`; half-written
+>    files get picked up broken. Big batch? Let downloads finish before
+>    feeding (an external SSD throttles under simultaneous write load).
+> 3. The script does the rest: waits for processing and the stats refresh,
+>    publishes only the **new** matches to GitHub, then prints a five-line
+>    **health check** (live-site match count, a real bundle download test,
+>    ML freshness, failed delta, disk usage). If a file is stuck ~10 min it
+>    warns you — that's usually a corrupt download: move it out of
+>    `backfill/`, re-download, carry on.
+> 4. Unplugging the SSD? `scripts/stop-all.sh` first, always (or use
+>    `--shutdown`).
 >
-> 1. Plug in the archive SSD, then `scripts/start-all.sh` (brings up the VM,
->    databases and all services).
-> 2. **Download first, then feed.** Point the download manager at the SSD's
->    `downloads/` folder (never straight into `backfill/` — partially
->    downloaded files could be picked up half-written). When the week's
->    archives (`.rar`/`.zip` from HLTV) have finished downloading, move them
->    into `backfill/` — the watcher takes it from there, no button.
-> 3. Avoid hammering the disk from two sides: for big batches, let the
->    downloads finish before the heavy processing starts (an external SSD
->    throttles under hours of simultaneous write load — the pipeline
->    self-heals with retries, but it's slower than just sequencing the work).
-> 4. Wait for the queue to settle (home-page match count stops climbing;
->    ml-auto recomputes tendencies/predictions on its own).
-> 5. Run `scripts/publish.sh`. It bundles only the **new** matches, uploads
->    them to Releases, refreshes every page JSON and pushes the site.
-> 6. Unplugging the SSD? `scripts/stop-all.sh` first, always.
+> ### 🧭 Maintainer note — where everything lives & disaster recovery
 >
-> That's it — two commands and a folder drop.
+> - **Everything lives on the SSD** (`/Volumes/T7/cs2-freezetime/`):
+>   `cs2-platform/` (this repo — open Claude Code HERE for help; it carries
+>   the full project memory), `colima/` (the VM: PostgreSQL + ClickHouse +
+>   MinIO with the raw-demo vault), `backfill/` (drop demos),
+>   `downloads/` (download staging), `memory-backup/` (assistant memory,
+>   auto-pushed to the private `freezetime-claudememoryforbackup` repo on
+>   every commit).
+> - **On GitHub:** code (`csfreezetime`), the live site + page data + replay
+>   bundles (`benginN.github.io` + its Releases), assistant memory (private).
+> - **If the SSD dies:** nothing irreplaceable is lost — code, the published
+>   archive and the memory are on GitHub; raw demos re-download from HLTV.
+> - **New machine / recovery:** clone the code repo, clone the private
+>   memory repo and copy its `memory/` into
+>   `~/.claude/projects/<sanitized-repo-path>/memory/`, then open Claude
+>   Code in the repo — it picks up exactly where things left off.
 
 ---
 
