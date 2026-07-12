@@ -158,11 +158,11 @@ function CompareBody({
 
       <UtilityCompare A={A} B={B} mapName={mapName} />
 
-      {/* Statikte yok: ısı karşılaştırma sürekli t0/t1 penceresi, veto ise
-          takım-çifti başına canlı sorgu ister (kare sayıda kombinasyon). */}
+      {/* Isı karşılaştırma statikte yok (sürekli t0/t1 penceresi canlı sorgu
+          ister); veto ise artık statikte TARAYICIDA hesaplanıyor (vetosim.ts) */}
       {!isStatic && <HeatCompare aId={aId} bId={bId} aName={A.team} bName={B.team} mapName={mapName} />}
 
-      {!isStatic && <VetoSim aId={aId} bId={bId} aName={A.team} bName={B.team} />}
+      <VetoSim aId={aId} bId={bId} aName={A.team} bName={B.team} />
     </>
   );
 }
@@ -173,6 +173,12 @@ function VetoSim({ aId, bId, aName, bName }: { aId: string; bId: string; aName: 
   const sim = useQuery({
     queryKey: ['veto', aId, bId, format],
     queryFn: async () => {
+      if (isStatic) {
+        // statikte veto TARAYICIDA hesaplanır — girdi zaten yayınlanan özetler
+        const { vetoSim } = await import('../lib/vetosim');
+        const [sa, sb] = await Promise.all([api.teamSummary(aId), api.teamSummary(bId)]);
+        return vetoSim(sa.maps, sb.maps, format);
+      }
       const r = await fetch(`/api/v1/veto?a=${aId}&b=${bId}&format=${format}`);
       const j = await r.json();
       if (!r.ok) throw new Error(j.error ?? `HTTP ${r.status}`);
