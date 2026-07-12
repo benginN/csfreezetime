@@ -12,6 +12,7 @@ a:hover { text-decoration: underline; }
 
 nav {
   display: flex; align-items: center; gap: 20px;
+  flex-wrap: wrap; /* dar pencerede linkler kırpılmaz, alt satıra iner */
   padding: 10px 24px;
   background: #131816; border-bottom: 1px solid #232a26;
   position: sticky; top: 0; z-index: 10;
@@ -106,9 +107,8 @@ canvas.flat { border: 1px solid #232a26; border-radius: 6px; display:block; }
 
 /* Global arama */
 .searchbar {
-  /* marka ile ☰ Menu arasındaki tüm genişliği doldurur (max-width kalktı:
-     dropdown'lu sade nav'da büyük boşluk bırakıyordu) */
-  flex: 1; display: flex; align-items: center;
+  /* kalan genişliği doldurur; düz link dizisinde ezilmesin diye taban var */
+  flex: 1; min-width: 220px; display: flex; align-items: center;
   background: #1c211e; border: 1px solid #313833; border-radius: 7px;
   padding: 6px 12px; gap: 8px;
 }
