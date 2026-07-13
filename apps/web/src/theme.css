@@ -325,6 +325,42 @@ button.swatch { width: 22px; height: 22px; padding: 0; border-radius: 5px; }
 }
 .monogram.sm { width: 18px; height: 18px; flex-basis: 18px; font-size: 9px; border-radius: 4px; display: inline-flex; vertical-align: -3px; }
 .monogram.lg { width: 52px; height: 52px; flex-basis: 52px; font-size: 20px; border-radius: 11px; }
+
+/* Collabs barı (site footer'ı): izinli takım adları kendi kendine akar.
+   SABİT alt bar — kapatılana dek her sayfada içeriğin üstünde yüzer
+   (z-index nav'ın üstünde). Bileşen bir kopyanın genişliğini ölçer
+   (--shift) ve kopyaları görünür alanı aşacak kadar çoğaltır; animasyon
+   tam bir kopya kaydırıp başa sarar — sabit piksel hızı, boşluksuz döngü.
+   Reduced-motion animasyonu kapatır. */
+.collabsbar {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 20;
+  display: flex; align-items: center; gap: 14px;
+  padding: 7px 16px;
+  background: #131816; border-top: 1px solid #232a26;
+}
+.collabslabel { flex: 0 0 auto; }
+.collabsscroll { flex: 1 1 auto; overflow: hidden; position: relative; }
+/* kenar solmaları: akan isimlerin bardan "doğup kaybolması" hissi */
+.collabsscroll::before, .collabsscroll::after {
+  content: ''; position: absolute; top: 0; bottom: 0; width: 24px;
+  z-index: 1; pointer-events: none;
+}
+.collabsscroll::before { left: 0; background: linear-gradient(90deg, #131816, transparent); }
+.collabsscroll::after { right: 0; background: linear-gradient(270deg, #131816, transparent); }
+.collabstrack {
+  display: inline-flex; white-space: nowrap; will-change: transform;
+  /* ölçüm gelene dek durur; bileşen --shift'le birlikte running yapar */
+  animation: collabscroll 20s linear infinite paused;
+}
+.collabshalf { display: inline-flex; align-items: center; gap: 30px; padding-right: 30px; }
+.collabname { display: inline-flex; align-items: center; gap: 8px; color: #b9c4bb; font-size: 13.5px; }
+.collabsclose {
+  flex: 0 0 auto; background: none; border: none; cursor: pointer;
+  color: #9aa89d; font-size: 13px; padding: 2px 6px; border-radius: 4px;
+}
+.collabsclose:hover { color: #d8ded9; background: #232a26; }
+@keyframes collabscroll { from { transform: translateX(0); } to { transform: translateX(calc(-1 * var(--shift, 100%))); } }
+@media (prefers-reduced-motion: reduce) { .collabstrack { animation: none; } }
 .teamcard .tname { font-weight: 600; font-size: 13.5px; line-height: 1.2; }
 .teamcard .meta { display: block; margin-top: 2px; }
 

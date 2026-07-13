@@ -622,7 +622,10 @@ maliyetli **"stüdyo + statik yayın"** modeli benimsendi:
   yeni 20k yörünge + team_id/date, filtreler istemcide), takım ısı
   haritası **pencere önayarları** (≥3 maçlık takım-harita başına 8 dosya),
   veto simülatörü (TS portu), notlar+playlist'ler (localStorage/IndexedDB,
-  JSON export/import), global arama (search-index.json). Statikte
+  JSON export/import), global arama (search-index.json), **collabs barı**
+  (T7 kökündeki `collabs.txt` → publish'te `data/collabs.json`; izinli
+  takım adları her sayfada kapatılabilir sabit alt barda akar, dosya
+  boşsa bar hiç görünmez — CollabsBar.tsx). Statikte
   KALMAYANLAR: presence sorguları, Scenario Lab, serbest heatmap zaman
   penceresi, maçlar-arası raunt bindirmesi (hepsi canlı ClickHouse ister).
 - **İptal:** auth/üyelik, Stripe/fiyatlandırma, ham demo indirme, sunucu

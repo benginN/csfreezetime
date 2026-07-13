@@ -19,6 +19,7 @@ import Scenarios from './pages/Scenarios';
 import LocalReportPage from './pages/LocalReport';
 import WasmAnalyze from './pages/WasmAnalyze';
 import StudioOnly from './components/StudioOnly';
+import CollabsBar from './components/CollabsBar';
 import { isStatic } from './lib/staticdata';
 
 // taban yol: vite base'inden gelir; hep '/' ile biter
@@ -100,6 +101,9 @@ export default function App() {
           <Route path="/mydb/report" element={<LocalReportPage />} />
         </Routes>
       </main>
+      {/* footer: izinli takımlar barı — kapatılana dek her sayfada,
+          içeriğin üstünde yüzer (CollabsBar.tsx) */}
+      <CollabsBar />
     </>
   );
 }

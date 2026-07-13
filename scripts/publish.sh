@@ -114,6 +114,22 @@ rsync -a --delete \
   apps/web/dist/ "$WORK/"
 # radar görselleri stüdyoda stats-svc'den servis edilir; statikte siteye girer
 rsync -a services/stats-svc/static/radars/ "$WORK/radars/"
+# collabs: T7 kökündeki collabs.txt (her satır bir takım adı; # yorum) →
+# data/collabs.json. Dosya yoksa/boşsa boş liste yazılır, ana sayfa şeridi
+# hiç görünmez. Yol FREEZETIME_COLLABS ile değiştirilebilir.
+COLLABS_TXT="${FREEZETIME_COLLABS:-$(pwd)/../collabs.txt}"
+python3 - "$COLLABS_TXT" "$WORK/data/collabs.json" <<'PY'
+import json, os, sys
+src, dst = sys.argv[1], sys.argv[2]
+names = []
+if os.path.isfile(src):
+    for line in open(src, encoding='utf-8'):
+        s = line.strip()
+        if s and not s.startswith('#'):
+            names.append(s)
+json.dump(names, open(dst, 'w', encoding='utf-8'), ensure_ascii=False)
+print(f"collabs: {len(names)} isim → data/collabs.json")
+PY
 # SPA deep-link'leri: Pages 404'ü uygulamaya düşürür; Jekyll kapalı
 cp "$WORK/index.html" "$WORK/404.html"
 touch "$WORK/.nojekyll"
