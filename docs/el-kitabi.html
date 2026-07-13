@@ -56,8 +56,10 @@ haftalık <code>publish</code> ile otomatik güncellenir — rutinde değişikli
 
 <h2>2. 📅 Cumartesi kontrol listesi (baştan sona bu — başka yere bakma)</h2>
 <p class="meta">Bu liste eksiksizdir: her cumartesi bu adımları sırayla yap, hiçbir şey
-açıkta kalmaz. Bir adım "belirti" gösterirse §5-6'daki reçeteye gidersin — göstermezse
-reçeteleri okumana hiç gerek yok.</p>
+açıkta kalmaz ve <b>hiçbir şeyi ezberlemene gerek yoktur</b>. Bir adım "belirti"
+gösterirse §5-6'daki reçeteye gidersin — göstermezse reçeteleri okumana hiç gerek yok.
+Bütün ayarlanabilir değerler (retention, disk, eşikler…) §7 tablosunda, dosya
+yerleriyle birlikte durur.</p>
 <div class="box">
 <p><b>Altın kural:</b> script seni bekler, acele ettirmez — <b>ENTER'a yalnızca
 demolar backfill klasörüne girdikten SONRA</b> basılır.</p>
@@ -86,7 +88,9 @@ değiştirdiğinin klasik belirtisidir → §6 parser reçetesi.</li>
 replay yükleniyor mu (paket iniyor mu → inmiyorsa §6 R2 reçetesi), oyuncu noktaları
 radar üstüne oturuyor mu (kaymışsa/hata varsa → §6 yeni harita reçetesi),
 collabs eklediysen ana sayfada kayan isimler görünüyor mu.</li>
-<li>T7'yi çıkar → bitti ✔ (Görüşürüz, haftaya!)</li>
+<li>T7'yi çıkar → bitti ✔ (<code>--shutdown</code> her şeyi zaten kapattı;
+weekly.sh <b>dışında</b> kendin <code>start-all</code> çalıştırdıysan çıkarmadan
+önce <code>./scripts/stop-all.sh</code> şart.)</li>
 </ol>
 </div>
 <h3>Sağlık raporu nasıl okunur?</h3>
@@ -133,6 +137,11 @@ backfill dışına taşı, HLTV'den yeniden indir; script kendiliğinden devam e
 <h3>«Backfill dondu / bir dosyada takıldı»</h3>
 <p>Neredeyse hep bozuk/yarım inmiş rar'dır. Dosyayı <code>backfill/</code> dışına taşı
 (ör. <code>../corrupt-redownload/</code>), HLTV'den yeniden indir. Sistem kendiliğinden devam eder.</p>
+<p>İkinci şüpheli (özellikle ÇOK büyük partilerde): T7, saatler süren yoğun yazmada
+takılabilir (MinIO "drive offline" fırtınası). Çare: partiyi böl — rar'ların bir kısmını
+<code>backfill/</code>'den <code>paused/</code> klasörüne taşı (aynı disk, anlık; o anki
+koşunun "no such file" hatası zararsızdır), biten parti işlensin, sonra geri taşı.
+Fırtınada failed olan maçlar kurtarılabilir: Claude Code'a "requeue et" de.</p>
 <h3>«Bir maç failed oldu»</h3>
 <p>Adı <code>-p1</code>/<code>-p2</code> ile bitiyorsa muhtemelen HLTV'nin bozuk parça kırıntısı —
 kurtarılamaz, umursama (meta durur, seri sağlamdır). Değilse: Claude Code'a "şu maç failed,
@@ -202,7 +211,48 @@ sabitler): <code>infra/postgres/schema.sql</code> seed'i + canlı veritabanı +
 meta verisinden gelir.</p>
 </div>
 
-<h2>7. 🔥 Felaket kurtarma</h2>
+<h2>7. 🎛 Ayar düğmeleri (değiştirilebilir eşikler ve yerleri)</h2>
+<p>Projedeki her ayarlanabilir değer <b>bir dosyada yaşar, kimsenin hafızasında değil</b>.
+Haftalık rutinde bunlara dokunulmaz; bir gün değiştirmek gerekirse (ya da Claude Code'a
+"şunu değiştir" derken) doğru yer bu tablodur.</p>
+<table>
+<tr><th>Düğme</th><th>Şu an</th><th>Nerede</th><th>Ne zaman ellenir</th></tr>
+<tr><td><code>RETENTION_MONTHS</code></td><td>18</td><td><code>infra/.env</code></td>
+<td>Stüdyonun tuttuğu arşiv penceresi (ay). <b>⚠ Asla yayından önce düşürme</b> —
+en eski maçlar yayınlanmadan silinir. Ham kasası da bu pencereyle yuvarlanır.</td></tr>
+<tr><td><code>RAW_DELETE_AFTER_READY</code></td><td>1</td><td><code>infra/.env</code></td>
+<td>Yeni maçın ham demosu işlenince silinsin mi. 0 yaparsan disk hızla dolar —
+yalnız büyük parser evrimi öncesi toplu saklama planıyla.</td></tr>
+<tr><td>Colima VM boyutu</td><td>4 CPU · 8 GB RAM · 800 GB disk</td>
+<td><code>colima start</code> komutu</td>
+<td>"S3 upload failed / minimum free" hatasında: <code>stop-all</code> →
+<code>colima stop</code> → <code>colima start --cpu 4 --memory 8 --disk N</code> →
+servisleri yeniden başlat (start-all).</td></tr>
+<tr><td><code>R2_*</code> (endpoint, anahtarlar, bucket, public base)</td><td>dolu</td>
+<td><code>infra/.env</code></td>
+<td>Cloudflare token/bucket değişirse. <b>Boş kalırsa</b> publish paketleri
+GitHub Releases'a gönderir — orası CORS'suz, replay'ler siteden inmez; boşaltma.</td></tr>
+<tr><td><code>ADMIN_TOKEN</code></td><td>dolu</td><td><code>infra/.env</code></td>
+<td>Admin panellerinin anahtarı (<code>?admin=TOKEN</code>); sızdığından şüphelenirsen değiştir.</td></tr>
+<tr><td>WASM Analyze boyut eşikleri</td><td>500 MB uyarı · 1400 MB blok</td>
+<td><code>apps/web/src/pages/WasmAnalyze.tsx</code></td>
+<td>Ziyaretçi geri bildirimine göre; 1400 wasm bellek tavanıdır, yükseltme.</td></tr>
+<tr><td><code>MINIO_DRIVE_MAX_TIMEOUT</code></td><td>120s</td>
+<td><code>infra/docker-compose.yml</code></td>
+<td>T7 uzun yoğun yazmada takılırsa (MinIO "drive offline" fırtınası) yükseltilebilir;
+asıl önlem partiyi bölmek.</td></tr>
+<tr><td><code>BACKFILL_DELETE_DONE</code></td><td>1</td><td><code>infra/.env</code></td>
+<td>İşlenen arşiv dosyası bekletilmeden silinsin mi (disk rahatlığı için 1 kalsın).</td></tr>
+<tr><td><code>FREEZETIME_SITE_REPO</code> / <code>_BRANCH</code> / <code>_COLLABS</code></td>
+<td>benginN/csfreezetime · gh-pages · <code>T7/cs2-freezetime/collabs.txt</code></td>
+<td>publish.sh (env ile değişir)</td>
+<td>Site reposu/dalı ya da collabs dosyasının yolu değişirse.</td></tr>
+<tr><td>Harita kalibrasyonları</td><td>9 harita</td>
+<td><code>infra/postgres/schema.sql</code> + canlı DB + <code>mapcal.ts</code></td>
+<td>Yeni harita gelince — reçetesi §6'daki yeşil kutuda (üç yer birlikte!).</td></tr>
+</table>
+
+<h2>8. 🔥 Felaket kurtarma</h2>
 <p><b>Önce sakinleştirici gerçek:</b> hangi parça ölürse ölsün <u>site yayında
 kalır ve ziyaretçiler hiçbir şey fark etmez</u> — GitHub + R2 senin donanımından
 bağımsız yaşar. Kaybedeceğin tek şey <b>geçici olarak haftalık besleme
